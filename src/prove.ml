@@ -268,7 +268,9 @@ let rec normalize = function
 let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess file =
   Fibers.background @@
   begin
-    if not @@ String.ends_with ~suffix:".mlw" file then
+    if not @@
+      List.exists (fun suffix -> String.ends_with ~suffix file) (Wenv.exts ())
+    then
       begin
         Log.error "invalid file name: %S" file ;
         exit 2
@@ -313,9 +315,8 @@ type outcome = {
   unfixed : string list ;
 }
 
-let prove_files ~mode ~session ~log ~axioms ~files =
+let prove_files ~env ~mode ~session ~log ~axioms ~files =
   begin
-    let env = Wenv.init () in
     let time = Wenv.time () in
     let maxdepth = Wenv.depth () in
     let patterns = Wenv.provers () in

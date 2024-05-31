@@ -36,8 +36,8 @@ val get : string -> of_json:(Json.t -> 'a) -> 'a
 val set : string -> to_json:('a -> Json.t) -> 'a -> unit
 val arg1 : string -> string
 val argv : string list -> string list
-val argfiles : exts:string list -> string list -> string list
-val allfiles : exts:string list -> (string -> unit) -> string -> unit
+val argfiles : ?exts:string list -> string list -> string list
+val allfiles : ?exts:string list -> (string -> unit) -> string -> unit
 
 val set_modified : unit -> unit
 val is_modified : unit -> bool
@@ -62,6 +62,8 @@ val set_packages : string list -> unit
 val set_provers : string list -> unit
 val set_tactics : string list -> unit
 val set_drivers : string list -> unit
+
+val exts : unit -> string list
 
 val load : unit -> unit
 val save : unit -> unit

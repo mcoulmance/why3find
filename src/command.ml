@@ -443,7 +443,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
             let _, theories = Proofs.load_proofs f in
             Proofs.M.(iter (fun _ -> iter (fun _ -> check_crc))) theories
           in
-          Wenv.allfiles ~exts:[".mlw"] check "."
+          Wenv.allfiles check "."
         end ;
       (* --- Printing -------------- *)
       if !list then
@@ -526,10 +526,11 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
          \n  Prove all why3 files and directories accessible from PATH.\n\n\
          OPTIONS:\n" ;
       let session = !session || !ide in
+      let env = Wenv.init () in
       let files = if !files = [] then ["."] else !files in
-      let files = Wenv.argfiles ~exts:[".mlw"] @@ List.rev files in
+      let files = Wenv.argfiles @@ List.rev files in
       let result = Prove.prove_files
-          ~mode:!mode ~session ~log:!log ~axioms:!axioms ~files in
+          ~env ~mode:!mode ~session ~log:!log ~axioms:!axioms ~files in
       let n = List.length result.unfixed in
       if n > 0 then
         begin
@@ -796,30 +797,30 @@ let () = register ~name:"install" ~args:"PKG PATH..."
             Utils.failwith "Can not install %S from outside of %s directory"
               src pkg ;
           allsrc := false ;
-          Wenv.allfiles ~exts:[".mlw"] (install ~kind:"(source)") src ;
+          Wenv.allfiles (install ~kind:"(source)") src ;
           let proofs = Proofs.proofs_file src in
           if Sys.file_exists proofs then
             install ~kind:"(proof)" proofs ;
         end in
+      ignore (Wenv.init ()); (* So that all extensions get loaded *)
       List.iter
         begin fun src ->
           if not @@ Sys.file_exists src then
             Utils.failwith "unknown file or directory %S" src ;
           if Sys.is_directory src then
-            Wenv.allfiles ~exts:[".mlw"] install_src src
+            Wenv.allfiles install_src src
           else
             match Filename.extension src with
-            | ".mlw" -> install_src src
             | ".cfg" -> Wenv.add_config src
             | ".drv" -> Wenv.add_driver src
+            | ext when List.mem ext (Wenv.exts ())  -> install_src src
             | _ ->
               Utils.failwith "don't know what to do with %S" src
         end paths ;
       let depends = Wenv.packages () in
       let drivers = Wenv.drivers () in
       let configs = Wenv.configs () in
-      if !allsrc then Wenv.allfiles ~exts:[".mlw"]
-          (install_src ~check:false) pkg ;
+      if !allsrc then Wenv.allfiles (install_src ~check:false) pkg ;
       List.iter (install ~kind:"(config)") configs ;
       List.iter (install ~kind:"(driver)") drivers ;
       let doc = !html in

@@ -253,6 +253,11 @@ let set_provers = sets "provers"
 let set_tactics = sets "tactics"
 let set_drivers = sets "drivers"
 
+let exts () =
+  let formats = Why3.Env.list_formats Why3.Env.base_language in
+  let exts = List.concat_map (fun (_, exts, _) -> exts) formats in
+  List.map (fun ext -> "." ^ ext) exts
+
 let arg0 file =
   if Filename.is_relative file then Filename.concat !prefix file else file
 
@@ -266,7 +271,7 @@ let ignored p =
   | 'a'..'z' | 'A'..'Z' | '0'..'9' -> false
   | _ -> true
 
-let allfiles ~exts f path =
+let allfiles ?(exts=exts ()) f path =
   if not (Sys.file_exists path) then
     Utils.failwith "Unknown file or directory %S" path ;
   if not (filter ~exts path || Sys.is_directory path) then
@@ -276,10 +281,10 @@ let allfiles ~exts f path =
     ~ignored:(fun p -> ignored p && p <> path)
     path
 
-let argfiles ~exts files = load () ;
+let argfiles ?exts files = load () ;
   let paths = ref [] in
   List.iter
-    (fun f -> allfiles ~exts (fun p -> paths := p :: !paths) (arg1 f))
+    (fun f -> allfiles ?exts (fun p -> paths := p :: !paths) (arg1 f))
     files ;
   List.rev !paths
 
@@ -322,8 +327,11 @@ let init () =
     let extra_config = configs () in
     let wconfig = Whyconf.init_config ~extra_config None in
     let wmain = Whyconf.get_main wconfig in
+    let wmain = Whyconf.set_plugins wmain [] in
+    let wconfig = Whyconf.set_main wconfig wmain in
     let wpath = Whyconf.loadpath wmain in
     let wenv = Why3.Env.create_env ("." :: pkg_path @ wpath) in
+    Why3.Whyconf.load_plugins wmain;
     { wconfig ; wenv ; pkgs }
   end
 

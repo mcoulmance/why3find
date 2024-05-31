@@ -41,6 +41,7 @@ type outcome = {
 }
 
 val prove_files :
+  env:Wenv.env ->
   mode:mode ->
   session:bool ->
   log:log ->
