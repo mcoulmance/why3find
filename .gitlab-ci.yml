@@ -25,7 +25,7 @@ opam:
   script:
     - sudo apt update
     - opam lint
-    - opam pin . -n
+    - opam pin . -n -k path
     - opam depext --jobs 2 why3find --with-test
     - opam install --jobs 2 why3find --with-test --with-doc
 
