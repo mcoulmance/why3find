@@ -85,6 +85,9 @@ let contains ~pattern ~text =
   | exception Not_found -> false
   | _ -> true
 
+let parse_argv argv opts arg umsg =
+  Arg.parse_argv argv (opts @ [ Debug.option ]) arg umsg
+
 (* -------------------------------------------------------------------------- *)
 (* --- Wrapper Command                                                    --- *)
 (* -------------------------------------------------------------------------- *)
@@ -108,6 +111,12 @@ let exec
   while !p < Array.length argv do
     begin
       match argv.(!p) with
+      | "--debug" ->
+        incr p ;
+        if !p < Array.length argv then
+          Debug.parse_and_set_labels argv.(!p)
+        else
+          failwith "missing --debug argument"
       | "-p" | "--package" ->
         incr p ;
         if !p < Array.length argv then
@@ -288,7 +297,7 @@ let () = register ~name:"query" ~args:"[PKG...]"
       let load = ref false in
       let deps = ref false in
       let query = ref [] in
-      Arg.parse_argv argv
+      parse_argv argv
         [ "-p", Arg.Set path, "print package paths only"
         ; "-L", Arg.Set load, "prints -L <path> for all dependencies"
         ; "-r", Arg.Set deps, "recursive mode, query also dependencies" ]
@@ -363,7 +372,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       let detect = ref false in
       let check = ref false in
       let retval = ref 0 in
-      Arg.parse_argv argv
+      parse_argv argv
         begin
           Wenv.options () @
           Runner.options @
@@ -494,7 +503,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       let add r p = r := p :: !r in
       let context n = log := `Context n in
       let failed () = context 5 in
-      Arg.parse_argv argv
+      parse_argv argv
         begin
           Wenv.options () @
           Runner.options @
@@ -555,7 +564,7 @@ let () = register ~name:"doc" ~args:"[OPTIONS] PATH..."
       let title = ref "" in
       let out = ref "" in
       let url = ref false in
-      Arg.parse_argv argv
+      parse_argv argv
         begin
           Wenv.options ~packages:true ~drivers:true () @ [
             "-t", Arg.Set_string title, "TITLE document title (default none)" ;
@@ -596,7 +605,7 @@ let () = register ~name:"extract" ~args:"[OPTIONS] MODULE..."
       let modules = ref [] in
       let libraries = ref [] in
       let out = ref "lib" in
-      Arg.parse_argv argv
+      parse_argv argv
         begin
           Wenv.options ~packages:true ~drivers:true () @ [
             "--lib", Arg.Set lib,
@@ -667,7 +676,7 @@ let () = register ~name:"server" ~args:"OPTIONS"
       let database = ref "why3server" in
       let address = ref "tcp://*:5555" in
       let polling = ref 1.0 in
-      Arg.parse_argv argv [
+      parse_argv argv [
         "--stats",Arg.Set stats,"Print cache disk usage";
         "--prune",Arg.Set_int prune,
         "AGE Prune cache generations older than AGE";
@@ -712,7 +721,7 @@ let () = register ~name:"worker" ~args:"OPTIONS"
     begin fun argv ->
       let server = ref "tcp://localhost:5555" in
       let polling = ref 1.0 in
-      Arg.parse_argv argv
+      parse_argv argv
         begin
           Runner.options @ [
             "--server",Arg.Set_string server,
@@ -744,7 +753,7 @@ let () = register ~name:"install" ~args:"PKG PATH..."
       let lib = ref "lib" in
       let html = ref "html" in
       let nodoc () = html := "" in
-      Arg.parse_argv argv [
+      parse_argv argv [
         "--dune", Arg.Set dune,"Generate dune installer (default)" ;
         "--global", Arg.Clear dune,"Install in global repository (why3find where)" ;
         "--lib", Arg.Set_string lib,"DIR extraction directory (why3find extract -o DIR)";
