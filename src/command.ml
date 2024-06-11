@@ -438,6 +438,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       let tactics = Wenv.tactics () in
       (* --- Drivers ----- *)
       let drivers = Wenv.drivers () in
+      (* --- Disabled warnings ----- *)
+      let disabled_warnings = Wenv.disabled_warnings () in
       (* --- Check ----- *)
       if !check then
         begin
@@ -482,6 +484,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           Wenv.set_provers patterns ;
           Wenv.set_tactics tactics ;
           Wenv.set_drivers drivers ;
+          Wenv.set_disabled_warnings disabled_warnings;
         end ;
       Wenv.save () ;
       exit (!retval)

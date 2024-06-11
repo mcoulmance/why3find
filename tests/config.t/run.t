@@ -9,6 +9,7 @@
   {
     "configs": [],
     "depth": 2,
+    "disabled-warnings": [],
     "drivers": [],
     "packages": [],
     "provers": [ "alt-ergo" ],

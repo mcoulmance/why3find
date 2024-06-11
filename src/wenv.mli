@@ -52,6 +52,7 @@ val packages : unit -> string list
 val provers : unit -> string list
 val tactics : unit -> string list
 val drivers : unit -> string list
+val disabled_warnings : unit -> string list
 
 val ignore_provers: unit -> unit
 
@@ -62,6 +63,7 @@ val set_packages : string list -> unit
 val set_provers : string list -> unit
 val set_tactics : string list -> unit
 val set_drivers : string list -> unit
+val set_disabled_warnings : string list -> unit
 
 val exts : unit -> string list
 

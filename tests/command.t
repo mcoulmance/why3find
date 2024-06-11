@@ -190,6 +190,7 @@
     --prover ±PRV,… configure provers
     --tactic ±TAC,… configure tactics
     --driver ±DRV,… configure drivers
+    --why3-warn-off WRN,… disable why3 warnings
     -p  same as --package
     -t  same as --time
     -d  same as --depth
@@ -231,6 +232,7 @@
     --prover ±PRV,… configure provers
     --tactic ±TAC,… configure tactics
     --driver ±DRV,… configure drivers
+    --why3-warn-off WRN,… disable why3 warnings
     -p  same as --package
     -t  same as --time
     -d  same as --depth

@@ -67,6 +67,7 @@ let drvs = ref []
 let pkgs = ref []
 let prvs = ref []
 let tacs = ref []
+let warn = ref []
 
 (* -------------------------------------------------------------------------- *)
 (* --- Variable Argument Processing                                       --- *)
@@ -208,6 +209,7 @@ let alloptions : (opt * string * Arg.spec * string) list = [
   `Prover,  "--prover", Arg.String (add prvs), "±PRV,… configure provers";
   `Prover,  "--tactic", Arg.String (add tacs), "±TAC,… configure tactics";
   `Driver,  "--driver", Arg.String (add drvs), "±DRV,… configure drivers";
+  `Prover,  "--why3-warn-off", Arg.String (add warn), "WRN,… disable why3 warnings";
   `Package, "-p", Arg.String (add pkgs), " same as --package";
   `Prover,  "-t", Arg.String settime, " same as --time";
   `Prover,  "-d", Arg.Int (setv depth), " same as --depth";
@@ -240,6 +242,7 @@ let packages () = gets "packages" pkgs
 let provers () = gets "provers" prvs
 let tactics () = gets "tactics" ~default:["split_vc"] tacs
 let drivers () = gets "drivers" drvs
+let disabled_warnings () = gets "disabled-warnings" warn
 
 let ignore_provers () =
   if !prvs <> [] then
@@ -252,6 +255,7 @@ let set_packages = sets "packages"
 let set_provers = sets "provers"
 let set_tactics = sets "tactics"
 let set_drivers = sets "drivers"
+let set_disabled_warnings = sets "disabled-warnings"
 
 let exts () =
   let formats = Why3.Env.list_formats Why3.Env.base_language in
@@ -319,6 +323,11 @@ type env = {
   pkgs : Meta.pkg list ;
 }
 
+(* TODO: fix this ugly workaround one way or another *)
+let disable_warning s =
+  let w = Why3.Loc.register_warning s Why3.Pp.empty_formatted in
+  Why3.Loc.disable_warning w
+
 let init () =
   let open Why3 in
   begin
@@ -330,6 +339,7 @@ let init () =
     let wpath = Whyconf.loadpath wmain in
     let wenv = Why3.Env.create_env ("." :: pkg_path @ wpath) in
     Why3.Whyconf.load_plugins wmain;
+    List.iter disable_warning (disabled_warnings ());
     { wconfig ; wenv ; pkgs }
   end
 
