@@ -811,7 +811,7 @@ let () = register ~name:"install" ~args:"PKG PATH..."
             Wenv.allfiles install_src src
           else
             match Filename.extension src with
-            | ".cfg" -> Wenv.add_config src
+            | ".cfg" -> Log.warning "won't install configuration file %S" src
             | ".drv" -> Wenv.add_driver src
             | ext when List.mem ext (Wenv.exts ())  -> install_src src
             | _ ->
@@ -821,7 +821,7 @@ let () = register ~name:"install" ~args:"PKG PATH..."
       let drivers = Wenv.drivers () in
       let configs = Wenv.configs () in
       if !allsrc then Wenv.allfiles (install_src ~check:false) pkg ;
-      List.iter (install ~kind:"(config)") configs ;
+      List.iter (Log.warning "won't install configurartion file %S") configs ;
       List.iter (install ~kind:"(driver)") drivers ;
       let doc = !html in
       if doc <> "" then
