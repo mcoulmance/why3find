@@ -114,7 +114,7 @@ let exec
       | "--debug" ->
         incr p ;
         if !p < Array.length argv then
-          Debug.parse_and_set_labels argv.(!p)
+          Debug.parse_and_set_flags argv.(!p)
         else
           failwith "missing --debug argument"
       | "-p" | "--package" ->

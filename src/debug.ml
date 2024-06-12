@@ -19,7 +19,7 @@
 (*                                                                        *)
 (**************************************************************************)
 
-type label = {
+type flag = {
   name : string; [@ocaml.warning "-69"]
   mutable active : bool;
 }
@@ -28,15 +28,15 @@ module M = Why3.Wstdlib.Mstr
 
 let all = ref M.empty
 
-let create_label name =
+let create_flag name =
   if name = "why3" || String.starts_with ~prefix:"why3:" name then
-    raise (Invalid_argument "Debug.create_label");
-  let label = { name ; active = false } in
-  let exn = Invalid_argument "Debug.create_label: label already exists" in
-  all := M.add_new exn name label !all;
-  label
+    raise (Invalid_argument "Debug.create_flag");
+  let flag = { name ; active = false } in
+  let exn = Invalid_argument "Debug.create_flag: flag already exists" in
+  all := M.add_new exn name flag !all;
+  flag
 
-let default = create_label "default"
+let default = create_flag "default"
 
 let parse_one s =
   try
@@ -52,20 +52,20 @@ let parse_one s =
   with
   | _ (* Why3.Debug.UnknownFlag is not exported !! *)
     (*| Not_found *) ->
-    let msg = Format.sprintf "unknown debug label %S" s in
+    let msg = Format.sprintf "unknown debug flag %S" s in
     raise (Stdlib.Arg.Bad msg)
 
-let parse_and_set_labels s =
+let parse_and_set_flags s =
   Printexc.record_backtrace true;
   default.active <- true;
   List.iter parse_one (String.split_on_char ',' s)
 
 let option =
-  ("--debug", Stdlib.Arg.String parse_and_set_labels,
-   "LABEL Activate the given debug label (eg default or why3:whyconf)")
+  ("--debug", Stdlib.Arg.String parse_and_set_flags,
+   "FLAG Activate the given debug flag (eg default or why3:whyconf)")
 
-let debug ?(label=default) format =
-  if label.active then
+let debug ?(flag=default) format =
+  if flag.active then
     begin
       Utils.flush ();
       Format.printf ("@[<hov>" ^^ format ^^ "@]@.")

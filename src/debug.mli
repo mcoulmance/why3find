@@ -21,24 +21,24 @@
 
 (** Debugging mechanism *)
 
-type label
-(** The type of degugging labels *)
+type flag
+(** The type of degugging flags *)
 
-val create_label : string -> label
-(** Create a debugging label from the given name *)
+val create_flag : string -> flag
+(** Create a debugging flag from the given name *)
 
-val default : label
-(** Default debugging label, activated whenever any other label is activated *)
+val default : flag
+(** Default debugging flag, activated whenever any other flag is activated *)
 
-val parse_and_set_labels : string -> unit
-(** Take a list of comma separated label names and activate the corresponding
-    labels. A label name prefixed with "why3:" activates the corresponding
-    debugging flag in Why3. The label "why3" activates all "info flags" of
+val parse_and_set_flags : string -> unit
+(** Take a list of comma separated flag names and activate the corresponding
+    flags. A flag name prefixed with "why3:" activates the corresponding
+    debugging flag in Why3. The flag "why3" activates all "info flags" of
     why3. *)
 
 val option : string * Stdlib.Arg.spec * string
 (** The Stdlib.Arg --debug option spec *)
 
-val debug : ?label:label -> ('a, Format.formatter, unit) format -> 'a
-(** Print a debugging message when the given [label] is activated. [label]
+val debug : ?flag:flag -> ('a, Format.formatter, unit) format -> 'a
+(** Print a debugging message when the given [flag] is activated. [flag]
     default to [default] when omitted *)
