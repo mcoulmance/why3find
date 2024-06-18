@@ -156,6 +156,7 @@
   
     --root DIR change to directory
     --extra-config CFG extra why3 config
+    --why3-warn-off WRN,… disable why3 warnings
     --package ±PKG,… add package dependency
     --driver ±DRV,… configure drivers
     -p  same as --package
@@ -186,13 +187,13 @@
   
     --root DIR change to directory
     --extra-config CFG extra why3 config
+    --why3-warn-off WRN,… disable why3 warnings
     --package ±PKG,… add package dependency
     --time TIME median proof time
     --depth DEPTH proof search limit
     --prover ±PRV,… configure provers
     --tactic ±TAC,… configure tactics
     --driver ±DRV,… configure drivers
-    --why3-warn-off WRN,… disable why3 warnings
     -p  same as --package
     -t  same as --time
     -d  same as --depth
@@ -229,13 +230,13 @@
   
     --root DIR change to directory
     --extra-config CFG extra why3 config
+    --why3-warn-off WRN,… disable why3 warnings
     --package ±PKG,… add package dependency
     --time TIME median proof time
     --depth DEPTH proof search limit
     --prover ±PRV,… configure provers
     --tactic ±TAC,… configure tactics
     --driver ±DRV,… configure drivers
-    --why3-warn-off WRN,… disable why3 warnings
     -p  same as --package
     -t  same as --time
     -d  same as --depth
@@ -290,6 +291,7 @@
   
     --root DIR change to directory
     --extra-config CFG extra why3 config
+    --why3-warn-off WRN,… disable why3 warnings
     --package ±PKG,… add package dependency
     --driver ±DRV,… configure drivers
     -p  same as --package

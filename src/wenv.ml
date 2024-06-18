@@ -203,13 +203,13 @@ let settime s =
 let alloptions : (opt * string * Arg.spec * string) list = [
   `All, "--root", Arg.Set_string chdir, "DIR change to directory";
   `All, "--extra-config", Arg.String (add cfgs), "CFG extra why3 config";
+  `All, "--why3-warn-off", Arg.String (add warn), "WRN,… disable why3 warnings";
   `Package, "--package", Arg.String (add pkgs), "±PKG,… add package dependency";
   `Prover,  "--time", Arg.String settime, "TIME median proof time";
   `Prover,  "--depth", Arg.Int (setv depth), "DEPTH proof search limit";
   `Prover,  "--prover", Arg.String (add prvs), "±PRV,… configure provers";
   `Prover,  "--tactic", Arg.String (add tacs), "±TAC,… configure tactics";
   `Driver,  "--driver", Arg.String (add drvs), "±DRV,… configure drivers";
-  `Prover,  "--why3-warn-off", Arg.String (add warn), "WRN,… disable why3 warnings";
   `Package, "-p", Arg.String (add pkgs), " same as --package";
   `Prover,  "-t", Arg.String settime, " same as --time";
   `Prover,  "-d", Arg.Int (setv depth), " same as --depth";
