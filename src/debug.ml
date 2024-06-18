@@ -29,8 +29,6 @@ module M = Why3.Wstdlib.Mstr
 let all = ref M.empty
 
 let create_flag name =
-  if name = "why3" || String.starts_with ~prefix:"why3:" name then
-    raise (Invalid_argument "Debug.create_flag");
   let flag = { name ; active = false } in
   let exn = Invalid_argument "Debug.create_flag: flag already exists" in
   all := M.add_new exn name flag !all;
@@ -39,19 +37,9 @@ let create_flag name =
 let default = create_flag "default"
 
 let parse_one s =
-  try
-    if String.starts_with ~prefix:"why3:" s then
-      let f = Why3.Debug.lookup_flag (String.sub s 5 (String.length s - 5)) in
-      Why3.Debug.set_flag f
-    else if s = "why3" then (* why3's --debug-all *)
-      let l = Why3.Debug.list_flags () in
-      List.iter (fun (_, f, b, _) -> if b then Why3.Debug.set_flag f) l
-    else
-      let lbl = M.find s !all in
-      lbl.active <- true
-  with
-  | _ (* Why3.Debug.UnknownFlag is not exported !! *)
-    (*| Not_found *) ->
+  match M.find_opt s !all with
+  | Some f -> f.active <- true
+  | None ->
     let msg = Format.sprintf "unknown debug flag %S" s in
     raise (Stdlib.Arg.Bad msg)
 
@@ -60,9 +48,24 @@ let parse_and_set_flags s =
   default.active <- true;
   List.iter parse_one (String.split_on_char ',' s)
 
-let option =
+let parse_why3 s =
+  try
+    let f = Why3.Debug.lookup_flag s in
+    Why3.Debug.set_flag f
+  with
+  | _ -> (* Why3 does not exposes Debug.UnknownFlag *)
+    let msg = Format.sprintf "unknown why3 debug flag %S" s in
+    raise (Stdlib.Arg.Bad msg)
+
+let parse_and_set_why3_flags s =
+  List.iter parse_why3 (String.split_on_char ',' s)
+
+let options = [
   ("--debug", Stdlib.Arg.String parse_and_set_flags,
-   "FLAG Activate the given debug flag (eg default or why3:whyconf)")
+   "FLAG Activate the given debug flag (eg default)");
+  ("--why3-debug", Stdlib.Arg.String parse_and_set_why3_flags,
+   "FLAG Activate the given Why3 debug flag");
+]
 
 let debug ?(flag=default) format =
   if flag.active then

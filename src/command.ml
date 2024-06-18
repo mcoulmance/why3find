@@ -86,7 +86,7 @@ let contains ~pattern ~text =
   | _ -> true
 
 let parse_argv argv opts arg umsg =
-  Arg.parse_argv argv (opts @ [ Debug.option ]) arg umsg
+  Arg.parse_argv argv (opts @ Debug.options) arg umsg
 
 (* -------------------------------------------------------------------------- *)
 (* --- Wrapper Command                                                    --- *)
@@ -107,6 +107,7 @@ let exec
   let pkgs = ref pkgs in
   let drivers = ref drivers in
   let configs = ref configs in
+  let why3_debug_flags = ref [] in
   let p = ref skip in
   while !p < Array.length argv do
     begin
@@ -117,6 +118,12 @@ let exec
           Debug.parse_and_set_flags argv.(!p)
         else
           failwith "missing --debug argument"
+      | "--why3-debug" ->
+        incr p ;
+        if !p < Array.length argv then
+          why3_debug_flags := argv.(!p) :: !why3_debug_flags
+        else
+          failwith "missing --why3-debug argument"
       | "-p" | "--package" ->
         incr p ;
         if !p < Array.length argv then
@@ -156,9 +163,10 @@ let exec
     List.map
       (fun (pkg : Meta.pkg) -> Printf.sprintf "--library=%s" pkg.path)
       pkgs in
+  let debug = List.map (Printf.sprintf "--debug=%s") !why3_debug_flags in
   let argv =
     Array.of_list @@ List.concat [
-      cmd::prefix ; cfg ; [ "-L" ; "." ] ; load ; drv ; List.rev !args
+      cmd::prefix ; cfg ; debug ; [ "-L" ; "." ] ; load ; drv ; List.rev !args
     ] in
   if !verbose then
     begin
@@ -439,7 +447,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       (* --- Drivers ----- *)
       let drivers = Wenv.drivers () in
       (* --- Disabled warnings ----- *)
-      let disabled_warnings = Wenv.disabled_warnings () in
+      let warnoff = Wenv.warnoff () in
       (* --- Check ----- *)
       if !check then
         begin
@@ -484,7 +492,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           Wenv.set_provers patterns ;
           Wenv.set_tactics tactics ;
           Wenv.set_drivers drivers ;
-          Wenv.set_disabled_warnings disabled_warnings;
+          Wenv.set_warnoff warnoff;
         end ;
       Wenv.save () ;
       exit (!retval)

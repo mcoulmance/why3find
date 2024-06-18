@@ -242,7 +242,7 @@ let packages () = gets "packages" pkgs
 let provers () = gets "provers" prvs
 let tactics () = gets "tactics" ~default:["split_vc"] tacs
 let drivers () = gets "drivers" drvs
-let disabled_warnings () = gets "disabled-warnings" warn
+let warnoff () = gets "warnoff" warn
 
 let ignore_provers () =
   if !prvs <> [] then
@@ -255,7 +255,7 @@ let set_packages = sets "packages"
 let set_provers = sets "provers"
 let set_tactics = sets "tactics"
 let set_drivers = sets "drivers"
-let set_disabled_warnings = sets "disabled-warnings"
+let set_warnoff = sets "warnoff"
 
 let exts () =
   let formats = Why3.Env.list_formats Why3.Env.base_language in
@@ -339,7 +339,7 @@ let init () =
     let wpath = Whyconf.loadpath wmain in
     let wenv = Why3.Env.create_env ("." :: pkg_path @ wpath) in
     Why3.Whyconf.load_plugins wmain;
-    List.iter disable_warning (disabled_warnings ());
+    List.iter disable_warning (warnoff ());
     { wconfig ; wenv ; pkgs }
   end
 

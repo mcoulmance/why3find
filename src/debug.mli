@@ -36,8 +36,8 @@ val parse_and_set_flags : string -> unit
     debugging flag in Why3. The flag "why3" activates all "info flags" of
     why3. *)
 
-val option : string * Stdlib.Arg.spec * string
-(** The Stdlib.Arg --debug option spec *)
+val options : (string * Stdlib.Arg.spec * string) list
+(** The Arg debug options specs *)
 
 val debug : ?flag:flag -> ('a, Format.formatter, unit) format -> 'a
 (** Print a debugging message when the given [flag] is activated. [flag]

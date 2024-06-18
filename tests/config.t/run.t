@@ -9,12 +9,12 @@
   {
     "configs": [],
     "depth": 2,
-    "disabled-warnings": [],
     "drivers": [],
     "packages": [],
     "provers": [ "alt-ergo" ],
     "tactics": [ "split_vc", "inline_goal" ],
-    "time": 1.0
+    "time": 1.0,
+    "warnoff": []
   }
 
   $ WHY3CONFIG=why3.conf why3find config --default

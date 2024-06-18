@@ -84,7 +84,8 @@
     -p print package paths only
     -L prints -L <path> for all dependencies
     -r recursive mode, query also dependencies
-    --debug FLAG Activate the given debug flag (eg default or why3:whyconf)
+    --debug FLAG Activate the given debug flag (eg default)
+    --why3-debug FLAG Activate the given Why3 debug flag
     -help  Display this list of options
     --help  Display this list of options
   
@@ -163,7 +164,8 @@
     -l PKG Additional OCaml library dependency
     -o destination directory (default "lib")
     -v print why3 extract command
-    --debug FLAG Activate the given debug flag (eg default or why3:whyconf)
+    --debug FLAG Activate the given debug flag (eg default)
+    --why3-debug FLAG Activate the given Why3 debug flag
     -help  Display this list of options
     --help  Display this list of options
   
@@ -206,7 +208,8 @@
     --default import local provers
     --detect detect and import local provers
     --check check that proof certificates conform to configuration
-    --debug FLAG Activate the given debug flag (eg default or why3:whyconf)
+    --debug FLAG Activate the given debug flag (eg default)
+    --why3-debug FLAG Activate the given Why3 debug flag
     -help  Display this list of options
     --help  Display this list of options
   
@@ -262,7 +265,8 @@
     --stdlib report hypotheses from stdlib
     --extern report also external symbols
     --builtin report also builtin symbols
-    --debug FLAG Activate the given debug flag (eg default or why3:whyconf)
+    --debug FLAG Activate the given debug flag (eg default)
+    --why3-debug FLAG Activate the given Why3 debug flag
     -help  Display this list of options
     --help  Display this list of options
   
@@ -294,7 +298,8 @@
     -o DIR destination directory (default "html")
     -u output generated URI
     --url URL prefix URL for external packages.
-    --debug FLAG Activate the given debug flag (eg default or why3:whyconf)
+    --debug FLAG Activate the given debug flag (eg default)
+    --why3-debug FLAG Activate the given Why3 debug flag
     -help  Display this list of options
     --help  Display this list of options
   
@@ -318,7 +323,8 @@
     --database DIR Database (default "why3server")
     --polling TIME server polling interval (default 1.0s)
     --trace Trace server protocol
-    --debug FLAG Activate the given debug flag (eg default or why3:whyconf)
+    --debug FLAG Activate the given debug flag (eg default)
+    --why3-debug FLAG Activate the given Why3 debug flag
     -help  Display this list of options
     --help  Display this list of options
   
@@ -344,7 +350,8 @@
     --local no calibration (use local times)
     --reftime TIME set calibration time (default 0.5s)
     --sequential use sequential calibration algorithm
-    --debug FLAG Activate the given debug flag (eg default or why3:whyconf)
+    --debug FLAG Activate the given debug flag (eg default)
+    --why3-debug FLAG Activate the given Why3 debug flag
     -help  Display this list of options
     --help  Display this list of options
   
@@ -382,7 +389,8 @@
     --lib DIR extraction directory (why3find extract -o DIR)
     --doc DIR doc output directory (why3find doc -o DIR)
     --no-doc Do not install documentation
-    --debug FLAG Activate the given debug flag (eg default or why3:whyconf)
+    --debug FLAG Activate the given debug flag (eg default)
+    --why3-debug FLAG Activate the given Why3 debug flag
     -help  Display this list of options
     --help  Display this list of options
   
