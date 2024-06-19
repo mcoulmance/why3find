@@ -85,6 +85,9 @@ let contains ~pattern ~text =
   | exception Not_found -> false
   | _ -> true
 
+let parse_argv argv opts arg umsg =
+  Arg.parse_argv argv (opts @ Debug.options) arg umsg
+
 (* -------------------------------------------------------------------------- *)
 (* --- Wrapper Command                                                    --- *)
 (* -------------------------------------------------------------------------- *)
@@ -104,10 +107,30 @@ let exec
   let pkgs = ref pkgs in
   let drivers = ref drivers in
   let configs = ref configs in
+  let why3_debug_flags = ref [] in
+  let why3_warn_off = ref [] in
   let p = ref skip in
   while !p < Array.length argv do
     begin
       match argv.(!p) with
+      | "--debug" ->
+        incr p ;
+        if !p < Array.length argv then
+          Debug.parse_and_set_flags argv.(!p)
+        else
+          failwith "missing --debug argument"
+      | "--why3-debug" ->
+        incr p ;
+        if !p < Array.length argv then
+          why3_debug_flags := argv.(!p) :: !why3_debug_flags
+        else
+          failwith "missing --why3-debug argument"
+      | "--why3-warn-off" ->
+        incr p ;
+        if !p < Array.length argv then
+          why3_warn_off := argv.(!p) :: !why3_warn_off
+        else
+          failwith "missing --why3-debug argument"
       | "-p" | "--package" ->
         incr p ;
         if !p < Array.length argv then
@@ -147,9 +170,12 @@ let exec
     List.map
       (fun (pkg : Meta.pkg) -> Printf.sprintf "--library=%s" pkg.path)
       pkgs in
+  let debug =
+    List.map (Printf.sprintf "--debug=%s") !why3_debug_flags
+    @ List.map (Printf.sprintf "--warn-off=%s") !why3_warn_off in
   let argv =
     Array.of_list @@ List.concat [
-      cmd::prefix ; cfg ; [ "-L" ; "." ] ; load ; drv ; List.rev !args
+      cmd::prefix ; cfg ; debug ; [ "-L" ; "." ] ; load ; drv ; List.rev !args
     ] in
   if !verbose then
     begin
@@ -288,7 +314,7 @@ let () = register ~name:"query" ~args:"[PKG...]"
       let load = ref false in
       let deps = ref false in
       let query = ref [] in
-      Arg.parse_argv argv
+      parse_argv argv
         [ "-p", Arg.Set path, "print package paths only"
         ; "-L", Arg.Set load, "prints -L <path> for all dependencies"
         ; "-r", Arg.Set deps, "recursive mode, query also dependencies" ]
@@ -363,7 +389,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       let detect = ref false in
       let check = ref false in
       let retval = ref 0 in
-      Arg.parse_argv argv
+      parse_argv argv
         begin
           Wenv.options () @
           Runner.options @
@@ -429,6 +455,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       let tactics = Wenv.tactics () in
       (* --- Drivers ----- *)
       let drivers = Wenv.drivers () in
+      (* --- Disabled warnings ----- *)
+      let warnoff = Wenv.warnoff () in
       (* --- Check ----- *)
       if !check then
         begin
@@ -473,6 +501,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           Wenv.set_provers patterns ;
           Wenv.set_tactics tactics ;
           Wenv.set_drivers drivers ;
+          Wenv.set_warnoff warnoff;
         end ;
       Wenv.save () ;
       exit (!retval)
@@ -494,7 +523,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       let add r p = r := p :: !r in
       let context n = log := `Context n in
       let failed () = context 5 in
-      Arg.parse_argv argv
+      parse_argv argv
         begin
           Wenv.options () @
           Runner.options @
@@ -555,7 +584,7 @@ let () = register ~name:"doc" ~args:"[OPTIONS] PATH..."
       let title = ref "" in
       let out = ref "" in
       let url = ref false in
-      Arg.parse_argv argv
+      parse_argv argv
         begin
           Wenv.options ~packages:true ~drivers:true () @ [
             "-t", Arg.Set_string title, "TITLE document title (default none)" ;
@@ -596,7 +625,7 @@ let () = register ~name:"extract" ~args:"[OPTIONS] MODULE..."
       let modules = ref [] in
       let libraries = ref [] in
       let out = ref "lib" in
-      Arg.parse_argv argv
+      parse_argv argv
         begin
           Wenv.options ~packages:true ~drivers:true () @ [
             "--lib", Arg.Set lib,
@@ -667,7 +696,7 @@ let () = register ~name:"server" ~args:"OPTIONS"
       let database = ref "why3server" in
       let address = ref "tcp://*:5555" in
       let polling = ref 1.0 in
-      Arg.parse_argv argv [
+      parse_argv argv [
         "--stats",Arg.Set stats,"Print cache disk usage";
         "--prune",Arg.Set_int prune,
         "AGE Prune cache generations older than AGE";
@@ -712,7 +741,7 @@ let () = register ~name:"worker" ~args:"OPTIONS"
     begin fun argv ->
       let server = ref "tcp://localhost:5555" in
       let polling = ref 1.0 in
-      Arg.parse_argv argv
+      parse_argv argv
         begin
           Runner.options @ [
             "--server",Arg.Set_string server,
@@ -744,7 +773,7 @@ let () = register ~name:"install" ~args:"PKG PATH..."
       let lib = ref "lib" in
       let html = ref "html" in
       let nodoc () = html := "" in
-      Arg.parse_argv argv [
+      parse_argv argv [
         "--dune", Arg.Set dune,"Generate dune installer (default)" ;
         "--global", Arg.Clear dune,"Install in global repository (why3find where)" ;
         "--lib", Arg.Set_string lib,"DIR extraction directory (why3find extract -o DIR)";

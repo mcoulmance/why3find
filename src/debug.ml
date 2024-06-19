@@ -1,0 +1,76 @@
+(**************************************************************************)
+(*                                                                        *)
+(*  This file is part of the why3find.                                    *)
+(*                                                                        *)
+(*  Copyright (C) 2022-2024                                               *)
+(*    CEA (Commissariat à l'énergie atomique et aux énergies              *)
+(*         alternatives)                                                  *)
+(*                                                                        *)
+(*  you can redistribute it and/or modify it under the terms of the GNU   *)
+(*  Lesser General Public License as published by the Free Software       *)
+(*  Foundation, version 2.1.                                              *)
+(*                                                                        *)
+(*  It is distributed in the hope that it will be useful,                 *)
+(*  but WITHOUT ANY WARRANTY; without even the implied warranty of        *)
+(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *)
+(*  GNU Lesser General Public License for more details.                   *)
+(*                                                                        *)
+(*  See the enclosed LICENSE.md for details.                              *)
+(*                                                                        *)
+(**************************************************************************)
+
+type flag = {
+  name : string; [@ocaml.warning "-69"]
+  mutable active : bool;
+}
+
+module M = Why3.Wstdlib.Mstr
+
+let all = ref M.empty
+
+let create_flag name =
+  let flag = { name ; active = false } in
+  let exn = Invalid_argument "Debug.create_flag: flag already exists" in
+  all := M.add_new exn name flag !all;
+  flag
+
+let default = create_flag "default"
+
+let parse_one s =
+  match M.find_opt s !all with
+  | Some f -> f.active <- true
+  | None ->
+    let msg = Format.sprintf "unknown debug flag %S" s in
+    raise (Stdlib.Arg.Bad msg)
+
+let parse_and_set_flags s =
+  Printexc.record_backtrace true;
+  default.active <- true;
+  List.iter parse_one (String.split_on_char ',' s)
+
+let parse_why3 s =
+  try
+    let f = Why3.Debug.lookup_flag s in
+    Why3.Debug.set_flag f
+  with
+  | _ -> (* Why3 does not exposes Debug.UnknownFlag *)
+    let msg = Format.sprintf "unknown why3 debug flag %S" s in
+    raise (Stdlib.Arg.Bad msg)
+
+let parse_and_set_why3_flags s =
+  List.iter parse_why3 (String.split_on_char ',' s)
+
+let options = [
+  ("--debug", Stdlib.Arg.String parse_and_set_flags,
+   "FLAG Activate the given debug flag (eg default)");
+  ("--why3-debug", Stdlib.Arg.String parse_and_set_why3_flags,
+   "FLAG Activate the given Why3 debug flag");
+]
+
+let debug ?(flag=default) format =
+  if flag.active then
+    begin
+      Utils.flush ();
+      Format.printf ("@[<hov>" ^^ format ^^ "@]@.")
+    end
+  else Format.ifprintf Format.std_formatter format
