@@ -108,6 +108,7 @@ let exec
   let drivers = ref drivers in
   let configs = ref configs in
   let why3_debug_flags = ref [] in
+  let why3_warn_off = ref [] in
   let p = ref skip in
   while !p < Array.length argv do
     begin
@@ -122,6 +123,12 @@ let exec
         incr p ;
         if !p < Array.length argv then
           why3_debug_flags := argv.(!p) :: !why3_debug_flags
+        else
+          failwith "missing --why3-debug argument"
+      | "--why3-warn-off" ->
+        incr p ;
+        if !p < Array.length argv then
+          why3_warn_off := argv.(!p) :: !why3_warn_off
         else
           failwith "missing --why3-debug argument"
       | "-p" | "--package" ->
@@ -163,7 +170,9 @@ let exec
     List.map
       (fun (pkg : Meta.pkg) -> Printf.sprintf "--library=%s" pkg.path)
       pkgs in
-  let debug = List.map (Printf.sprintf "--debug=%s") !why3_debug_flags in
+  let debug =
+    List.map (Printf.sprintf "--debug=%s") !why3_debug_flags
+    @ List.map (Printf.sprintf "--warn-off=%s") !why3_warn_off in
   let argv =
     Array.of_list @@ List.concat [
       cmd::prefix ; cfg ; debug ; [ "-L" ; "." ] ; load ; drv ; List.rev !args
