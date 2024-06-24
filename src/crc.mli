@@ -38,6 +38,7 @@ and crc = private {
   state : state ;
 }
 
+val none : state
 val stuck : ?goal:Session.goal -> unit -> crc
 val prover : ?goal:Session.goal -> Prover.prover_desc -> float -> crc
 val tactic : ?goal:Session.goal -> string -> crc list -> crc
