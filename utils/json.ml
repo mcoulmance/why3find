@@ -23,12 +23,22 @@
 (* --- JSON Utilities                                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
-type t = Yojson.t
+type t = Yojson.Basic.t
 
 let of_file f : t = (Yojson.Basic.from_file f :> t)
+
+let rec to_raw : Yojson.Basic.t -> Yojson.Raw.t = function
+  | `Int i -> `Intlit (string_of_int i)
+  | `Float f -> `Floatlit (Printf.sprintf "%.3g" f)
+  | `String _ as s -> `Stringlit (Yojson.Basic.to_string s)
+  | `Assoc fs -> `Assoc (List.map (fun (s, js) -> (s, to_raw js)) fs)
+  | `List js -> `List (List.map to_raw js)
+  | (`Null | `Bool _ as js) -> js
+
 let to_file f js =
   let out = open_out f in
-  Yojson.pretty_to_channel ~std:true out js ;
+  let js = to_raw js in
+  Yojson.Raw.pretty_to_channel ~std:true out js ;
   output_char out '\n';
   close_out out
 

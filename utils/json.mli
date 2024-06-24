@@ -23,7 +23,7 @@
 (* --- JSON Utilities                                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
-type t = Yojson.t
+type t = Yojson.Basic.t
 
 val of_file : string -> t
 val to_file : string -> t -> unit
