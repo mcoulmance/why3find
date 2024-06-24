@@ -31,6 +31,8 @@ type state =
       children : crc list ;
       stuck : int ;
       proved : int ;
+      depth : int ;
+      time : float ;
     }
 
 and crc = {
@@ -50,6 +52,15 @@ let get_proved { state } = match state with
   | Stuck -> 0
   | Prover _ -> 1
   | Tactic { proved } -> proved
+
+let get_time { state } = match state with
+  | Stuck -> 0.0
+  | Prover(_,t) -> t
+  | Tactic { time } -> time
+
+let get_depth { state } = match state with
+  | Stuck | Prover _ -> 0
+  | Tactic { depth } -> succ depth
 
 let size { state } = match state with
   | Stuck | Prover _ -> 1
@@ -72,8 +83,10 @@ let is_unknown { state } = match state with
 let tactic ?goal id children =
   let stuck = List.fold_left (fun n c -> n + get_stuck c) 0 children in
   let proved = List.fold_left (fun n c -> n + get_proved c) 0 children in
+  let depth = List.fold_left (fun h c -> max h @@ get_depth c) 0 children in
+  let time = List.fold_left (fun t c -> max t @@ get_time c) 0.0 children in
   if stuck > 0 && proved = 0 then { goal ; state = Stuck } else
-    { goal; state = Tactic { id ; children ; stuck ; proved } }
+    { goal; state = Tactic { id ; children ; stuck ; proved ; depth ; time } }
 
 type verdict = [ `Valid of int | `Failed of int | `Partial of int * int ]
 
@@ -97,7 +110,6 @@ let pretty fmt crc =
   let s = get_stuck crc in
   let p = get_proved crc in
   pp_result fmt ~stuck:s ~proved:p
-
 
 (* -------------------------------------------------------------------------- *)
 (* --- JSON                                                               --- *)
@@ -159,9 +171,15 @@ let unchanged = ref 0
 let nproved = ref 0
 let nstuck = ref 0
 
-let (+=) r n = r := !r + n
+let adepth = ref 0
+let bdepth = ref 0
+let atime = ref 0.0
+let btime = ref 0.0
 
-let rec stats a b =
+let (+=) r n = r := !r + n
+let (^=) r t = r := max !r t
+
+let rec node_stats a b =
   begin
     match a.state, b.state with
 
@@ -189,7 +207,7 @@ let rec stats a b =
     | Tactic { id = f0 ; children = cs0 } ,
       Tactic { id = f1 ; children = cs1 }
       when f0 = f1 && List.length cs0 = List.length cs1 ->
-      List.iter2 stats cs0 cs1
+      List.iter2 node_stats cs0 cs1
 
     | _ ->
       let r =
@@ -204,6 +222,15 @@ let rec stats a b =
 
   end
 
+let stats a b =
+  begin
+    node_stats a b ;
+    adepth ^= get_depth a ;
+    bdepth ^= get_depth b ;
+    atime ^= get_time a ;
+    btime ^= get_time b ;
+  end
+
 let print_stats () =
   begin
     Utils.flush () ;
@@ -211,9 +238,9 @@ let print_stats () =
       (pp_result ~proved:!nproved ~stuck:!nstuck) ;
     if !fixed + !broken + !minimized + !updated = 0 then
       if !nproved >0 then
-        Format.printf " (unchanged)@."
+        Format.printf " (unchanged)@\n"
       else
-        Format.printf " (none)@."
+        Format.printf " (none)@\n"
     else
       begin
         Format.print_newline () ;
@@ -227,8 +254,21 @@ let print_stats () =
           Format.printf " - updated: @{<orange>%d@}@\n" !updated ;
         if !broken > 0 then
           Format.printf " - broken: @{<red>%d@}@\n" !broken ;
-        Format.print_flush () ;
-      end
+      end ;
+    Format.printf "Provers %a%t@." Utils.pp_time !btime
+      (fun fmt ->
+         let d = !btime -. !atime in
+         if abs_float d > 0.01 then
+           Format.fprintf fmt " (%a)" Utils.pp_delta d ;
+         if !bdepth > 0 || !adepth > 0 then
+           begin
+             Format.fprintf fmt " (depth: %d" !bdepth ;
+             let d = !bdepth - !adepth in
+             if d < 0 then Format.fprintf fmt ", %d)" d else
+             if d > 0 then Format.fprintf fmt ", +%d)" d else
+               Format.fprintf fmt ")"
+           end
+      ) ;
   end
 
 (* -------------------------------------------------------------------------- *)

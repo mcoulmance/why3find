@@ -237,7 +237,11 @@ let run henv =
       let nq = Runner.pending () in
       let nr = Runner.running () in
       let total = n2 + n1 + nq + nr in
-      Utils.progress "%d/%d/%d/%d%t" n2 n1 nq nr Runner.pp_goals ;
+      Utils.progress "%t%d/%d%t"
+        (fun fmt ->
+           if n2 > 0 then Format.fprintf fmt "!%d/" n2 ;
+           if n1 > 0 then Format.fprintf fmt "?%d/" n1 ;
+        ) nq nr Runner.pp_goals ;
       match pop () with
       | Some node ->
         Fibers.background @@
