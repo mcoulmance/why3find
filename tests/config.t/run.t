@@ -13,7 +13,7 @@
     "packages": [],
     "provers": [ "alt-ergo" ],
     "tactics": [ "split_vc", "inline_goal" ],
-    "time": 1.0,
+    "time": 1,
     "warnoff": []
   }
 
