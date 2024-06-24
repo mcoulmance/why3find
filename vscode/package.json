@@ -1,0 +1,25 @@
+{
+  "name": "why3-platform",
+  "displayName": "Why3 Platform",
+  "description": "Support for Why3 platform",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "why3",
+      "aliases": ["Why3", "why3"],
+      "extensions": [".mlw"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "why3",
+      "scopeName": "source.why3",
+      "path": "./syntaxes/why3.tmLanguage.json"
+    }]
+  }
+}
