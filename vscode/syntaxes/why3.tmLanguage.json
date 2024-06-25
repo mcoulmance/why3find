@@ -1,0 +1,64 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "Why3",
+	"patterns": [
+		{ "include": "#keywords" },
+		{ "include": "#constants" },
+		{ "include": "#comments" }
+	],
+	"repository": {
+		"keywords": {
+			"patterns": [
+				{
+					"name": "keyword.why3",
+					"match": "\\b(as|axiom|begin|constant|else|end|if|function|goal|import|in|lemma|let|match|module|predicate|rec|then|theory|type|use|val|with)\\b"
+				},
+				{
+					"name": "keyword.operator.why3",
+					"match": "[+*/%<>=:-]+"
+				},
+				{
+					"name": "storage.modifier",
+					"match": "\\b(assert|by|exists|ensures|forall|ghost|invariant|rec|requires|raises|so|variant|writes)\\b"
+				},
+				{
+					"name": "invalid.why3",
+					"match": "\\b(assume|diverges)\\b"
+				}
+			]
+		},
+		"constants": {
+			"patterns": [
+				{
+					"name": "string.why3",
+					"begin": "\"", "end": "\""
+				},
+				{
+					"name": "constant.numeric.why3",
+					"match": "\\b[0-9\\.]+\\b"
+				},
+				{
+					"name": "constant.language.why3",
+					"match": "\\b(true|false|int|bool|real|unit)\\b"
+				},
+				{
+					"name": "constant.language.why3",
+					"match": "\\b(([a-z]+\\.)*[A-Z][a-z0-9_]*)\\b"
+				}
+			]
+		},
+		"comments": {
+			"patterns": [
+				{
+					"name": "comment.block",
+					"begin": "\\(\\*", "end": "\\*\\)",
+					"patterns": [
+						{ "match": "\\(\\*+\\)" },
+						{ "include": "#comments" }
+					]
+				}
+			]
+		}
+	},
+	"scopeName": "source.why3"
+}
