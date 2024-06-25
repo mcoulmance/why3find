@@ -208,6 +208,8 @@
     --reset configure from scratch
     --default import local provers
     --detect detect and import local provers
+    --strict commit prover versions
+    --relax relax prover versions
     --check check that proof certificates conform to configuration
     --debug FLAG Activate the given debug flag (eg default)
     --why3-debug FLAG Activate the given Why3 debug flag

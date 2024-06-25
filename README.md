@@ -151,7 +151,11 @@ items from the configuration. For instance:
 
 Provers can be pinned to precise versions, using `prover@version`. Prover names
 are case-insensitive and may also refer to prover shortcuts from Why3
-configuration.
+configuration. To further configure the prover version constraints, the
+following options can be used:
+
+    why3find config […] --strict   # Stick to current prover versions
+    why3find config […] --relax    # Release prover version constraints
 
 The command `why3find config` can be used to manage the package configuration.
 Typical examples are:
