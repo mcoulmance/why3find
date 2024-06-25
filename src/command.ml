@@ -387,6 +387,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       let velocity = ref false in
       let default = ref false in
       let detect = ref false in
+      let strict = ref false in
+      let relax = ref false in
       let check = ref false in
       let retval = ref 0 in
       parse_argv argv
@@ -400,6 +402,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
             "--reset", Arg.Set Wenv.reset, "configure from scratch";
             "--default", Arg.Set default, "import local provers";
             "--detect", Arg.Set detect, "detect and import local provers";
+            "--strict", Arg.Set strict, "commit prover versions";
+            "--relax", Arg.Set relax, "relax prover versions";
             "--check", Arg.Set check,
             "check that proof certificates conform to configuration"
           ]
@@ -435,15 +439,25 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       let patterns, provers =
         if !default || !detect then
           let provers = Prover.default env in
-          let patterns = List.map Prover.name provers in
-          Wenv.ignore_provers () ;
+          let patterns =
+            if !strict then List.map Prover.fullname provers else
+              List.map Prover.name provers
+          in
           Wenv.set_modified () ;
           patterns, provers
         else
-          let patterns = Wenv.provers () in
-          let provers = Prover.select env ~patterns in
+          let config = Wenv.provers () in
+          let provers = Prover.select env ~patterns:config in
+          let patterns =
+            if !strict then List.map Prover.fullname provers else
+            if !relax then List.map Prover.name provers else
+              config in
+          if config <> patterns then
+            Wenv.set_modified () ;
           patterns, provers
       in
+      if !strict && !relax then
+        Log.warning "--relax ignored because of --strict" ;
       let pnames = configuration patterns provers in
       if !calibrate then
         Calibration.calibrate_provers ~saved:true env provers

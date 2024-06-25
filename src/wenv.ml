@@ -243,10 +243,7 @@ let provers () = gets "provers" prvs
 let tactics () = gets "tactics" ~default:["split_vc"] tacs
 let drivers () = gets "drivers" drvs
 let warnoff () = gets "warnoff" warn
-
-let ignore_provers () =
-  if !prvs <> [] then
-    Log.warning "ignored --prover […] because of --detect"
+let has_prover_spec () = !prvs <> []
 
 let set_time = set "time" ~to_json:(fun v -> `Float v)
 let set_depth = set "depth" ~to_json:(fun n -> `Int n)

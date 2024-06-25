@@ -54,7 +54,7 @@ val tactics : unit -> string list
 val drivers : unit -> string list
 val warnoff : unit -> string list
 
-val ignore_provers: unit -> unit
+val has_prover_spec : unit -> bool
 
 val set_time : float -> unit
 val set_depth : int -> unit
