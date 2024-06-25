@@ -77,10 +77,10 @@ let (>>>) (h1 : strategy) (h2 : strategy) : strategy = fun n ->
   let* r = h1 @> n in
   if not @@ is_stuck r then Fibers.return r else h2 @> n
 
-let rec smap (f : 'a -> strategy) (xs : 'a list) : strategy =
+let rec sequence (f : 'a -> strategy) (xs : 'a list) : strategy =
   match xs with
   | [] -> fail
-  | x::xs -> f x >>> smap f xs
+  | x::xs -> f x >>> sequence f xs
 
 (* -------------------------------------------------------------------------- *)
 (* --- Try Prover on Node                                                 --- *)
@@ -134,11 +134,17 @@ let rec subgoals ({ profile ; replay ; depth } as n) goals hints =
   | g::gs, h::hs ->
     schedule profile ~replay ~depth:(succ depth) g h :: subgoals n gs hs
 
-let apply env depth tr hs : strategy = fun n ->
-  if n.depth > depth then stuck n else
-    match Session.apply env.Wenv.wenv tr n.goal with
+let children tr = function
+  | Tactic { id ; children } when id = tr -> children
+  | Stuck | Prover _ | Tactic _ -> []
+
+let apply h tr cs : strategy = fun n ->
+  if n.depth > h.maxdepth then stuck n else
+    match Session.apply h.env.Wenv.wenv tr n.goal with
     | None -> stuck n
-    | Some gs -> Crc.tactic ~goal:n.goal tr @+ Fibers.all @@ subgoals n gs hs
+    | Some gs ->
+      let hs = children tr cs in
+      Crc.tactic ~goal:n.goal tr @+ Fibers.all @@ subgoals n gs hs
 
 (* -------------------------------------------------------------------------- *)
 (* --- Hammer Strategy                                                    --- *)
@@ -146,7 +152,7 @@ let apply env depth tr hs : strategy = fun n ->
 
 let hammer0 h : strategy =
   let time = h.time *. 0.2 in
-  smap (fun prv -> prove h.env prv time) h.provers
+  sequence (fun prv -> prove h.env prv time) h.provers
 
 let hammer13 h time : strategy = fun n ->
   let cancel = Fibers.signal () in
@@ -161,12 +167,10 @@ let hammer13 h time : strategy = fun n ->
 let hammer1 h = hammer13 h h.time
 let hammer3 h = hammer13 h (2.0 *. h.time)
 
-let hammer2 ?excluded h : strategy =
-  smap
-    (fun tr -> apply h.env h.maxdepth tr [])
-    (match excluded with
-     | None -> h.tactics
-     | Some id -> List.filter (fun t -> t <> id) h.tactics)
+let hammer2 h : strategy =
+  sequence
+    (fun tr -> apply h tr Crc.none)
+    h.tactics
 
 let hammer henv =
   hammer0 henv >>>
@@ -189,15 +193,15 @@ let replay h p t =
 let update h p t = replay h p t >>> hammer h
 
 let tactic h id cs =
-  apply h.env h.maxdepth id cs >>>
+  apply h id cs >>>
   hammer1 h >>>
-  hammer2 ~excluded:id h >>>
+  hammer2 h >>>
   hammer3 h
 
 let reduce h id cs =
   hammer1 h >>>
-  apply h.env h.maxdepth id cs >>>
-  hammer2 ~excluded:id h >>>
+  apply h id cs >>>
+  hammer2 h >>>
   hammer3 h
 
 let process h : strategy = fun n ->
@@ -209,13 +213,13 @@ let process h : strategy = fun n ->
         replay h p t n
       else
         update h p t n
-    | Tactic { id ; children } ->
+    | Tactic { id } as cs ->
       if h.minimize then
-        reduce h id children n
+        reduce h id cs n
       else if n.replay then
-        apply h.env h.maxdepth id children n
+        apply h id cs n
       else
-        tactic h id children n
+        tactic h id cs n
   with exn ->
     Log.emit "Process Error (%s)" @@ Printexc.to_string exn ;
     stuck n

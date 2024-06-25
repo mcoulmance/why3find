@@ -38,6 +38,7 @@ and crc = {
   state : state ;
 }
 
+let none = Stuck
 let stuck ?goal () = { goal ; state = Stuck }
 let prover ?goal p f = { goal ; state = Prover(p,f) }
 
