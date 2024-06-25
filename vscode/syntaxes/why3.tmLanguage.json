@@ -2,22 +2,16 @@
 	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
 	"name": "Why3",
 	"patterns": [
-		{
-			"include": "#keywords"
-		},
-		{
-			"include": "#constants"
-		},
-		{
-			"include": "#comments"
-		}
+		{ "include": "#keywords" },
+		{ "include": "#constants" },
+		{ "include": "#comments" }
 	],
 	"repository": {
 		"keywords": {
 			"patterns": [
 				{
 					"name": "keyword.why3",
-					"match": "\\b(as|axiom|begin|by|constant|else|end|if|function|goal|import|in|lemma|let|match|module|predicate|rec|so|then|theory|type|use|with)\\b"
+					"match": "\\b(as|axiom|begin|constant|else|end|if|function|goal|import|in|lemma|let|match|module|predicate|rec|then|theory|type|use|val|with)\\b"
 				},
 				{
 					"name": "keyword.operator.why3",
@@ -25,7 +19,7 @@
 				},
 				{
 					"name": "storage.modifier",
-					"match": "\\b(assert|ghost|rec|requires|ensures|raises|variant|assert)\\b"
+					"match": "\\b(assert|by|exists|ensures|forall|ghost|invariant|rec|requires|raises|so|variant|writes)\\b"
 				},
 				{
 					"name": "invalid.why3",
@@ -37,8 +31,7 @@
 			"patterns": [
 				{
 					"name": "string.why3",
-					"begin": "\"",
-					"end": "\""
+					"begin": "\"", "end": "\""
 				},
 				{
 					"name": "constant.numeric.why3",
@@ -58,11 +51,10 @@
 			"patterns": [
 				{
 					"name": "comment.block",
-					"begin": "\\(\\*",
-					"end": "\\*\\)",
+					"begin": "\\(\\*", "end": "\\*\\)",
 					"patterns": [
 						{ "match": "\\(\\*+\\)" },
-						{ "include": "#comments"}
+						{ "include": "#comments" }
 					]
 				}
 			]
