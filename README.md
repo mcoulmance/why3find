@@ -259,9 +259,9 @@ proofs. During execution in a terminal, `why3find prove` displays a progression
 status with the following format:
 
     $ why3find prove […]
-    P/Q/S/R goal goal …
+    !P/?Q/S/R goal goal …
 
-`P` is the number of complete proofs to be replayed; `Q` is the number of stuck
+`!P` is the number of complete proofs to be replayed; `?Q` is the number of stuck
 or partial proofs to be complete; finally `S` and `R` are respectively the
 number of schedules and currently running prover tasks. The topmost active goals
 for proof completion are also given for user feedback.

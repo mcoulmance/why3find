@@ -31,6 +31,8 @@ type state = private
       children : crc list ;
       stuck : int ;
       proved : int ;
+      depth : int ;
+      time : float ;
     }
 
 and crc = private {
@@ -53,6 +55,8 @@ val nverdict : stuck:int -> proved:int -> verdict
 
 val get_stuck : crc -> int
 val get_proved : crc -> int
+val get_time : crc -> float
+val get_depth : crc -> int
 val is_stuck : crc -> bool
 val is_unknown : crc -> bool
 val is_complete : crc -> bool
