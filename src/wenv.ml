@@ -129,9 +129,10 @@ let rec current a = function
 let rec insert ~at a = function
   | [] -> [a]
   | p::ps ->
+    Format.eprintf "AT ~%d %s [%s;%s]@." at a p (String.concat ";" ps) ;
     if eq_name a p then
       if at <= 1 then a :: sub a ps
-      else insert ~at:(pred at) a ps
+      else insert ~at a ps
     else
     if at <= 1 then a :: p :: sub a ps
     else p :: insert ~at:(pred at) a ps
