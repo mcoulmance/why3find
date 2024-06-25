@@ -130,7 +130,7 @@ let rec insert ~at a = function
   | [] -> [a]
   | p::ps ->
     if eq_name a p then
-      if at <= 1 then a :: ps
+      if at <= 1 then a :: sub a ps
       else insert ~at:(pred at) a ps
     else
     if at <= 1 then a :: p :: sub a ps
