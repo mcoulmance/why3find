@@ -81,12 +81,8 @@
   Emitted 1 warning
 
   $ WHY3CONFIG=why3.conf why3find config --relax
-  Warning: prover z3@2.0 not found (why3)
   Configuration:
    - runner: 4 jobs, 1.0s
-   - provers: alt-ergo(2.4.2)
+   - provers: alt-ergo(2.4.2), z3(4.8.15)
    - tactics: split_vc, inline_goal (depth 2)
   Why3find config saved to $TESTCASE_ROOT/why3find.json
-  Summary:
-  Warning: prover z3@2.0 not found (why3)
-  Emitted 1 warning

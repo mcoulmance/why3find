@@ -447,7 +447,9 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           patterns, provers
         else
           let config = Wenv.provers () in
-          let provers = Prover.select env ~patterns:config in
+          let patterns =
+            if !relax then List.map Prover.pattern_name config else config in
+          let provers = Prover.select env ~patterns in
           let patterns =
             if !strict then List.map Prover.fullname provers else
             if !relax then List.map Prover.name provers else
