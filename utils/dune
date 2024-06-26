@@ -1,8 +1,5 @@
 (library
   (name Why3findUtils)
+  (package why3find)
   (flags (:standard "-w" "-9"))
-  (libraries unix yojson dune-site terminal_size))
-
-(generate_sites_module
-  (module global)
-  (sites why3find))
+  (libraries unix yojson terminal_size))
