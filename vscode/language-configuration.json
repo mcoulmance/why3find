@@ -6,9 +6,10 @@
     "brackets": [
         [ "begin", "end" ],
         [ "module", "end" ],
-        [ "theory", "end" ],
         [ "match", "end" ],
-        [ "try", "end" ]
+        [ "theory", "end" ],
+        [ "try", "end" ],
+        [ "scope", "end" ]
     ],
     // symbols used as colorized brackets (automatically included in "brackets"))
     "colorizedBracketPairs": [
@@ -29,5 +30,5 @@
         [ "[", "]" ],
         [ "(", ")" ],
         [ "\"", "\"" ]
-    ],
+    ]
 }
