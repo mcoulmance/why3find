@@ -23,4 +23,5 @@
 (* --- HTML Documentation Generator                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
-val generate : out:string -> title:string -> files:string list -> url:bool -> unit
+val generate : out:string -> title:string -> files:string list -> url:bool
+  -> package_url:string option -> unit

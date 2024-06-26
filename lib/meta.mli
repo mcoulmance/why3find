@@ -20,48 +20,33 @@
 (**************************************************************************)
 
 (* -------------------------------------------------------------------------- *)
-(* --- Why3 Identifiers                                                   --- *)
+(* --- META Package Infos                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
-type t = Why3.Ident.ident
-
-val hash : t -> int
-val equal : t -> t -> bool
-val compare : t -> t -> int
-val pp : Format.formatter -> t -> unit
-val ppr : Format.formatter -> t -> unit
-
-val loc : t -> Why3.Loc.position
-val file : t -> string
-val line : t -> int
-val path : ?lib:string list -> t -> string list * string * string list
-val fullname : ?lib:string list -> t -> string
-val cat : string list -> string
-
-type package = [ `Local | `Stdlib | `Package of Meta.pkg ]
-
-type id = {
-  self : t ;
-  id_pkg : package ;
-  id_lib : string list ;
-  id_mod : string ;
-  id_qid : string list ;
+type pkg = {
+  name: string ;
+  path: string ;
+  depends: string list ;
+  configs: string list ;
+  drivers: string list ;
+  extracted: bool ;
 }
 
-val lemma : t -> bool
-val standard : t -> bool
-val resolve : lib:string list -> t -> id
 
-val of_infix : string -> string
-val to_infix : string -> string
+(** [shared f] returns the path of file [f] installed in shared directory. *)
+val shared : string -> string
 
-val set_package_url : string -> unit
+(** [path pkg] returns the topmost installation path of package [pkg]. *)
+val path : string -> string
 
-val pp_local : Format.formatter -> id -> unit
-val pp_title : Format.formatter -> id -> unit
-val pp_aname : Format.formatter -> id -> unit
-val pp_ahref : scope:string option -> Format.formatter -> id -> unit
-val pp_proof_aname : Format.formatter -> id -> unit
-val pp_proof_ahref : Format.formatter -> id -> unit
+(** [find pkg] returns the installed package META data, if installed. *)
+val find : string -> pkg
+
+(** [find_all pkgs] returns all listed packages and their dependencies,
+    in dependency order. *)
+val find_all : string list -> pkg list
+
+(** [install pkg] install the package META data. *)
+val install : pkg -> unit
 
 (* -------------------------------------------------------------------------- *)

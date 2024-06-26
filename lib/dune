@@ -1,0 +1,15 @@
+(library
+ (name why3find)
+ (public_name why3find)
+ (flags "-open" "Why3findUtils")
+ (libraries Why3findUtils why3 dune-site))
+
+(rule
+  (target config.ml)
+  (action
+    (write-file %{target}
+      "let version = \"%{version:why3find}\"")))
+
+(generate_sites_module
+  (module global)
+  (sites why3find))

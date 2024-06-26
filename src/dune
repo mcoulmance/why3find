@@ -2,14 +2,8 @@
   (name main)
   (package why3find)
   (public_name why3find)
-  (flags (:standard "-w" "-9-69" "-open" "Why3findUtils"))
-  (libraries Why3findUtils why3 str zmq)
+  (flags (:standard "-w" "-9-69" "-open" "Why3find" "-open" "Why3findUtils"))
+  (libraries why3find Why3findUtils why3 str zmq)
   (instrumentation (backend bisect_ppx)))
-
-(rule
-  (target config.ml)
-  (action
-    (write-file %{target}
-      "let version = \"%{version:why3find}\"")))
 
 (ocamllex lexer)
