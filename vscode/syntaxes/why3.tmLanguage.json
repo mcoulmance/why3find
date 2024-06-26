@@ -11,7 +11,7 @@
 			"patterns": [
 				{
 					"name": "keyword.why3",
-					"match": "\\b(as|axiom|begin|constant|else|end|if|function|goal|import|in|lemma|let|match|module|predicate|rec|then|theory|type|use|val|with)\\b"
+					"match": "\\b(as|axiom|begin|break|clone|coinductive|constant|continue|do|done|downto|else|end|exception|export|for|fun|function|goal|if|import|in|inductive|lemma|let|match|meta|module|predicate|raise|scope|then|theory|to|try|type|use|val|while|with)\\b"
 				},
 				{
 					"name": "keyword.operator.why3",
@@ -19,11 +19,11 @@
 				},
 				{
 					"name": "storage.modifier",
-					"match": "\\b(assert|by|exists|ensures|forall|ghost|invariant|rec|requires|raises|so|variant|writes)\\b"
+					"match": "\\b(any|abstract|alias|assert|by|check|diverges|exists|ensures|epsilon|forall|ghost|invariant|label|mutable|not|old|partial|private|pure|range|ref|rec|raises|reads|requires|returns|so|variant|writes)\\b"
 				},
 				{
 					"name": "invalid.why3",
-					"match": "\\b(assume|diverges)\\b"
+					"match": "\\b(assume)\\b"
 				}
 			]
 		},
@@ -39,7 +39,7 @@
 				},
 				{
 					"name": "constant.language.why3",
-					"match": "\\b(true|false|int|bool|real|unit)\\b"
+					"match": "\\b(bool|false|int|real|true|unit)\\b"
 				},
 				{
 					"name": "constant.language.why3",
