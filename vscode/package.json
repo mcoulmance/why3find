@@ -13,16 +13,36 @@
     "Programming Languages"
   ],
   "contributes": {
-    "languages": [{
-      "id": "why3",
-      "aliases": ["Why3", "why3"],
-      "extensions": [".mlw"],
-      "configuration": "./language-configuration.json"
-    }],
-    "grammars": [{
-      "language": "why3",
-      "scopeName": "source.why3",
-      "path": "./syntaxes/why3.tmLanguage.json"
-    }]
+    "languages": [
+      {
+        "id": "why3",
+        "aliases": [
+          "Why3",
+          "why3"
+        ],
+        "extensions": [
+          ".mlw"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "why3",
+        "scopeName": "source.why3",
+        "path": "./syntaxes/why3.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "devDependencies": {
+    "@types/node": "^18.14.6",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@types/vscode": "^1.90.0",
+    "vscode-languageclient": "^9.0.1"
   }
 }
