@@ -584,6 +584,7 @@ let () = register ~name:"doc" ~args:"[OPTIONS] PATH..."
       let title = ref "" in
       let out = ref "" in
       let url = ref false in
+      let package_url = ref None in
       parse_argv argv
         begin
           Wenv.options ~packages:true ~drivers:true () @ [
@@ -591,7 +592,7 @@ let () = register ~name:"doc" ~args:"[OPTIONS] PATH..."
             "-o", Arg.Set_string out,
             "DIR destination directory (default \"html\")" ;
             "-u", Arg.Set url, "output generated URI" ;
-            "--url", Arg.String Id.set_package_url ,
+            "--url", Arg.String (fun s -> package_url := Some s) ,
             "URL prefix URL for external packages."
           ]
         end
@@ -609,7 +610,7 @@ let () = register ~name:"doc" ~args:"[OPTIONS] PATH..."
       let files = if !files = [] then ["."] else !files in
       let files = Wenv.argfiles ~exts:[".md";".mlw"] @@ List.rev files in
       let out = if !out = "" then "html" else Wenv.arg1 !out in
-      Docgen.generate ~out ~title ~files ~url:!url
+      Docgen.generate ~out ~title ~files ~url:!url ~package_url:!package_url
     end
 
 (* -------------------------------------------------------------------------- *)

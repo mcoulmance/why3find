@@ -93,6 +93,7 @@ let pp_block fmt = function
 type env = {
   dir : string ; (* destination directory *)
   src : Docref.source ; (* source file infos *)
+  package_url : string option;
   input : Token.input ; (* input lexer *)
   out : Pdoc.output ; (* output buffer *)
   crc : Pdoc.output ; (* proofs buffer *)
@@ -297,7 +298,7 @@ let process_certif env id crc =
     "<pre class=\"src\">@\n  %a <a id=\"%a\" href=\"%a\">%a</a>%a%t</pre>"
     Pdoc.pp_keyword "goal"
     Id.pp_proof_aname id
-    (Id.pp_ahref ~scope:None) id
+    (Id.pp_ahref ~scope:None ~package_url:env.package_url) id
     Id.pp_local id
     pp_verdict (Crc.verdict crc)
     begin fun fmt -> match crc.Crc.state with
@@ -378,7 +379,7 @@ let process_hypothesis env (s : Soundness.soundness) (p : Axioms.parameter) =
       "@\n  %a <a id=\"%a\" href=\"%a\">%a</a>%t"
       Pdoc.pp_keyword key
       Id.pp_proof_aname id
-      (Id.pp_ahref ~scope:None) id
+      (Id.pp_ahref ~scope:None ~package_url:env.package_url) id
       Id.pp_local id qualif
   with Not_found -> ()
 
@@ -509,7 +510,8 @@ let process_clone_target env id n next =
       | Some c ->
         let tgt = Id.resolve ~lib:env.src.lib c.id_target in
         let title = Format.asprintf "%a" Id.pp_title tgt in
-        let href fmt = Id.pp_ahref ~scope:env.scope fmt tgt in
+        let href fmt =
+          Id.pp_ahref ~scope:env.scope ~package_url:env.package_url fmt tgt in
         Pdoc.ppt env.out (pp_mark ~href ~title ~cla:icon_parameter)
   end ;
   process_clone_spaces env n next
@@ -573,7 +575,7 @@ let process_href env (href : Docref.href) s =
       process_clone_token env (`id id.self) ;
     Pdoc.printf env.out " title=\"%a\" href=\"%a\">%a</a>"
       Id.pp_title id
-      (Id.pp_ahref ~scope:env.scope) id
+      (Id.pp_ahref ~scope:env.scope ~package_url:env.package_url) id
       Pdoc.pp_html s
 
   | Docref.NoRef ->
@@ -597,7 +599,7 @@ let pp_ident ~env ?anchor ?attr fmt id =
     Option.iter (Format.fprintf fmt " class=\"%s\"") attr ;
     Format.fprintf fmt " title=\"%a\" href=\"%a\">%a</a>"
       Id.pp_title id
-      (Id.pp_ahref ~scope:None) id
+      (Id.pp_ahref ~scope:None ~package_url:env.package_url) id
       Id.pp_local id
   | exception Not_found ->
     (* builtin *)
@@ -1025,7 +1027,7 @@ let process_reference ~wenv ~env r =
     text env ;
     Pdoc.printf env.out
       "<code class=\"src\"><a title=\"%a\" href=\"%a\">%s</a></code>"
-      Id.pp_title r (Id.pp_ahref ~scope:None) r name
+      Id.pp_title r (Id.pp_ahref ~scope:None ~package_url:env.package_url) r name
   with
   | Not_found -> Token.error env.input "unknown reference"
   | Failure msg -> Token.error env.input "%s" msg
@@ -1146,7 +1148,7 @@ let document_title ~title ~page =
 (* --- Markdown File Processing                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-let process_markdown ~wenv ~cenv ~henv ~senv ~out:dir ~title file =
+let process_markdown ~wenv ~cenv ~henv ~senv ~out:dir ~title ~package_url file =
   begin
     let src = Docref.empty () in
     let input = Token.input ~doc:true file in
@@ -1157,7 +1159,7 @@ let process_markdown ~wenv ~cenv ~henv ~senv ~out:dir ~title file =
     let out = Pdoc.output ~file:ofile ~title in
     let crc = Pdoc.null () in
     let env = {
-      dir ; src ; input ; out ; crc ; wenv ; cenv ; henv ; senv ;
+      dir ; src ; package_url; input ; out ; crc ; wenv ; cenv ; henv ; senv ;
       space = false ;  indent = Code ;
       block = Raw; mode = Body ; file = Body ; stack = [] ;
       scope = None ; theory = None ;
@@ -1183,7 +1185,8 @@ let process_markdown ~wenv ~cenv ~henv ~senv ~out:dir ~title file =
 (* --- MLW File Processing                                                --- *)
 (* -------------------------------------------------------------------------- *)
 
-let process_source ~wenv ~cenv ~henv ~senv ~out:dir file (src : Docref.source) =
+let process_source ~wenv ~cenv ~henv ~senv ~out:dir ~package_url file
+    (src : Docref.source) =
   let title = Printf.sprintf "Library %s" src.urlbase in
   let href = src.urlbase ^ ".index.html"in
   let pref = src.urlbase ^ ".proof.html"in
@@ -1193,7 +1196,7 @@ let process_source ~wenv ~cenv ~henv ~senv ~out:dir file (src : Docref.source) =
   let crc = Pdoc.output ~file:pfile ~title in
   let input = Token.input file in
   let env = {
-    dir ; src ; input ; out ; crc ; wenv ; henv ; cenv ; senv ;
+    dir ; src ; package_url; input ; out ; crc ; wenv ; henv ; cenv ; senv ;
     space = false ; indent = Code ;
     block = Raw ; mode = Body ; file = Body ; stack = [] ;
     scope = None ; theory = None ;
@@ -1309,7 +1312,7 @@ let process ~wenv ~henv ~out ~title (file,kind) =
   | None -> process_markdown ~wenv ~henv ~out ~title file
   | Some src -> process_source ~wenv ~henv ~out file src
 
-let generate ~out ~title ~files ~url =
+let generate ~out ~title ~files ~url ~package_url =
   begin
     (* Keywords *)
     let cenv = Docref.init () in
@@ -1331,7 +1334,7 @@ let generate ~out ~title ~files ~url =
     (* Pre-processing *)
     List.map (preprocess ~wenv ~cenv ~henv ~senv) files |>
     (* Doc generation *)
-    List.iter (process ~wenv ~cenv ~henv ~senv ~title ~out) ;
+    List.iter (process ~wenv ~cenv ~henv ~senv ~title ~out ~package_url) ;
     (* Indexing *)
     index ~out ~senv ~title ;
     (* Final output *)
