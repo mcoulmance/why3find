@@ -39,11 +39,11 @@
 				},
 				{
 					"name": "constant.language.why3",
-					"match": "\\b(bool|false|int|real|true|unit)\\b"
+					"match": "\\b(([a-z]+\\.)*[A-Z][a-z0-9_]*)\\b"
 				},
 				{
-					"name": "constant.language.why3",
-					"match": "\\b(([a-z]+\\.)*[A-Z][a-z0-9_]*)\\b"
+					"name": "variable.other.why3",
+					"match": "\\b(bool|false|int|real|true|unit)\\b"
 				}
 			]
 		},
