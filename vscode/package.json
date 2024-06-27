@@ -12,17 +12,12 @@
   "categories": [
     "Programming Languages"
   ],
+  "main": "./out/main.js",
   "contributes": {
-    "languages": [
-      {
+    "languages": [ {
         "id": "why3",
-        "aliases": [
-          "Why3",
-          "why3"
-        ],
-        "extensions": [
-          ".mlw"
-        ],
+        "aliases": [ "Why3", "why3" ],
+        "extensions": [ ".mlw" ],
         "configuration": "./language-configuration.json"
       }
     ],
