@@ -724,6 +724,27 @@ let () = register ~name:"extract" ~args:"[OPTIONS] MODULE..."
     end
 
 (* -------------------------------------------------------------------------- *)
+(* --- LSP                                                                --- *)
+(* -------------------------------------------------------------------------- *)
+
+let () = register ~name:"lsp" ~args:"[OPTIONS]"
+    begin fun argv ->
+      Array.iteri (Log.message "#%d: %S") argv ;
+      let port = ref 0 in
+      Arg.parse_argv argv [
+        "--socket", Arg.Set_int port, "<PORT> socket protocol on localhost" ;
+        "--port", Arg.Set_int port, "<PORT> same as --socket";
+      ] (Utils.failwith "Unexpected argument %S")
+        "USAGE:\n\
+         \n  why3find lsp [--port PORT|--socket PORT]\n\n\
+         DESCRIPTION:\n\
+         \n  Launch the Language Server Protocol on localhost:PORT socket.\
+         \n\n\
+         OPTIONS:\n" ;
+      Log.message "LSP Running on port %d" !port ;
+    end
+
+(* -------------------------------------------------------------------------- *)
 (* --- SERVER                                                             --- *)
 (* -------------------------------------------------------------------------- *)
 

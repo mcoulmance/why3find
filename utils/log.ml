@@ -46,6 +46,9 @@ let output level pp =
 
 let emit ?(level=`Message) msg = Format.kdprintf (output level) msg
 
+let message format =
+  emit ~level:`Message format
+
 let warning format =
   emit ~level:`Warning format
 
