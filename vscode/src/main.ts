@@ -3,7 +3,7 @@
 /* -------------------------------------------------------------------------- */
 
 import { workspace, ExtensionContext } from 'vscode';
-import * as Client from './client';
+import * as Client from './lspclient';
 
 export async function activate(context: ExtensionContext): Promise<void> {
 	// Start the client. This will also launch the server

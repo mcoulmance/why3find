@@ -14,10 +14,16 @@
   ],
   "main": "./out/main.js",
   "contributes": {
-    "languages": [ {
+    "languages": [
+      {
         "id": "why3",
-        "aliases": [ "Why3", "why3" ],
-        "extensions": [ ".mlw" ],
+        "aliases": [
+          "Why3",
+          "why3"
+        ],
+        "extensions": [
+          ".mlw"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],
@@ -30,14 +36,17 @@
     ]
   },
   "scripts": {
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "watch": "tsc -b -w",
+    "package": "vsce package --yarn"
   },
   "devDependencies": {
     "@types/node": "^18.14.6",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^2.29.0",
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@types/vscode": "^1.90.0",
     "vscode-languageclient": "^9.0.1"
   }
 }

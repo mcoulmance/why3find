@@ -4,17 +4,18 @@
 
 .PHONY: all build install
 
+YARN=yarn --ignore-engines
+
 all: build
 
-update:
-	yarn --ignore-engines install
+watch:
+	$(YARN) watch
 
 build:
-	yarn --ignore-engines build
-
-package:
 	rm -f *.vsix
-	vsce package --yarn
+	$(YARN) install
+	$(YARN) build
+	$(YARN) package
 
 install:
 	code --install-extension why3-platform-*.vsix
