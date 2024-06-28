@@ -32,7 +32,7 @@ export async function start(): Promise<void> {
 	// Configure server
 	const serverCommand: Executable = {
 		command: 'why3find', args: ['lsp'],
-		transport: { kind: TransportKind.socket, port: 6666 }
+		transport: { kind: TransportKind.socket, port: 8989 }
 	};
 	const serverOptions: ServerOptions = {
 		run: serverCommand, debug: serverCommand,

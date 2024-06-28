@@ -27,8 +27,9 @@
 
 type channel = {
   sock : Unix.file_descr ; (* Socket *)
-  snd  : bytes ; (* SND bytes buffer, re-used for transport *)
-  rcv  : bytes ; (* RCV bytes buffer, re-used for transport *)
+  mutable offset : int ; (* no end-of-line detected before *)
+  rcv : bytes ; (* RCV bytes buffer, re-used for transport *)
+  snd : bytes ; (* SND bytes buffer, re-used for transport *)
   brcv : Buffer.t ; (* RCV data buffer, accumulated *)
   bsnd : Buffer.t ; (* SND data buffer, accumulated *)
 }
@@ -71,16 +72,109 @@ let send_bytes { sock ; snd ; bsnd } =
       Buffer.add_string bsnd tail
 
 (* -------------------------------------------------------------------------- *)
+(* --- Fetching                                                           --- *)
+(* -------------------------------------------------------------------------- *)
+
+let input (channel:channel) =
+  begin
+    let { brcv } = channel in
+    let n = Buffer.length brcv in
+    let rec lookup p =
+      if p < n then
+        if Buffer.nth brcv p <> '\n' then lookup (p+1)
+        else
+          begin
+            let q =
+              if p > 0 && Buffer.nth brcv (p-1) = '\r' then p-1 else p in
+            let line = Buffer.sub brcv 0 q in
+            let tail = Buffer.sub brcv (p+1) (n-p-1) in
+            channel.offset <- 0 ;
+            Buffer.reset brcv ;
+            Buffer.add_string brcv tail ;
+            Some line
+          end
+      else ( channel.offset <- p ; None )
+    in lookup channel.offset
+  end
+
+let rec fetch channel =
+  send_bytes channel ;
+  read_bytes channel ;
+  match input channel with
+  | Some line -> line
+  | None -> Unix.sleepf 0.01 ; (fetch [@tailcall]) channel
+
+(* -------------------------------------------------------------------------- *)
+(* --- Running LSP                                                        --- *)
+(* -------------------------------------------------------------------------- *)
+
+let lsp (channel:channel) =
+  begin
+    Log.message "Running…" ;
+    while true do
+      let request = fetch channel in
+      let data = fetch channel in
+      Log.message "Rq %S [%d]" request (String.length data) ;
+    done
+  end
+
+(* -------------------------------------------------------------------------- *)
 (* --- Launch Server                                                      --- *)
 (* -------------------------------------------------------------------------- *)
 
+let set_socket_size sock opt s =
+  begin
+    let nbytes = s * 1024 in
+    begin
+      try Unix.setsockopt_int sock opt nbytes
+      with Unix.Unix_error(err,_,_) ->
+        let msg = Unix.error_message err in
+        Log.warning "Invalid socket size (%d: %s)" nbytes msg ;
+    end ;
+    Unix.getsockopt_int sock opt
+  end
+
 let run ~port =
   begin
-    Log.message "LSP Server on localhost:%d" port ;
+    Log.message "LSP Server @ localhost:%d" port ;
     let fd = Unix.socket PF_INET SOCK_STREAM 0 in
-    let localhost = Unix.inet_addr_of_string "127.0.0.1" in
-    Unix.bind fd (ADDR_INET(localhost,port)) ;
-    Unix.listen fd 1 ;
-    ignore (Sys.signal Sys.sigpipe Signal_ignore) ;
-    Log.message "Running…"
+    begin
+      try
+        Unix.setsockopt fd SO_REUSEADDR true ;
+        let localhost = Unix.inet_addr_of_string "0.0.0.0" in
+        Unix.bind fd (ADDR_INET(localhost,port)) ;
+        Unix.listen fd 1 ;
+        ignore (Sys.signal Sys.sigpipe Signal_ignore) ;
+      with exn ->
+        Log.error "%s" (Printexc.to_string exn) ;
+        Unix.close fd ;
+        exit 1 ;
+    end ;
+    Log.message "Waiting…" ;
+    while true do
+      try
+        let sock,_ = Unix.accept ~cloexec:true fd in
+        Unix.set_nonblock sock ;
+        let rcv = set_socket_size sock SO_RCVBUF 256 in
+        let snd = set_socket_size sock SO_SNDBUF 256 in
+        let channel = {
+          sock ;
+          offset = 0 ;
+          snd = Bytes.create snd ;
+          rcv = Bytes.create rcv ;
+          bsnd = Buffer.create snd ;
+          brcv = Buffer.create rcv ;
+        } in
+        Log.message "Client connected." ;
+        lsp channel ;
+      with
+      | Unix.Unix_error(EAGAIN,_,_) ->
+        Unix.sleepf 0.1 ; (* 100ms *)
+      | Unix.Unix_error(EPIPE,_,_) ->
+        Log.message "Client disconnected." ;
+        Unix.close fd ; exit 0
+      | exn ->
+        Log.error "Protocol error: %s" (Printexc.to_string exn) ;
+        Unix.close fd ; exit 1
+    done
   end
