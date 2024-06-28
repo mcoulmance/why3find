@@ -729,7 +729,6 @@ let () = register ~name:"extract" ~args:"[OPTIONS] MODULE..."
 
 let () = register ~name:"lsp" ~args:"[OPTIONS]"
     begin fun argv ->
-      Array.iteri (Log.message "#%d: %S") argv ;
       let port = ref 0 in
       Arg.parse_argv argv [
         "--socket", Arg.Set_int port, "<PORT> socket protocol on localhost" ;
@@ -741,7 +740,7 @@ let () = register ~name:"lsp" ~args:"[OPTIONS]"
          \n  Launch the Language Server Protocol on localhost:PORT socket.\
          \n\n\
          OPTIONS:\n" ;
-      Log.message "LSP Running on port %d" !port ;
+      Lspserver.run ~port:!port ;
     end
 
 (* -------------------------------------------------------------------------- *)
