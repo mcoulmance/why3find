@@ -122,6 +122,23 @@ let lsp (channel:channel) =
 (* --- Launch Server                                                      --- *)
 (* -------------------------------------------------------------------------- *)
 
+type transport =
+  | PIPE of string
+  | PORT of int
+
+let socket = function
+  | PORT port ->
+    Log.message "Socket port %d" port ;
+    let fd = Unix.socket ~cloexec:true PF_INET SOCK_STREAM 0 in
+    Unix.setsockopt fd SO_REUSEADDR true ;
+    let localhost = Unix.inet_addr_of_string "0.0.0.0" in
+    Unix.bind fd (ADDR_INET(localhost,port)) ; fd
+  | PIPE file ->
+    Log.message "Socket pipe %s" file ;
+    if Sys.file_exists file then Unix.unlink file ;
+    let fd = Unix.socket PF_UNIX SOCK_STREAM 0 in
+    Unix.bind fd (ADDR_UNIX file) ; fd
+
 let set_socket_size sock opt s =
   begin
     let nbytes = s * 1024 in
@@ -134,26 +151,17 @@ let set_socket_size sock opt s =
     Unix.getsockopt_int sock opt
   end
 
-let run ~port =
+let run transport =
   begin
-    Log.message "LSP Server @ localhost:%d" port ;
-    let fd = Unix.socket PF_INET SOCK_STREAM 0 in
-    begin
-      try
-        Unix.setsockopt fd SO_REUSEADDR true ;
-        let localhost = Unix.inet_addr_of_string "0.0.0.0" in
-        Unix.bind fd (ADDR_INET(localhost,port)) ;
-        Unix.listen fd 1 ;
-        ignore (Sys.signal Sys.sigpipe Signal_ignore) ;
-      with exn ->
-        Log.error "%s" (Printexc.to_string exn) ;
-        Unix.close fd ;
-        exit 1 ;
-    end ;
-    Log.message "Waiting…" ;
+    Log.message "Why3 LSP Server" ;
+    let fd = try socket transport with exn ->
+      Log.error "Socket: %s" (Printexc.to_string exn) ;
+      exit 1 in
+    Unix.listen fd 1 ;
     while true do
       try
-        let sock,_ = Unix.accept ~cloexec:true fd in
+        Log.message "Waiting..." ;
+        let sock,_addr = Unix.accept ~cloexec:true fd in
         Unix.set_nonblock sock ;
         let rcv = set_socket_size sock SO_RCVBUF 256 in
         let snd = set_socket_size sock SO_SNDBUF 256 in

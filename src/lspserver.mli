@@ -19,4 +19,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-val run : port:int -> unit
+type transport =
+  | PIPE of string
+  | PORT of int
+
+val run : transport -> unit

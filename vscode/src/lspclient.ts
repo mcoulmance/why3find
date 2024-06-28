@@ -32,7 +32,7 @@ export async function start(): Promise<void> {
 	// Configure server
 	const serverCommand: Executable = {
 		command: 'why3find', args: ['lsp'],
-		transport: { kind: TransportKind.socket, port: 8989 }
+		transport: TransportKind.pipe
 	};
 	const serverOptions: ServerOptions = {
 		run: serverCommand, debug: serverCommand,
@@ -53,8 +53,7 @@ export async function start(): Promise<void> {
 
 	// Create LSP
 	client = new LanguageClient(
-		'languageServerExample',
-		'Language Server Example',
+		'why3lsp', 'Why3 Language Server',
 		serverOptions,
 		clientOptions
 	);

@@ -13,27 +13,34 @@
     "Programming Languages"
   ],
   "main": "./out/main.js",
+  "activationEvents": [ "onlanguage:why3" ],
   "contributes": {
     "languages": [
       {
         "id": "why3",
-        "aliases": [
-          "Why3",
-          "why3"
-        ],
-        "extensions": [
-          ".mlw"
-        ],
+        "aliases": [ "Why3", "why3" ],
+        "extensions": [ ".mlw" ],
         "configuration": "./language-configuration.json"
       }
     ],
-    "grammars": [
-      {
+    "grammars": [ {
         "language": "why3",
         "scopeName": "source.why3",
         "path": "./syntaxes/why3.tmLanguage.json"
+      } ],
+    "configuration": {
+      "type": "object",
+      "title": "Example configuration",
+      "properties": {
+        "why3lsp.trace.server": {
+          "scope": "window",
+          "type": "string",
+          "enum": [ "off", "messages", "verbose" ],
+          "default": "off",
+          "description": "Trace exchanges with the LSP Server."
+        }
       }
-    ]
+    }
   },
   "scripts": {
     "build": "tsc -b",
