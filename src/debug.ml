@@ -59,7 +59,7 @@ let parse_why3 ~retry s =
     if retry then
       why3_retry_flags := s :: !why3_retry_flags
     else
-      let msg = Format.sprintf "unknown why3 debug flag %S" s in
+      let msg = Format.sprintf "Unknown why3 debug flag %S" s in
       raise (Stdlib.Arg.Bad msg)
 
 let init_why3_debug () =
