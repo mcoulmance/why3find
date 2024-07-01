@@ -2,14 +2,19 @@
 /* --- Why3 Platform Extension                                            --- */
 /* -------------------------------------------------------------------------- */
 
-import { workspace, ExtensionContext } from 'vscode';
+import { workspace, commands, ExtensionContext } from 'vscode';
 import * as Client from './lspclient';
 
-export async function activate(context: ExtensionContext): Promise<void> {
+export function activate(context: ExtensionContext): void {
+
+	// Register commands.
+	commands.registerCommand('why3lsp.restart', Client.start);
+
 	// Start the client. This will also launch the server
-	await Client.start();
+	Client.start();
+
 }
 
-export async function deactivate(): Promise<void> {
-	await Client.stop();
+export function deactivate(): void {
+	Client.stop();
 }

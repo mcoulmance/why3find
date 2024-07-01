@@ -40,7 +40,13 @@
           "description": "Trace exchanges with the LSP Server."
         }
       }
-    }
+    },
+    "commands": [
+      {
+        "command": "why3lsp.restart",
+        "title": "Start or re-start the Why3 LSP Server"
+      }
+    ]
   },
   "scripts": {
     "build": "tsc -b",
