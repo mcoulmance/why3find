@@ -27,7 +27,6 @@
 
 type channel = {
   sock : Unix.file_descr ; (* Socket *)
-  mutable offset : int ; (* no end-of-line detected before *)
   rcv : bytes ; (* RCV bytes buffer, re-used for transport *)
   snd : bytes ; (* SND bytes buffer, re-used for transport *)
   brcv : Buffer.t ; (* RCV data buffer, accumulated *)
@@ -72,51 +71,48 @@ let send_bytes { sock ; snd ; bsnd } =
       Buffer.add_string bsnd tail
 
 (* -------------------------------------------------------------------------- *)
-(* --- Fetching                                                           --- *)
+(* --- Decoding Json-RPC                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
-let input (channel:channel) =
-  begin
-    let { brcv } = channel in
+let ahead = "\r\n\r\n"
+let content_length = Str.regexp "Content-Length: \\([0-9]+\\)\r\n"
+
+let rec lookahead buf s p =
+  if s = 4 then p else
+    let s' = if ahead.[s] = Buffer.nth buf p then s+1 else 0 in
+    (lookahead[@tailrec]) buf s' (p+1)
+
+let fetch { brcv } =
+  try
+    let h = lookahead brcv 0 0 in
+    let head = Buffer.sub brcv 0 h in
+    ignore @@ Str.search_forward content_length head 0 ;
+    let d = int_of_string @@ Str.matched_group 1 head in
     let n = Buffer.length brcv in
-    let rec lookup p =
-      if p < n then
-        if Buffer.nth brcv p <> '\n' then lookup (p+1)
-        else
-          begin
-            let q =
-              if p > 0 && Buffer.nth brcv (p-1) = '\r' then p-1 else p in
-            let line = Buffer.sub brcv 0 q in
-            let tail = Buffer.sub brcv (p+1) (n-p-1) in
-            channel.offset <- 0 ;
-            Buffer.reset brcv ;
-            Buffer.add_string brcv tail ;
-            Some line
-          end
-      else ( channel.offset <- p ; None )
-    in lookup channel.offset
-  end
-
-let rec fetch channel =
-  send_bytes channel ;
-  read_bytes channel ;
-  match input channel with
-  | Some line -> line
-  | None -> Unix.sleepf 0.01 ; (fetch [@tailcall]) channel
+    let data = Buffer.sub brcv h d in
+    let tail = Buffer.sub brcv (h+d) (n-h-d) in
+    Buffer.clear brcv ;
+    Buffer.add_string brcv tail ;
+    Some data
+  with Not_found | Invalid_argument _ -> None
 
 (* -------------------------------------------------------------------------- *)
-(* --- Running LSP                                                        --- *)
+(* --- Decoding LSP                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
-let lsp (channel:channel) =
-  begin
-    Log.message "Running…" ;
-    while true do
-      let request = fetch channel in
-      let data = fetch channel in
-      Log.message "Rq %S [%d]" request (String.length data) ;
-    done
-  end
+let serve channel =
+  while true do
+    send_bytes channel ;
+    read_bytes channel ;
+    match fetch channel with
+    | None -> Unix.sleepf 0.01
+    | Some request ->
+      try
+        let rq = Yojson.Basic.from_string request in
+        Log.message "Rq %S" Json.(jfield "method" rq |> jstring) ;
+      with Invalid_argument _ ->
+        Log.error "Invalid request %S@." request
+  done
 
 (* -------------------------------------------------------------------------- *)
 (* --- Launch Server                                                      --- *)
@@ -167,14 +163,13 @@ let run transport =
         let snd = set_socket_size sock SO_SNDBUF 256 in
         let channel = {
           sock ;
-          offset = 0 ;
           snd = Bytes.create snd ;
           rcv = Bytes.create rcv ;
           bsnd = Buffer.create snd ;
           brcv = Buffer.create rcv ;
         } in
         Log.message "Client connected." ;
-        lsp channel ;
+        serve channel ;
       with
       | Unix.Unix_error(EAGAIN,_,_) ->
         Unix.sleepf 0.1 ; (* 100ms *)
