@@ -329,16 +329,16 @@ let disable_warning s =
   Why3.Loc.disable_warning w
 
 let init () =
-  let open Why3 in
   begin
     let pkgs = Meta.find_all @@ packages () in
     let pkg_path = List.map (fun m -> m.Meta.path) pkgs in
     let extra_config = configs () in
-    let wconfig = Whyconf.init_config ~extra_config None in
-    let wmain = Whyconf.get_main wconfig in
-    let wpath = Whyconf.loadpath wmain in
+    let wconfig = Why3.Whyconf.init_config ~extra_config None in
+    let wmain = Why3.Whyconf.get_main wconfig in
+    let wpath = Why3.Whyconf.loadpath wmain in
     let wenv = Why3.Env.create_env ("." :: pkg_path @ wpath) in
     Why3.Whyconf.load_plugins wmain;
+    Debug.init_why3_debug ();
     List.iter disable_warning (warnoff ());
     { wconfig ; wenv ; pkgs }
   end

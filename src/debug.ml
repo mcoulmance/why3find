@@ -48,22 +48,30 @@ let parse_and_set_flags s =
   default.active <- true;
   List.iter parse_one (String.split_on_char ',' s)
 
-let parse_why3 s =
+let why3_retry_flags = ref []
+
+let parse_why3 ~retry s =
   try
     let f = Why3.Debug.lookup_flag s in
     Why3.Debug.set_flag f
   with
   | _ -> (* Why3 does not exposes Debug.UnknownFlag *)
-    let msg = Format.sprintf "unknown why3 debug flag %S" s in
-    raise (Stdlib.Arg.Bad msg)
+    if retry then
+      why3_retry_flags := s :: !why3_retry_flags
+    else
+      let msg = Format.sprintf "Unknown why3 debug flag %S" s in
+      raise (Stdlib.Arg.Bad msg)
 
-let parse_and_set_why3_flags s =
-  List.iter parse_why3 (String.split_on_char ',' s)
+let init_why3_debug () =
+  List.iter (parse_why3 ~retry:false) !why3_retry_flags
+
+let why3_debug_flags s =
+  List.iter (parse_why3 ~retry:true) (String.split_on_char ',' s)
 
 let options = [
   ("--debug", Stdlib.Arg.String parse_and_set_flags,
    "FLAG Activate the given debug flag (eg default)");
-  ("--why3-debug", Stdlib.Arg.String parse_and_set_why3_flags,
+  ("--why3-debug", Stdlib.Arg.String why3_debug_flags,
    "FLAG Activate the given Why3 debug flag");
 ]
 

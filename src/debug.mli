@@ -32,9 +32,10 @@ val default : flag
 
 val parse_and_set_flags : string -> unit
 (** Take a list of comma separated flag names and activate the corresponding
-    flags. A flag name prefixed with "why3:" activates the corresponding
-    debugging flag in Why3. The flag "why3" activates all "info flags" of
-    why3. *)
+    flags. *)
+
+val init_why3_debug : unit -> unit
+(** Call this after plugins loading so that why3 debug flags get activated *)
 
 val options : (string * Stdlib.Arg.spec * string) list
 (** The Arg debug options specs *)
