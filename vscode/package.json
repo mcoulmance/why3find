@@ -43,8 +43,12 @@
     },
     "commands": [
       {
-        "command": "why3lsp.restart",
-        "title": "Start or re-start the Why3 LSP Server"
+        "command": "why3lsp.start",
+        "title": "Start the Why3 LSP Server (restart if running)"
+      },
+      {
+        "command": "why3lsp.stop",
+        "title": "Stop the Why3 LSP Server (if running)"
       }
     ]
   },
