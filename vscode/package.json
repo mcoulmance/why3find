@@ -20,13 +20,13 @@
         "id": "why3",
         "aliases": [ "Why3", "why3" ],
         "extensions": [ ".mlw" ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./why3.language.json"
       }
     ],
     "grammars": [ {
         "language": "why3",
         "scopeName": "source.why3",
-        "path": "./syntaxes/why3.tmLanguage.json"
+        "path": "./why3.syntax.json"
       } ],
     "configuration": {
       "type": "object",
