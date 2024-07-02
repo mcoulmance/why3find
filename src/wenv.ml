@@ -131,7 +131,7 @@ let rec insert ~at a = function
   | p::ps ->
     if eq_name a p then
       if at <= 1 then a :: sub a ps
-      else insert ~at:(pred at) a ps
+      else insert ~at a ps
     else
     if at <= 1 then a :: p :: sub a ps
     else p :: insert ~at:(pred at) a ps
@@ -243,10 +243,7 @@ let provers () = gets "provers" prvs
 let tactics () = gets "tactics" ~default:["split_vc"] tacs
 let drivers () = gets "drivers" drvs
 let warnoff () = gets "warnoff" warn
-
-let ignore_provers () =
-  if !prvs <> [] then
-    Log.warning "ignored --prover […] because of --detect"
+let has_prover_spec () = !prvs <> []
 
 let set_time = set "time" ~to_json:(fun v -> `Float v)
 let set_depth = set "depth" ~to_json:(fun n -> `Int n)
