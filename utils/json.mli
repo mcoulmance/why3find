@@ -29,6 +29,8 @@ val of_file : string -> t
 val to_file : string -> t -> unit
 val of_string : string -> t
 val to_string : t -> string
+val pretty : Format.formatter -> t -> unit
+
 val is_empty : t -> bool
 
 val jint : t -> int

@@ -24,6 +24,8 @@
 (* -------------------------------------------------------------------------- *)
 
 type channel = {
+  mutable shutdown : bool ; (* has been shutdown *)
+  mutable processing : bool ; (* processing a request *)
   sock : Unix.file_descr ; (* Socket *)
   rcv : bytes ; (* RCV bytes buffer, re-used for transport *)
   snd : bytes ; (* SND bytes buffer, re-used for transport *)
@@ -106,7 +108,7 @@ let push { bsnd } data =
 (* --- Decoding Json-RPC                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
-type handler = (Json.t -> Json.t)
+type handler = (channel -> Json.t -> Json.t)
 let protocol : (string, handler) Hashtbl.t = Hashtbl.create 0
 
 let json_header = "jsonrpc", `String "2.0"
@@ -117,53 +119,59 @@ let reply channel ~id ~result =
     push channel @@ Json.to_string @@ json_rpc [ "id", id ; "result", result ]
 
 let error channel ~id ~code ~msg =
-  begin
-    let err = `Assoc [
-        "code", `Int code ;
-        "message", `String msg ;
-      ] in
-    push channel @@ Json.to_string @@ json_rpc [ "id", id ; "error", err ] ;
-    send_bytes channel ;
-  end
+  let err = `Assoc [
+      "code", `Int code ;
+      "message", `String msg ;
+    ] in
+  push channel @@ Json.to_string @@ json_rpc [ "id", id ; "error", err ]
 
 let process channel =
-  read_bytes channel ;
-  match pull channel with
-  | None -> Unix.sleepf 0.01
-  | Some data ->
-    try
-      let rq = Json.of_string data in
-      let id = Json.jfield "id" rq in
-      let meth = Json.jfield "method" rq |> Json.jstring in
-      let params = Json.jfield "params" rq in
-      match Hashtbl.find protocol meth params with
-      | result ->
-        reply channel ~id ~result
-      | exception Not_found ->
-        Log.error "Unsupported method: %s" meth ;
-        error channel ~id ~code:(-32601) ~msg:meth
-      | exception Invalid_argument msg ->
-        Log.error "Invalid parameters (%s:%s)" meth msg ;
-        error channel ~id ~code:(-32602) ~msg
-      | exception Failure msg ->
-        Log.error "Internal error (%s:%s)" meth msg ;
-        error channel ~id ~code:(-32603) ~msg
-      | exception err ->
-        let msg = Printexc.to_string err in
-        Log.error "Internal error (%s:%s)" meth msg ;
-        error channel ~id ~code:(-32603) ~msg
-    with Invalid_argument msg ->
-      Log.error "Invalid message (%s)" msg ;
-      error channel ~id:(`Int 0) ~code:(-32700) ~msg
+  yield channel ;
+  if not channel.processing then
+    match pull channel with
+    | None -> Unix.sleepf 0.01
+    | Some data ->
+      try
+        let rq = Json.of_string data in
+        let id = Json.jfield "id" rq in
+        let meth = Json.jfield "method" rq |> Json.jstring in
+        let params = Json.jfield "params" rq in
+        begin
+          channel.processing <- true ;
+          match Hashtbl.find protocol meth channel params with
+          | result ->
+            reply channel ~id ~result
+          | exception Not_found ->
+            Log.error "Unsupported method: %s" meth ;
+            error channel ~id ~code:(-32601) ~msg:meth
+          | exception Invalid_argument msg ->
+            Log.error "Invalid parameters (%s:%s)" meth msg ;
+            error channel ~id ~code:(-32602) ~msg
+          | exception Failure msg ->
+            Log.error "Internal error (%s:%s)" meth msg ;
+            error channel ~id ~code:(-32603) ~msg
+          | exception err ->
+            let msg = Printexc.to_string err in
+            Log.error "Internal error (%s:%s)" meth msg ;
+            error channel ~id ~code:(-32603) ~msg
+        end ;
+        channel.processing <- false ;
+      with Invalid_argument msg ->
+        channel.processing <- false ;
+        Log.error "Invalid message (%s)" msg ;
+        error channel ~id:(`Int 0) ~code:(-32700) ~msg
 
 (* -------------------------------------------------------------------------- *)
 (* --- Decoding LSP Messages                                              --- *)
 (* -------------------------------------------------------------------------- *)
 
-let register name fn =
-  if Hashtbl.mem protocol name then
-    Log.error "Method %S already register in LSP" name ;
-  Hashtbl.add protocol name fn
+let register ?(force=false) name fn =
+  if not force && Hashtbl.mem protocol name then
+    Log.error "Already registered method or notification: %s" name
+  else
+    Hashtbl.add protocol name fn
+
+let ignore name = register name (fun _ _ -> `Null)
 
 let notify channel meth params =
   push channel @@ Json.to_string @@ json_rpc [
@@ -204,8 +212,16 @@ let set_socket_size sock opt s =
     Unix.getsockopt_int sock opt
   end
 
+let shutdown channel = channel.shutdown <- true
+
+let running { shutdown ; processing ; brcv ; bsnd } =
+  not shutdown
+  || processing
+  || Buffer.length brcv > 0
+  || Buffer.length bsnd > 0
+
 let establish transport =
-  let exception Established of channel in
+  let exception Channel of channel in
   try
     Log.message "Why3 LSP Server" ;
     let fd = try socket transport with exn ->
@@ -221,24 +237,39 @@ let establish transport =
         let snd = set_socket_size sock SO_SNDBUF 256 in
         let channel = {
           sock ;
+          shutdown = false ;
+          processing = false ;
           snd = Bytes.create snd ;
           rcv = Bytes.create rcv ;
           bsnd = Buffer.create snd ;
           brcv = Buffer.create rcv ;
         } in
         Log.message "Client connected." ;
-        raise (Established channel)
+        raise (Channel channel)
       with
       | Unix.Unix_error(EAGAIN,_,_) ->
         Unix.sleepf 0.1 ; (* 100ms *)
       | Unix.Unix_error(EPIPE,_,_) ->
         Log.message "Client disconnected." ;
         Unix.close fd ; exit 0
-      | exn ->
-        Log.error "Protocol error: %s" (Printexc.to_string exn) ;
-        Unix.close fd ; exit 1
     done ;
     assert false
-  with Established channel -> channel
+  with Channel channel -> channel
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Default LSP Behavior                                              --- *)
+(* -------------------------------------------------------------------------- *)
+
+let () = register "initialize"
+    begin fun _channel _params -> `Assoc [ "capabilities", `Assoc [] ] end
+
+let () = register "shutdown"
+    begin fun channel _data -> shutdown channel ; `Null end
+
+let () = register "exit"
+    begin fun channel _data -> shutdown channel ; `Null end
+
+let () = ignore "initialized"
+let () = ignore "$/setTrace"
 
 (* -------------------------------------------------------------------------- *)

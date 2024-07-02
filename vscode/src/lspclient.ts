@@ -38,8 +38,8 @@ import {
 /* --- Child Process Management                                           --- */
 /* -------------------------------------------------------------------------- */
 
-const RETRIES = 10;
-const TIMEOUT = 200;
+const RETRIES = 20;
+const TIMEOUT = 250;
 const SOCKADDR = '/tmp/why3lsp.io';
 
 let output: OutputChannel | undefined;
@@ -73,7 +73,7 @@ function connectToLsp(
 		retries = 0;
 		resolve({ reader: s, writer: s });
 	});
-	s.once('error', (err: Error) => {
+	s.on('error', (err: Error) => {
 		if (retries < RETRIES) {
 			output?.appendLine(`[VSCode] Reconnect to LSP #${retries}`);
 			socket = undefined;

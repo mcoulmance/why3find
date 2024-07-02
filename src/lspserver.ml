@@ -20,11 +20,24 @@
 (**************************************************************************)
 
 (* -------------------------------------------------------------------------- *)
+(* --- LSP Initialize                                                     --- *)
+(* -------------------------------------------------------------------------- *)
+
+let () = Lsp.register ~force:true "initialize"
+    begin fun _channel _data ->
+      `Assoc [
+        "capabilities", `Assoc [ ] ;
+        "serverInfo", `Assoc [
+          "name", `String "why3find" ;
+          "version", `String Config.version ;
+        ]
+      ]
+    end
+
+(* -------------------------------------------------------------------------- *)
 (* --- Launch Server                                                      --- *)
 (* -------------------------------------------------------------------------- *)
 
 let run transport =
   let channel = Lsp.establish transport in
-  while true do
-    Lsp.process channel
-  done
+  while Lsp.running channel do Lsp.process channel done

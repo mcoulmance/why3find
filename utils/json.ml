@@ -47,6 +47,9 @@ let to_string js =
   let js = to_raw js in
   Yojson.Raw.pretty_to_string ~std:true js
 
+let pretty fmt js =
+  Format.pp_print_string fmt @@ to_string js
+
 let jbool = function
   | `Bool b -> b
   | _ -> false

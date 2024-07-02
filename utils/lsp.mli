@@ -28,14 +28,28 @@ type channel
 (** Establish the server or exit *)
 val establish: transport -> channel
 
+(** Shutdown the server *)
+val shutdown: channel -> unit
+
+(** Testing if the server is still running.
+    Wait for all pending notifications and queued message to be exchanged. *)
+val running: channel -> bool
+
 (** Process I/O (non-blocking) *)
 val yield: channel -> unit
 
 (** Process (at most, non-blocking) one pending LSP Request & Response *)
 val process: channel -> unit
 
-(** Register a request or notification handler *)
-val register: string -> (Json.t -> Json.t) -> unit
+(**
+   Register a request or notification handler. Some builtin request and
+   notifications are already registered and shall be forced updated, namely
+   [initialize], [initialized], [shutdown], [exit] and [$/setTrace].
+*)
+val register: ?force:bool -> string -> (channel -> Json.t -> Json.t) -> unit
+
+(** Ignore a request or notification. *)
+val ignore: string -> unit
 
 (** Notify the server *)
 val notify: channel -> string -> Json.t -> unit
