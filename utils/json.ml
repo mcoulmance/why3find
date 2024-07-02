@@ -26,6 +26,7 @@
 type t = Yojson.Basic.t
 
 let of_file f : t = (Yojson.Basic.from_file f :> t)
+let of_string s : t = (Yojson.Basic.from_string s :> t)
 
 let rec to_raw : Yojson.Basic.t -> Yojson.Raw.t = function
   | `Int i -> `Intlit (string_of_int i)
@@ -41,6 +42,10 @@ let to_file f js =
   Yojson.Raw.pretty_to_channel ~std:true out js ;
   output_char out '\n';
   close_out out
+
+let to_string js =
+  let js = to_raw js in
+  Yojson.Raw.pretty_to_string ~std:true js
 
 let jbool = function
   | `Bool b -> b

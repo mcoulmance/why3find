@@ -730,8 +730,8 @@ let () = register ~name:"extract" ~args:"[OPTIONS] MODULE..."
 let () = register ~name:"lsp" ~args:"[OPTIONS]"
     begin fun argv ->
       let transport = ref None in
-      let set_port n = transport := Some (Lspserver.PORT n) in
-      let set_pipe s = transport := Some (Lspserver.PIPE s) in
+      let set_port n = transport := Some (Lsp.PORT n) in
+      let set_pipe s = transport := Some (Lsp.PIPE s) in
       Arg.parse_argv argv [
         "--pipe", Arg.String set_pipe, "<SOCKFILE> unix linux socket" ;
         "--port", Arg.Int set_port, "<PORT> use socket port" ;

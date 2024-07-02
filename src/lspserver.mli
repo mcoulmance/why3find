@@ -19,8 +19,4 @@
 (*                                                                        *)
 (**************************************************************************)
 
-type transport =
-  | PIPE of string
-  | PORT of int
-
-val run : transport -> unit
+val run : Lsp.transport -> unit
