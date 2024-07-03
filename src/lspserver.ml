@@ -26,12 +26,99 @@
 let () = Lsp.register ~force:true "initialize"
     begin fun _channel _data ->
       `Assoc [
-        "capabilities", `Assoc [ ] ;
+        "capabilities", `Assoc [
+          "textDocumentSync", `Assoc [
+            "openClose", `Bool true ;
+            "change", `Int 1 ;
+            "save", `Bool true ;
+          ]
+        ] ;
         "serverInfo", `Assoc [
           "name", `String "why3find" ;
           "version", `String Config.version ;
         ]
       ]
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* --- Documents                                                          --- *)
+(* -------------------------------------------------------------------------- *)
+
+type document = {
+  uri: string ;
+  lang: string ;
+  text: string ;
+}
+
+(* Indexed by uri *)
+let documents : (string,document) Hashtbl.t = Hashtbl.create 0
+
+type position = { line: int ; char : int }
+type range = { start: position ; stop: position }
+type change = Text of string | Update of range * string
+
+let jposition js = {
+  line = Json.jfield "line" js |> Json.jint ;
+  char = Json.jfield "character" js |> Json.jint ;
+}
+
+let wposition { line ; char } : Json.t =
+  `Assoc [ "line", `Int line ; "character", `Int char ]
+
+let jrange js = {
+  start = Json.jfield "start" js |> jposition ;
+  stop =  Json.jfield "end" js |> jposition ;
+}
+
+let wrange { start ; stop } : Json.t =
+  `Assoc [ "start", wposition start ; "end", wposition stop ]
+[@@ warning "-32"]
+
+let jchange js =
+  let text = Json.jfield "text" js |> Json.jstring in
+  match Json.jfield "range" js |> Json.joption jrange with
+  | None -> Text text
+  | Some range -> Update(range,text)
+
+let apply doc = function
+  | Text text -> { doc with text }
+  | Update _ -> failwith "Unsupported incremental document synchronization"
+
+(* -------------------------------------------------------------------------- *)
+(* --- Document Synchronization                                           --- *)
+(* -------------------------------------------------------------------------- *)
+
+let () = Lsp.register "textDocument/didOpen"
+    begin fun _channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      let lang = Json.jfield "languageId" doc |> Json.jstring in
+      let text = Json.jfield "text" doc |> Json.jstring in
+      Hashtbl.replace documents uri { uri ; lang ; text } ; `Null
+    end
+
+let () = Lsp.register "textDocument/didClose"
+    begin fun _channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      Hashtbl.remove documents uri ; `Null
+    end
+
+let () = Lsp.register "textDocument/didChange"
+    begin fun _channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      let changes = Json.jfield "contentChanges" data |> Json.jmap jchange in
+      let doc = Hashtbl.find documents uri in
+      let newDoc = List.fold_left apply doc changes in
+      Hashtbl.replace documents uri newDoc ; `Null
+    end
+
+let () = Lsp.register "textDocument/didSave"
+    begin fun _channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      Format.printf "Saved %s" uri ; `Null
     end
 
 (* -------------------------------------------------------------------------- *)

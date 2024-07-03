@@ -84,6 +84,10 @@ let jfield fd = function
   | `Assoc fds -> (try List.assoc fd fds with Not_found -> `Null)
   | _ -> `Null
 
+let joption f = function
+  | `Null -> None
+  | js -> Some (f js)
+
 let jdefault value pp = function
   | `Null -> value
   | js -> pp js
