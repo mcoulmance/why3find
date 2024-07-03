@@ -41,3 +41,5 @@ let () = Lsp.register ~force:true "initialize"
 let run transport =
   let channel = Lsp.establish transport in
   while Lsp.running channel do Lsp.process channel done
+
+(* -------------------------------------------------------------------------- *)

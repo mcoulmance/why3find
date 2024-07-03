@@ -23,8 +23,9 @@
 /* --- Why3 LSP Client                                                    --- */
 /* -------------------------------------------------------------------------- */
 
-import { ChildProcess, spawn } from 'child_process';
+import { rm } from 'fs/promises';
 import { Socket, connect } from 'net';
+import { ChildProcess, spawn } from 'child_process';
 import { OutputChannel, window, workspace } from 'vscode';
 
 import {
@@ -50,26 +51,34 @@ let timer: NodeJS.Timeout | undefined;
 let client: LanguageClient | undefined;
 let retries: number = 0;
 
-function disconnectFromLsp(): void {
+function shutdownServer() {
+	if (process) {
+		if (!process.killed) {
+			output?.appendLine('[VSCode] Shutdown LSP Server');
+			process.kill('SIGKILL');
+		}
+		process = undefined;
+	}
+}
+
+function disconnectFromServer(): void {
 	if (socket) {
-		output?.appendLine('[VSCode] Disconnected from LSP');
+		output?.appendLine('[VSCode] Disconnected');
 		socket.destroy(); socket = undefined;
 	}
 	if (timer) { clearTimeout(timer); timer = undefined; }
 	retries = 0;
 }
 
-function connectToLsp(
+function connectToServer(
 	resolve: (stream: StreamInfo) => void,
 	reject: (err: Error) => void,
 ) {
-	if (socket) socket.destroy();
-	if (timer) { clearTimeout(timer); timer = undefined; }
 	retries++;
 	const s = connect(SOCKADDR);
-	socket = s ;
+	socket = s;
 	s.once('connect', () => {
-		output?.appendLine('[VSCode] Connected to LSP');
+		output?.appendLine('[VSCode] Connected');
 		retries = 0;
 		resolve({ reader: s, writer: s });
 	});
@@ -78,13 +87,27 @@ function connectToLsp(
 			output?.appendLine(`[VSCode] Reconnect to LSP #${retries}`);
 			socket = undefined;
 			timer = setTimeout(() => {
-				connectToLsp(resolve, reject);
+				connectToServer(resolve, reject);
 			}, TIMEOUT);
 		} else {
-			disconnectFromLsp();
+			disconnectFromServer();
 			reject(err);
 		}
 	});
+}
+
+function launchServer(): Promise<StreamInfo> {
+	// Diconnect current
+	disconnectFromServer();
+	shutdownServer();
+	// Span new server
+	output?.appendLine('[VSCode] Launch LSP Server');
+	const p = spawn('why3find', ['lsp', '--pipe', SOCKADDR]);
+	p.stdout.on('data', (msg) => output?.append(`${msg}`));
+	p.stderr.on('data', (msg) => output?.append(`${msg}`));
+	process = p;
+	// Connect to new server
+	return new Promise(connectToServer);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -97,14 +120,9 @@ export async function stop(): Promise<void> {
 		const toStop = client;
 		client = undefined;
 		await toStop.stop();
-	}
-	disconnectFromLsp();
-	if (process) {
-		if (!process.killed) {
-			output?.appendLine('[VSCode] Shutdown LSP Server');
-			process.kill('SIGKILL');
-		}
-		process = undefined;
+		disconnectFromServer();
+		shutdownServer();
+		await rm(SOCKADDR, { force: true });
 	}
 }
 
@@ -114,17 +132,11 @@ export async function start(): Promise<void> {
 	if (!output) output = window.createOutputChannel("WhyCode Server");
 	if (!trace) trace = window.createOutputChannel("WhyCode Server Trace");
 
-	// Stop currently running client
-	stop();
+    // In case of re-start
+	await stop();
 
-	// Span server
-	output.appendLine('[VSCode] Launch LSP Server');
-	const p = spawn('why3find', ['lsp', '--pipe', SOCKADDR]);
-	p.stdout.on('data', (msg) => output?.append(`${msg}`));
-	p.stderr.on('data', (msg) => output?.append(`${msg}`));
-	process = p;
-
-	const serverOptions: ServerOptions = () => new Promise(connectToLsp);
+    // Remove existing socket
+	await rm(SOCKADDR, { force: true });
 
 	// Configure client
 	const clientOptions: LanguageClientOptions = {
@@ -142,7 +154,7 @@ export async function start(): Promise<void> {
 	// Create LSP
 	client = new LanguageClient(
 		'why3lsp', 'Why3 Language Server',
-		serverOptions,
+		launchServer,
 		clientOptions
 	);
 
