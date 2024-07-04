@@ -87,12 +87,15 @@ let rank = function Goal -> 2 | WhenNot -> 1 | When -> 0
 let rec segment = function
   | [] | [_] as rs -> rs
   | ((c1,r1) as u)::((c2,r2) as v)::w ->
-    if Range.( r1 <<< r2 ) then u :: segment (v::w) else
+    if Range.( r1 <|< r2 ) then u :: segment (v::w) else
     if c1 = c2 then segment ((c1, Range.union r1 r2)::w) else
     if rank c1 > rank c2 then
       (c1,r1) :: segment ((c2,Range.diff r2 r1) :: w)
     else
-      (c1,Range.diff r1 r2) :: segment (v::w)
+      let r = Range.diff r1 r2 in
+      if Range.is_empty r
+      then segment (v::w)
+      else (c1,r) :: segment (v::w)
 
 let rec collect ~file s acc =
   match s with
