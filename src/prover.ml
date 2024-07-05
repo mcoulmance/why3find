@@ -83,6 +83,7 @@ type prover = {
   desc : prover_desc ;
   config : Whyconf.config_prover ;
   driver : Driver.driver ;
+  digest : string ;
 }
 
 let compare_prover (p : prover) (q : prover) =
@@ -95,6 +96,30 @@ let version prv = prv.desc.version
 let fullname p = Format.sprintf "%s@%s" (name p) (version p)
 let infoname p = Format.sprintf "%s(%s)" (name p) (version p)
 let pp_prover fmt p = Format.fprintf fmt "%s@%s" (name p) (version p)
+
+(* Digest the file that why3 will load *)
+let digest_driver main (dir, name) =
+  let file = Driver.resolve_driver_name main "drivers" ~extra_dir:dir name in
+  Digest.file file
+
+let digest_config main (c : Whyconf.config_prover) =
+  let open Buffer in
+  let buf = create 128 in
+  add_string buf (Digest.string c.prover.prover_name);
+  add_string buf (Digest.string c.prover.prover_version);
+  add_string buf (Digest.string c.prover.prover_altern);
+  add_string buf (Digest.string c.command);
+  if c.command_steps = None then
+    add_string buf "None                            "
+  else
+    add_string buf (Digest.string (Option.get c.command_steps));
+  add_string buf (digest_driver main c.driver);
+  List.iter (fun s -> add_string buf (Digest.string s))
+    c.extra_options;
+  List.iter (fun (d, l) ->
+      List.iter (fun f -> add_string buf (digest_driver main (Some d, f))) l
+    ) c.extra_drivers;
+  Digest.(to_hex (string (Buffer.contents buf)))
 
 let pmatch ~pattern d =
   let (name, version) = split_pattern pattern in
@@ -119,6 +144,7 @@ let load (env : Wenv.env) (config : Whyconf.config_prover) =
       desc = desc_of_config config ;
       config ;
       driver = Driver.load_driver_for_prover main env.wenv config ;
+      digest = digest_config main config;
     }
   with _ ->
     Log.error "failed to load driver for %s"

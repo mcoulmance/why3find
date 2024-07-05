@@ -89,92 +89,108 @@ let to_json (r : result) : Json.t =
 (* --- Prover Cache                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
-let cachedir = ".why3find"
-let cachever = ".why3find/v2"
-let why3vers = ".why3find/why3version"
-
-let destroycache () =
-  begin
-    if Utils.tty then
-      Log.emit "Upgrading cache (%s, why3 %s)" (Filename.basename cachever)
-        Why3.Config.version ;
-    Utils.rmpath cachedir ;
-  end
-
-let preparecache () =
-  begin
-    Utils.mkdirs cachedir ;
-    Utils.outputfile ~file:cachever begin fun out ->
-      output_string out "why3find cache " ;
-      output_string out (Filename.basename cachever) ;
-      output_string out "\n" ;
-    end ;
-    Utils.writefile ~file:why3vers (Why3.Config.version ^ "\n")
-  end
-
-let checkcache = lazy
-  begin
-    let cd = Sys.file_exists cachedir in
-    let cv = Sys.file_exists cachever in
-    let wv =
-      Sys.file_exists why3vers
-      && String.trim (Utils.readfile ~file:why3vers) = Why3.Config.version in
-    Utils.flush () ;
-    if cd && (not cv || not wv) then destroycache () ;
-    if not cd || not cv || not wv then preparecache () ;
-  end
-
-module Cache = Hashtbl.Make
-    (struct
-      type t = Task.task * Prover.prover
-      let hash (t,p) = Hashtbl.hash (Task.task_hash t , p.Prover.desc)
-      let equal (t1,p1) (t2,p2) = (p1 == p2) && (Task.task_equal t1 t2)
-    end)
-
 let digest task = Why3.Termcode.(task_checksum task |> string_of_checksum)
 
-let data prv task =
+module Cache : sig
+  val cache : bool ref
+  val get : Task.task * Prover.prover -> result
+  val set : Task.task * Prover.prover -> result -> unit
+end = struct
+
+  let cachedir = ".why3find"
+  let cachever = ".why3find/v3"
+  let why3vers = ".why3find/why3version"
+
+  let destroycache () =
+    begin
+      if Utils.tty then
+        Log.emit "Upgrading cache (%s, why3 %s)" (Filename.basename cachever)
+          Why3.Config.version ;
+      Utils.rmpath cachedir ;
+    end
+
+  let preparecache () =
+    begin
+      Utils.mkdirs cachedir ;
+      Utils.outputfile ~file:cachever begin fun out ->
+        output_string out "why3find cache " ;
+        output_string out (Filename.basename cachever) ;
+        output_string out "\n" ;
+      end ;
+      Utils.writefile ~file:why3vers (Why3.Config.version ^ "\n")
+    end
+
+  let checkcache = lazy
+    begin
+      let cd = Sys.file_exists cachedir in
+      let cv = Sys.file_exists cachever in
+      let wv =
+        Sys.file_exists why3vers
+        && String.trim (Utils.readfile ~file:why3vers) = Why3.Config.version in
+      Utils.flush () ;
+      if cd && (not cv || not wv) then destroycache () ;
+      if not cd || not cv || not wv then preparecache () ;
+    end
+
+  module Cache = Hashtbl.Make
+      (struct
+        type t = Task.task * Prover.prover
+        let hash (t,p) = Hashtbl.hash (Task.task_hash t , p.Prover.digest)
+        let equal (t1,p1) (t2,p2) = (p1 == p2) && (Task.task_equal t1 t2)
+      end)
+
+  let digest (t, p) =
+    Digest.(to_hex (string (digest t ^ p.Prover.digest)))
+
+  let file (t,p) =
+    Lazy.force checkcache ;
+    let hash = digest (t, p) in
+    let h2 = String.sub hash 0 2 in
+    Printf.sprintf ".why3find/%s/%s/%s.json" Prover.(desc_to_string p.desc) h2 hash
+
+  let read e =
+    let f = file e in
+    if Sys.file_exists f then
+      try Json.of_file f |> of_json with _ -> NoResult
+    else NoResult
+
+  let write e r =
+    let f = file e in
+    Utils.mkdirs (Filename.dirname f) ;
+    Json.to_file f (to_json r)
+
+  let hash = Cache.create 0
+  let cache = ref true
+
+  let get e =
+    try Cache.find hash e with Not_found ->
+      let r = if !cache then read e else NoResult in
+      Cache.add hash e r ; r
+
+  let set e r1 =
+    let r0 = try Cache.find hash e with Not_found -> NoResult in
+    let r = merge r0 r1 in
+    if r <> r0 then
+      match r with
+      | NoResult -> ()
+      | Failed ->
+        Cache.replace hash e Failed
+      | Valid _ | Unknown _ | Timeout _ ->
+        Cache.replace hash e r ; write e r
+
+end
+
+type prooftask = Prepared of Why3.Task.task [@@ocaml.unboxed]
+
+let digest (Prepared task) =
+  digest task
+
+let data prv (Prepared task) =
   let buffer = Buffer.create 2048 in
   let fmt = Format.formatter_of_buffer buffer in
   ignore @@ Driver.print_task_prepared prv.Prover.driver fmt task ;
   Format.pp_print_flush fmt () ;
   Buffer.contents buffer
-
-let file (t,p) =
-  Lazy.force checkcache ;
-  let hash = digest t in
-  let h2 = String.sub hash 0 2 in
-  Printf.sprintf ".why3find/%s/%s/%s.json" Prover.(desc_to_string p.desc) h2 hash
-
-let read e =
-  let f = file e in
-  if Sys.file_exists f then
-    try Json.of_file f |> of_json with _ -> NoResult
-  else NoResult
-
-let write e r =
-  let f = file e in
-  Utils.mkdirs (Filename.dirname f) ;
-  Json.to_file f (to_json r)
-
-let hash = Cache.create 0
-let cache = ref true
-
-let get e =
-  try Cache.find hash e with Not_found ->
-    let r = if !cache then read e else NoResult in
-    Cache.add hash e r ; r
-
-let set e r1 =
-  let r0 = try Cache.find hash e with Not_found -> NoResult in
-  let r = merge r0 r1 in
-  if r <> r0 then
-    match r with
-    | NoResult -> ()
-    | Failed ->
-      Cache.replace hash e Failed
-    | Valid _ | Unknown _ | Timeout _ ->
-      Cache.replace hash e r ; write e r
 
 (* -------------------------------------------------------------------------- *)
 (* --- Running Prover                                                     --- *)
@@ -285,7 +301,7 @@ let notify env prover result cb =
 let notify_pr prv limit pr cb =
   cb prv.Prover.config.prover limit pr
 
-type prepared_task = Prepared of Task.task | Buffered of Buffer.t
+type prepared_task = Prooftask of prooftask | Buffered of Buffer.t
 
 let call_prover (env : Wenv.env)
     ?(name : string option)
@@ -305,7 +321,7 @@ let call_prover (env : Wenv.env)
   schedule () ;
   let call =
     match prepared with
-    | Prepared task ->
+    | Prooftask (Prepared task) ->
       Driver.prove_task_prepared
         ~command:(Whyconf.get_complete_command prover.config ~with_steps:false)
         ~config ~limit prover.driver task
@@ -403,10 +419,17 @@ let definitive ~timeout result =
   | Timeout t -> timeout <= t
   | Failed | Unknown _ | Valid _ -> true
 
+let prove_prepared env ?name ?cancel ?callback prover task timeout =
+  call_prover env ?name ?cancel ?callback
+    ~prepared:(Prooftask task) ~prover ~timeout ()
+
+let prepare prover task =
+  Prepared (Driver.prepare_task prover.Prover.driver task)
+
 let prove env ?name ?cancel ?callback prover task timeout =
-  let task = Driver.prepare_task prover.Prover.driver task in
   let entry = task,prover in
-  let cached = get entry in
+  let cached = Cache.get entry in
+  let task = prepare prover task in
   match crop ~timeout cached with
   | Some cached ->
     incr hits ;
@@ -415,29 +438,23 @@ let prove env ?name ?cancel ?callback prover task timeout =
   | None ->
     incr miss ;
     Fibers.map
-      (fun result -> set entry result ; result)
-      (call_prover env ?name ?cancel ?callback
-         ~prepared:(Prepared task) ~prover ~timeout ())
+      (fun result -> Cache.set entry result ; result)
+      (prove_prepared env ?name ?cancel ?callback
+         prover task timeout)
 
-type prooftask = Why3.Task.task
+let prepare prover goal =
+  prepare prover (Session.goal_task goal)
 
-let update prover task result =
-  set (task,prover) result
+let update prover goal result =
+  let task = Session.goal_task goal in
+  Cache.set (task,prover) result
 
-let prove_cached prover task timeout =
-  let task = Driver.prepare_task prover.Prover.driver task in
-  let cached = get (task,prover) in
-  match crop ~timeout cached with
-  | Some cached ->
-    incr hits ;
-    `Cached cached
-  | None ->
-    incr miss ;
-    `Prepared task
-
-let prove_prepared env ?name ?cancel ?callback prover task timeout =
-  call_prover env ?name ?cancel ?callback
-    ~prepared:(Prepared task) ~prover ~timeout ()
+let prove_cached prover goal timeout =
+  let task = Session.goal_task goal in
+  let cached = Cache.get (task,prover) in
+  let cropped = crop ~timeout cached in
+  incr (if cropped = None then miss else hits);
+  cropped
 
 let prove_buffer env ?cancel prover buffer timeout =
   call_prover env ?cancel ~prepared:(Buffered buffer) ~prover ~timeout ()
@@ -447,7 +464,7 @@ let prove_buffer env ?cancel prover buffer timeout =
 (* -------------------------------------------------------------------------- *)
 
 let options = [
-  "-c", Arg.Clear cache, "force cache update";
+  "-c", Arg.Clear Cache.cache, "force cache update";
   "-j", Arg.Set_int jobs, "JOBS max parallel provers";
 ]
 

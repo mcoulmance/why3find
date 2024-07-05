@@ -56,8 +56,13 @@ type prover = private {
   desc : prover_desc ;
   config : Why3.Whyconf.config_prover ;
   driver : Why3.Driver.driver ;
+  digest : string ;
 }
-(** The type for provers  *)
+(** The type of provers.
+
+    [digest] is an hexadecimal digest of the prover and its config. For now,
+    drivers are not completly taken into account, for instance modifying a
+    driver which is [import]ed into the main driver won't change the digest. *)
 
 val why3_desc : prover -> string
 (** The prover descriptions in Why3 syntax. *)

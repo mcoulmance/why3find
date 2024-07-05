@@ -88,23 +88,23 @@ let rec sequence (f : 'a -> strategy) (xs : 'a list) : strategy =
 (* -------------------------------------------------------------------------- *)
 
 let prove env ?client ?cancel prover timeout : strategy = fun n ->
-  let task = Session.goal_task n.goal in
   let name = Session.goal_name n.goal in
   let* alpha = Calibration.velocity env n.profile prover in
   let to_profile = Runner.map (fun t -> t /. alpha) in
   let runner_time = timeout *. alpha in
   let callback = Session.result n.goal in
   let+ verdict =
-    match Runner.prove_cached prover task runner_time with
-    | `Cached result ->
+    match Runner.prove_cached prover n.goal runner_time with
+    | Some result ->
       Runner.notify env prover result callback ;
       Fibers.return (to_profile result)
-    | `Prepared task ->
+    | None ->
+      let task = Runner.prepare prover n.goal in
       let kill = Fibers.signal () in
       let runner =
         Fibers.monitor ?signal:cancel ~handler:(Fibers.emit kill) @@
         Fibers.map to_profile @@
-        Fibers.finally ~callback:(Runner.update prover task) @@
+        Fibers.finally ~callback:(Runner.update prover n.goal) @@
         Runner.prove_prepared env ~name ~cancel:kill ~callback
           prover task runner_time
       in match client with

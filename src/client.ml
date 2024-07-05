@@ -184,10 +184,12 @@ let do_result client goal status time =
     | _ -> Runner.Failed
   in
   Fibers.background
-    ~callback:(fun alpha ->
+    (* TODO: replace by a store in the prooftree cache (?) *)
+    (*~callback:(fun alpha ->
         Runner.update task.prv task.tsk @@
         Runner.map (fun t -> t *. alpha) result
-      ) (Calibration.velocity client.env client.profile task.prv) ;
+      )*)
+    (Calibration.velocity client.env client.profile task.prv) ;
   if Runner.definitive ~timeout:task.timeout result then
     Hashtbl.remove client.pending task.goal ;
   Fibers.emit task.channel result
