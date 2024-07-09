@@ -28,15 +28,8 @@ type pos = int * int
 type range = pos * pos
 
 val ( << ) : pos -> pos -> bool
-val ( >> ) : pos -> pos -> bool
 val ( <<= ) : pos -> pos -> bool
-val ( >>= ) : pos -> pos -> bool
-val ( <|< ) : range -> range -> bool
-val ( >|> ) : range -> range -> bool
-val ( <|> ) : range -> range -> bool
-
-val compare_pos : pos -> pos -> int
-val compare_range : range -> range -> int
+val ( <<< ) : range -> range -> bool
 
 val start : pos
 val next : pos -> pos
@@ -51,6 +44,7 @@ val pp_position : Format.formatter -> file:string -> range -> unit
 val empty : range
 val is_empty : range -> bool
 val inside : pos -> range -> bool
+val subset : range -> range -> bool
 val disjoint : range -> range -> bool
 val union : range -> range -> range
 val diff : range -> range -> range

@@ -80,14 +80,14 @@ let rec task (t : Tsk.task) : shape =
   | Some { task_decl ; task_prev } ->
     tdecl task_decl <|> task task_prev
 
-let by_range (_,r1) (_,r2) = Range.compare_range r1 r2
+let by_range (_,r1) (_,r2) = Stdlib.compare r1 r2
 
 let rank = function Goal -> 2 | WhenNot -> 1 | When -> 0
 
 let rec segment = function
   | [] | [_] as rs -> rs
   | ((c1,r1) as u)::((c2,r2) as v)::w ->
-    if Range.( r1 <|< r2 ) then u :: segment (v::w) else
+    if Range.( r1 <<< r2 ) then u :: segment (v::w) else
     if c1 = c2 then segment ((c1, Range.union r1 r2)::w) else
     if rank c1 > rank c2 then
       (c1,r1) :: segment ((c2,Range.diff r2 r1) :: w)

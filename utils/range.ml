@@ -29,15 +29,8 @@ type range = pos * pos
 let pp_pos fmt (l,c) = Format.fprintf fmt "line %d, character %d" l (succ c)
 
 let (<<) (l1,c1) (l2,c2) = l1 < l2 || (l1 = l2 && c1 < c2)
-let (>>) (l1,c1) (l2,c2) = l1 > l2 || (l1 = l2 && c1 > c2)
 let (<<=) (l1,c1) (l2,c2) = l1 < l2 || (l1 = l2 && c1 <= c2)
-let (>>=) (l1,c1) (l2,c2) = l1 > l2 || (l1 = l2 && c1 >= c2)
-let (<|<) (_,b) (c,_) = b <<= c
-let (>|>) (a,_) (_,d) = d <<= a
-let (<|>) (a,b) (c,d) = b <<= c || d <<= a
-
-let compare_pos (a:pos) (b:pos) = Stdlib.compare a b
-let compare_range (a:range) (b:range) = Stdlib.compare a b
+let (<<<) (_,b) (c,_) = b <<= c
 
 let start = (1,0)
 let next (l,c) = (l,succ c)
@@ -57,6 +50,7 @@ let empty = (0,0),(0,0)
 let is_empty (a,b) = b <<= a
 
 let inside p (a,b) = a <<= p && p << b
+let subset (a,b) (c,d) = c <<= a && b <<= d
 let disjoint (a,b) (c,d) = b <<= c || d <<= a
 let union ((a,b) as u) ((c,d) as v) =
   if is_empty u then v else
