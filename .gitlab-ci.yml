@@ -53,3 +53,17 @@ opam-minimal:
     - export OPAMEXTERNALSOLVER="builtin-0install"
     - opam update --depexts
     - opam reinstall --jobs 2 why3find
+
+vscode:
+  image: node:lts-buster
+  cache:
+    paths:
+      - vscode/node_modules/
+  script:
+    - node --version
+    - npm --version
+    - yarn --version
+    - make --version
+    - make -C vscode
+  tags:
+    - docker
