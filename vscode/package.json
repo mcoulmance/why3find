@@ -5,7 +5,7 @@
   "repository": "https://git.frama-c.com/pub/why3find",
   "license": "SEE LICENSE IN LICENSE.md",
   "version": "0.0.1",
-  "icon": "./why3.png",
+  "icon": "./why3.platform.png",
   "engines": {
     "vscode": "^1.90.0"
   },
