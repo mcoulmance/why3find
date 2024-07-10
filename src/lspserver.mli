@@ -20,3 +20,21 @@
 (**************************************************************************)
 
 val run : Lsp.transport -> unit
+
+type position = { line: int ; char : int }
+type range = { start: position ; stop: position }
+type change = Text of string | Update of range * string
+
+type document = {
+  uri: string ;
+  lang: string ;
+  text: Ropes.t ;
+}
+
+val document : uri:string -> document
+
+val on_save : (document -> unit) -> unit
+val on_open : (document -> unit) -> unit
+val on_close : (document -> unit) -> unit
+val on_update :
+  (uri:string -> old:Ropes.t -> change -> upd:Ropes.t -> unit) -> unit

@@ -32,11 +32,11 @@ let () = Lsp.register ~force:true "initialize"
             "change", `Int 2 ;
             "save", `Bool true ;
           ]
-        ] ;
+        ];
         "serverInfo", `Assoc [
           "name", `String "why3find" ;
           "version", `String Config.version ;
-        ]
+        ];
       ]
     end
 
@@ -94,20 +94,40 @@ let apply doc update =
 (* --- Document Synchronization                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
+let dopen = ref []
+let dclose = ref []
+let dsave = ref []
+let dupdate = ref []
+let register demons f = demons := !demons @ [f]
+
+let on_open = register dopen
+let on_close = register dclose
+let on_save = register dsave
+let on_update = register dupdate
+
 let () = Lsp.register "textDocument/didOpen"
     begin fun _channel data ->
       let doc = Json.jfield "textDocument" data in
       let uri = Json.jfield "uri" doc |> Json.jstring in
       let lang = Json.jfield "languageId" doc |> Json.jstring in
       let text = Json.jfield "text" doc |> Json.jstring |> Ropes.of_string in
-      Hashtbl.replace documents uri { uri ; lang ; text } ; `Null
+      let doc = { uri ; lang ; text } in
+      Hashtbl.replace documents uri doc ;
+      List.iter (fun f -> f doc) !dopen ;
+      `Null
     end
 
 let () = Lsp.register "textDocument/didClose"
     begin fun _channel data ->
       let doc = Json.jfield "textDocument" data in
       let uri = Json.jfield "uri" doc |> Json.jstring in
-      Hashtbl.remove documents uri ; `Null
+      begin
+        try
+          let doc = Hashtbl.find documents uri in
+          Hashtbl.remove documents uri ;
+          List.iter (fun f -> f doc) !dclose ;
+        with Not_found -> ()
+      end ; `Null
     end
 
 let () = Lsp.register "textDocument/didChange"
@@ -116,16 +136,34 @@ let () = Lsp.register "textDocument/didChange"
       let uri = Json.jfield "uri" doc |> Json.jstring in
       let changes = Json.jfield "contentChanges" data |> Json.jmap jchange in
       let doc = Hashtbl.find documents uri in
-      let newDoc = List.fold_left apply doc changes in
-      Hashtbl.replace documents uri newDoc ; `Null
+      let stack = ref [] in
+      let push d u =
+        let d' = apply d u in
+        stack := (d.text,u,d'.text) :: !stack ; d' in
+      let newDoc = List.fold_left push doc changes in
+      Hashtbl.replace documents uri newDoc ;
+      begin
+        if !dupdate <> [] then
+          let changes = List.rev !stack in
+          List.iter (fun f ->
+              List.iter
+                (fun (pre,change,upd) -> f ~uri ~pre ~change ~upd)
+                changes
+            ) !dupdate ;
+      end ;
+      `Null
     end
 
 let () = Lsp.register "textDocument/didSave"
     begin fun _channel data ->
       let doc = Json.jfield "textDocument" data in
       let uri = Json.jfield "uri" doc |> Json.jstring in
-      Format.eprintf "Saved %S@." uri ;
-      `Null
+      begin
+        try
+          let doc = Hashtbl.find documents uri in
+          List.iter (fun f -> f doc) !dsave ;
+        with Not_found -> ()
+      end ; `Null
     end
 
 (* -------------------------------------------------------------------------- *)
