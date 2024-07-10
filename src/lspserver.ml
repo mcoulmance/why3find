@@ -29,7 +29,7 @@ let () = Lsp.register ~force:true "initialize"
         "capabilities", `Assoc [
           "textDocumentSync", `Assoc [
             "openClose", `Bool true ;
-            "change", `Int 1 ;
+            "change", `Int 2 ;
             "save", `Bool true ;
           ]
         ] ;
@@ -47,7 +47,7 @@ let () = Lsp.register ~force:true "initialize"
 type document = {
   uri: string ;
   lang: string ;
-  text: string ;
+  text: Ropes.t ;
 }
 
 (* Indexed by uri *)
@@ -56,6 +56,9 @@ let documents : (string,document) Hashtbl.t = Hashtbl.create 0
 type position = { line: int ; char : int }
 type range = { start: position ; stop: position }
 type change = Text of string | Update of range * string
+
+let to_pos { line ; char } = line,char
+let to_range { start ; stop } = to_pos start, to_pos stop
 
 let jposition js = {
   line = Json.jfield "line" js |> Json.jint ;
@@ -80,9 +83,12 @@ let jchange js =
   | None -> Text text
   | Some range -> Update(range,text)
 
-let apply doc = function
-  | Text text -> { doc with text }
-  | Update _ -> failwith "Unsupported incremental document synchronization"
+let apply doc update =
+  let text =
+    match update with
+    | Text text -> Ropes.of_string text
+    | Update(range,text) -> Ropes.update (to_range range) text doc.text
+  in { doc with text }
 
 (* -------------------------------------------------------------------------- *)
 (* --- Document Synchronization                                           --- *)
@@ -93,7 +99,7 @@ let () = Lsp.register "textDocument/didOpen"
       let doc = Json.jfield "textDocument" data in
       let uri = Json.jfield "uri" doc |> Json.jstring in
       let lang = Json.jfield "languageId" doc |> Json.jstring in
-      let text = Json.jfield "text" doc |> Json.jstring in
+      let text = Json.jfield "text" doc |> Json.jstring |> Ropes.of_string in
       Hashtbl.replace documents uri { uri ; lang ; text } ; `Null
     end
 
@@ -118,7 +124,8 @@ let () = Lsp.register "textDocument/didSave"
     begin fun _channel data ->
       let doc = Json.jfield "textDocument" data in
       let uri = Json.jfield "uri" doc |> Json.jstring in
-      Format.printf "Saved %s" uri ; `Null
+      Format.eprintf "Saved %S@." uri ;
+      `Null
     end
 
 (* -------------------------------------------------------------------------- *)

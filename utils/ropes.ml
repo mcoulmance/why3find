@@ -169,13 +169,9 @@ let suffix p a =
       if l < n then wsuffix l left (right ++ acc) else wsuffix (l-n) right acc
   in let s,w =  wsuffix (fst p) a Empty in suffix_string (snd p) s, w
 
-let dump = iteri (Format.printf "#%d %S@.")
-
 let update (p,q) s a =
   if Range.(<<=) p q then
     begin
-      Format.printf "----------------------------------------@." ;
-      dump a ;
       let l,u = prefix p a in
       let v,r = suffix q a in
       l ++ split (u ^ s ^ v) ++ r
