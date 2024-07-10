@@ -436,6 +436,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
         end ;
       (* --- Provers ----- *)
       let time = Wenv.time () in
+      let allprovers = Prover.all env in
       let patterns, provers =
         if !default || !detect then
           let provers = Prover.default env in
@@ -449,7 +450,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           let config = Wenv.provers () in
           let patterns =
             if !relax then List.map Prover.pattern_name config else config in
-          let provers = Prover.select env ~patterns in
+          let provers = Prover.select ~patterns allprovers in
           let patterns =
             if !strict then List.map Prover.fullname provers else
             if !relax then List.map Prover.name provers else
@@ -480,7 +481,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
             match crc.Crc.state with
             | Stuck -> ()
             | Prover (p, _) ->
-              if Prover.check_and_get_prover env ~patterns p = None then
+              if Prover.check_and_get_prover ~patterns allprovers p = None then
                 retval := 1;
             | Tactic { children; _ } -> List.iter check_crc children in
           let check f =

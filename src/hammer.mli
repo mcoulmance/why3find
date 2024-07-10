@@ -35,6 +35,7 @@ type henv = {
   time : float ;
   client : Client.client option ;
   maxdepth : int ;
+  allprovers : Prover.prover Prover.Mdesc.t ;
   patterns : string list ;
   provers : Prover.prover list ;
   tactics : string list ;

@@ -48,6 +48,7 @@ val compare_desc : prover_desc -> prover_desc -> int
     {b reverse} version order. Thus, when sorting, the latest version come
     {b before} older ones. *)
 
+module Mdesc : Why3.Extmap.S with type key = prover_desc
 
 (** {1 Provers} *)
 
@@ -86,24 +87,23 @@ val pmatch : pattern:string -> prover_desc -> bool
 
 (** {1 Retrieving available provers} *)
 
-val all : Wenv.env -> prover list
+val all : Wenv.env -> prover Mdesc.t
 (** Returns the set of all available provers from the Why3 environment. *)
 
-val prover : Wenv.env -> prover_desc -> prover
-(** Gets a prover from its description. Raises [Not_found] if not available. *)
-
-val select : Wenv.env -> patterns:string list -> prover list
-(** Returns the set of available provers that match the [patterns].
-    For each [pattern] in order, if the pattern is invalid or the prover
-    unavailable, a warning is emitted, otherwise one prover is appended to the
+val select : patterns:string list -> prover Mdesc.t -> prover list
+(** Selects the subset of provers that match the [patterns] from the second
+    argument, which is intended to be the map returned by {!all}.
+    For each [pattern] in order, if the pattern is invalid or the prover is not
+    in the map, a warning is emitted, otherwise one prover is appended to the
     return list, either the one specified or the latest available version in
-    case of version-less pattern. *)
+    case of a version-less pattern. *)
 
 val default : Wenv.env -> prover list
 (** Returns the set of available "default" provers *)
 
-val check_and_get_prover : Wenv.env -> patterns:string list -> prover_desc
-  -> prover option
-(** Returns the prover if available and selected by the [patterns]. Warn if
-    the prover is not found. We assume the [patterns] have been [select]ed so
-    we don't warn if an unavailable prover match the [patterns] *)
+val check_and_get_prover : patterns:string list -> prover Mdesc.t
+  -> prover_desc -> prover option
+(** Returns the prover if present in the map (inteded to be the map returned by
+    {!all}) and selected by the [patterns]. Warn if the prover is not found. We
+    assume the [patterns] have been [select]ed so we don't warn if an
+    unavailable prover match the [patterns] *)
