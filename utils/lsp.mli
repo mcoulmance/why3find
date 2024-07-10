@@ -53,3 +53,6 @@ val ignore: string -> unit
 
 (** Notify the server *)
 val notify: channel -> string -> Json.t -> unit
+
+(** Launch the server until it is terminated *)
+val run: transport -> unit

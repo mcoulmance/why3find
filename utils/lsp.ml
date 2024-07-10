@@ -26,6 +26,7 @@
 type channel = {
   mutable shutdown : bool ; (* has been shutdown *)
   mutable processing : bool ; (* processing a request *)
+  mutable pending : (string * Json.t) list ; (* pending notifications *)
   sock : Unix.file_descr ; (* Socket *)
   rcv : bytes ; (* RCV bytes buffer, re-used for transport *)
   snd : bytes ; (* SND bytes buffer, re-used for transport *)
@@ -70,7 +71,8 @@ let send_bytes { sock ; snd ; bsnd } =
       Buffer.reset bsnd ;
       Buffer.add_string bsnd tail
 
-let yield chan = send_bytes chan ; read_bytes chan
+let yield chan =
+  send_bytes chan ; read_bytes chan
 
 (* -------------------------------------------------------------------------- *)
 (* --- Decoding Base Protocole                                            --- *)
@@ -114,16 +116,29 @@ let protocol : (string, handler) Hashtbl.t = Hashtbl.create 0
 let json_header = "jsonrpc", `String "2.0"
 let json_rpc msg : Json.t = `Assoc ( json_header :: msg )
 
-let reply channel ~id ~result =
+let send_response channel ~id ~result =
   if not @@ Json.is_empty id then
     push channel @@ Json.to_string @@ json_rpc [ "id", id ; "result", result ]
 
-let error channel ~id ~code ~msg =
+let send_error channel ~id ~code ~msg =
   let err = `Assoc [
       "code", `Int code ;
       "message", `String msg ;
     ] in
   push channel @@ Json.to_string @@ json_rpc [ "id", id ; "error", err ]
+
+let send_notification channel meth params =
+  push channel @@ Json.to_string @@ json_rpc [
+    "method", `String meth ;
+    "params", params ;
+  ]
+
+let flush channel =
+  let qs = List.rev channel.pending in
+  channel.processing <- false ;
+  channel.pending <- [] ;
+  List.iter (fun (m,d) -> send_notification channel m d) qs ;
+  send_bytes channel
 
 let process channel =
   yield channel ;
@@ -140,26 +155,26 @@ let process channel =
           channel.processing <- true ;
           match Hashtbl.find protocol meth channel params with
           | result ->
-            reply channel ~id ~result
+            send_response channel ~id ~result
           | exception Not_found ->
             Log.error "Unsupported method: %s" meth ;
-            error channel ~id ~code:(-32601) ~msg:meth
+            send_error channel ~id ~code:(-32601) ~msg:meth
           | exception Invalid_argument msg ->
             Log.error "Invalid parameters (%s:%s)" meth msg ;
-            error channel ~id ~code:(-32602) ~msg
+            send_error channel ~id ~code:(-32602) ~msg
           | exception Failure msg ->
             Log.error "Internal error (%s:%s)" meth msg ;
-            error channel ~id ~code:(-32603) ~msg
+            send_error channel ~id ~code:(-32603) ~msg
           | exception err ->
             let msg = Printexc.to_string err in
             Log.error "Internal error (%s:%s)" meth msg ;
-            error channel ~id ~code:(-32603) ~msg
+            send_error channel ~id ~code:(-32603) ~msg
         end ;
-        channel.processing <- false ;
+        flush channel
       with Invalid_argument msg ->
-        channel.processing <- false ;
         Log.error "Invalid message (%s)" msg ;
-        error channel ~id:(`Int 0) ~code:(-32700) ~msg
+        send_error channel ~id:(`Int 0) ~code:(-32700) ~msg ;
+        flush channel
 
 (* -------------------------------------------------------------------------- *)
 (* --- Decoding LSP Messages                                              --- *)
@@ -174,10 +189,9 @@ let register ?(force=false) name fn =
 let ignore name = register name (fun _ _ -> `Null)
 
 let notify channel meth params =
-  push channel @@ Json.to_string @@ json_rpc [
-    "method", `String meth ;
-    "params", params ;
-  ]
+  if channel.processing then
+    channel.pending <- (meth,params) :: channel.pending
+  else send_notification channel meth params
 
 (* -------------------------------------------------------------------------- *)
 (* --- Handling Transport I/O                                             --- *)
@@ -239,6 +253,7 @@ let establish transport =
           sock ;
           shutdown = false ;
           processing = false ;
+          pending = [] ;
           snd = Bytes.create snd ;
           rcv = Bytes.create rcv ;
           bsnd = Buffer.create snd ;
@@ -271,5 +286,13 @@ let () = register "exit"
 
 let () = ignore "initialized"
 let () = ignore "$/setTrace"
+
+(* -------------------------------------------------------------------------- *)
+(* --- Launch Server                                                      --- *)
+(* -------------------------------------------------------------------------- *)
+
+let run transport =
+  let channel = establish transport in
+  while running channel do process channel done
 
 (* -------------------------------------------------------------------------- *)

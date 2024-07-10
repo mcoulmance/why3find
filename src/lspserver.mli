@@ -19,7 +19,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-val run : Lsp.transport -> unit
 
 type position = { line: int ; char : int }
 type range = { start: position ; stop: position }

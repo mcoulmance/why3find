@@ -745,7 +745,7 @@ let () = register ~name:"lsp" ~args:"[OPTIONS]"
          OPTIONS:\n" ;
       match !transport with
       | None -> Log.error "No transport protocol specified." ; exit 1
-      | Some transport -> Lspserver.run transport
+      | Some transport -> Lsp.run transport
     end
 
 (* -------------------------------------------------------------------------- *)
