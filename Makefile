@@ -2,7 +2,7 @@
 # ---  Why3 Package Manager
 # --------------------------------------------------------------------------
 
-.PHONY: all build clean test lint headers install uninstall
+.PHONY: all build clean test lint headers install uninstall test-coverage
 
 all: build
 
@@ -31,10 +31,9 @@ uninstall:
 # --------------------------------------------------------------------------
 
 test-coverage:
-	@rm -f why3find.json
 	@rm -rf _bisect
 	@mkdir _bisect
-	BISECT_FILE=$(shell pwd)/_bisect/bisect	dune test --force --instrument-with bisect_ppx
+	BISECT_FILE=$(shell pwd)/_bisect/bisect dune test --force --instrument-with bisect_ppx
 	@bisect-ppx-report summary --coverage-path=_bisect
 	@bisect-ppx-report html --coverage-path=_bisect
 	@echo "Report: file://$(PWD)/_coverage/index.html"

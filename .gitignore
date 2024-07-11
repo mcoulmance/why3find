@@ -1,6 +1,5 @@
-_build
-_coverage
-_bisect
-.why3find
-.vscode
+/_build
+/_coverage
+/_bisect
+/.vscode
 /result

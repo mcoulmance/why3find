@@ -24,7 +24,7 @@ buildDunePackage {
   src = gitignoreSource ./..;
 
   preBuild = ''
-    export DUNE_INSTRUMENT_WITH=meta_bisect_ppx
+    export DUNE_INSTRUMENT_WITH=bisect_ppx
     cp why3find.opam why3find.opam.old
   '';
 
