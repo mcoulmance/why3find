@@ -20,6 +20,22 @@
 (**************************************************************************)
 
 (* -------------------------------------------------------------------------- *)
+(* --- URI Utilities                                                      --- *)
+(* -------------------------------------------------------------------------- *)
+
+let file_uri = "file://"
+let to_file ~uri =
+  if String.starts_with ~prefix:file_uri uri then
+    let p = String.length file_uri in
+    let n = String.length uri in
+    Some (String.sub uri p (n-p))
+  else None
+
+let to_uri ~filename =
+  assert (not @@ Filename.is_relative filename) ;
+  file_uri ^ filename
+
+(* -------------------------------------------------------------------------- *)
 (* --- LSP Initialize                                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -90,6 +106,8 @@ let apply doc update =
     | Update(range,text) -> Ropes.update (to_range range) text doc.text
   in { doc with text }
 
+let document ~uri = Hashtbl.find documents uri
+
 (* -------------------------------------------------------------------------- *)
 (* --- Document Synchronization                                           --- *)
 (* -------------------------------------------------------------------------- *)
@@ -147,7 +165,7 @@ let () = Lsp.register "textDocument/didChange"
           let changes = List.rev !stack in
           List.iter (fun f ->
               List.iter
-                (fun (pre,change,upd) -> f ~uri ~pre ~change ~upd)
+                (fun (old,change,upd) -> f ~uri ~old ~change ~upd)
                 changes
             ) !dupdate ;
       end ;

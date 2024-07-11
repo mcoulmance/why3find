@@ -19,6 +19,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
+val to_file : uri:string -> string option
+val to_uri : filename:string -> string
 
 type position = { line: int ; char : int }
 type range = { start: position ; stop: position }
@@ -36,5 +38,6 @@ val on_save : (document -> unit) -> unit
 val on_open : (document -> unit) -> unit
 val on_close : (document -> unit) -> unit
 val on_update :
-  (uri:string -> old:Ropes.t -> change -> upd:Ropes.t -> unit) -> unit
+  (uri:string -> old:Ropes.t -> change:change -> upd:Ropes.t -> unit) -> unit
+
 val self : unit

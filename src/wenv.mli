@@ -69,6 +69,7 @@ val exts : unit -> string list
 
 val load : unit -> unit
 val save : unit -> unit
+val local : ?loadpath:string -> unit -> unit
 
 type env = {
   wconfig : Why3.Whyconf.config ;
