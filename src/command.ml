@@ -727,6 +727,7 @@ let () = register ~name:"extract" ~args:"[OPTIONS] MODULE..."
 (* --- LSP                                                                --- *)
 (* -------------------------------------------------------------------------- *)
 
+let () = Lspserver.self
 let () = register ~name:"lsp" ~args:"[OPTIONS]"
     begin fun argv ->
       let transport = ref None in

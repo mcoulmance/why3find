@@ -166,4 +166,4 @@ let () = Lsp.register "textDocument/didSave"
       end ; `Null
     end
 
-(* -------------------------------------------------------------------------- *)
+let self = ()

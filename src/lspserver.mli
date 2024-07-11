@@ -37,3 +37,4 @@ val on_open : (document -> unit) -> unit
 val on_close : (document -> unit) -> unit
 val on_update :
   (uri:string -> old:Ropes.t -> change -> upd:Ropes.t -> unit) -> unit
+val self : unit
