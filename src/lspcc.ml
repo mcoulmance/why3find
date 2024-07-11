@@ -36,7 +36,7 @@ let compile (doc: Lspserver.document) =
   | None -> ()
   | Some filename ->
     if Filename.check_suffix filename ".mlw" then
-      begin
+      try
         Format.printf "Compiling %s@." filename ;
         let loadpath =
           match config_for ~filename with
@@ -44,10 +44,23 @@ let compile (doc: Lspserver.document) =
             Format.printf "No config found.@." ;
             Filename.dirname filename
           | Some(dir,cfg) ->
-            Format.printf "Config %s@." cfg ; dir
-        in
+            Format.printf "Using %s@." cfg ; dir in
+        let tmp,out = Filename.open_temp_file "lsp" ".mlw" in
+        Ropes.to_channel out doc.text ;
+        close_out out ;
         Wenv.local ~loadpath () ;
-      end
+        let env = Wenv.init () in
+        let inc = open_in tmp in
+        let theories =
+          Why3.Env.read_channel Why3.Env.base_language env.wenv filename inc in
+        Why3.Wstdlib.Mstr.iter
+          (fun tname _thy ->
+             Format.printf " - Theory %s@\n" tname
+          ) theories ;
+        Format.printf "Done.@." ;
+      with exn ->
+        Format.printf "[EXN] %s@." (Printexc.to_string exn) ;
+        Format.printf "[ERROR] %a@." Why3.Exn_printer.exn_printer exn
 
 let () = Lspserver.on_save compile
 let self = ()
