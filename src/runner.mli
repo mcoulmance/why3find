@@ -49,27 +49,32 @@ val prove : env ->
   ?cancel:unit Fibers.signal ->
   ?callback:callback ->
   Prover.prover -> Why3.Task.task -> float -> result Fibers.t
+(** Use and update cache *)
 
 type prooftask
 
 val digest : prooftask -> string
 val data : Prover.prover -> prooftask -> string
 
-val prove_cached : Prover.prover -> Why3.Task.task -> float ->
-  [ `Cached of result | `Prepared of prooftask ]
+val prove_cached : Prover.prover -> Session.goal -> float -> result option
+(** Query cache *)
+
+val prepare : Prover.prover -> Session.goal -> prooftask
 
 val prove_prepared : env ->
   ?name:string ->
   ?cancel:unit Fibers.signal ->
   ?callback:callback ->
   Prover.prover -> prooftask -> float -> result Fibers.t
+(** Do not read nor update cache *)
 
 val prove_buffer : env ->
   ?cancel:unit Fibers.signal ->
   Prover.prover -> Buffer.t -> float -> result Fibers.t
+(** Do not read nor update cache *)
 
 val notify : env -> Prover.prover -> result -> callback -> unit
-val update : Prover.prover -> prooftask -> result -> unit
+val update : Prover.prover -> Session.goal -> result -> unit
 
 val options : (string * Arg.spec * string) list
 val pending : unit -> int

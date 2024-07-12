@@ -42,7 +42,7 @@ type worker = {
   mutable socket : [ `Dealer ] Zmq.Socket.t ;
   mutable polling : Zmq.Poll.t ;
   maxjobs : int ;
-  provers : Prover.prover list ;
+  provers : Prover.prover Prover.Mdesc.t ;
   profile : Calibration.profile ;
   pending : (goal,unit Fibers.signal) Hashtbl.t ;
 }
@@ -72,8 +72,8 @@ let recv worker fn =
 (* -------------------------------------------------------------------------- *)
 
 let send_ready worker =
-  let provers =
-    List.map (fun p -> Prover.desc_to_string p.Prover.desc) worker.provers in
+  let provers = Prover.Mdesc.keys worker.provers in
+  let provers = List.map (fun p -> Prover.desc_to_string p) provers in
   send worker ("READY"::string_of_int worker.maxjobs::provers)
 
 (* -------------------------------------------------------------------------- *)
@@ -122,7 +122,7 @@ let do_prove worker goal timeout data =
   try
     let env = worker.env in
     let cancel = Fibers.signal () in
-    let prover = Prover.prover env goal.prover in
+    let prover = Prover.Mdesc.find goal.prover worker.provers in
     let buffer = Buffer.create (String.length data) in
     Buffer.add_string buffer data ;
     Hashtbl.add worker.pending goal cancel ;
@@ -211,7 +211,7 @@ let connect ~server ~polling =
   let prvs = Prover.all env in
   let jobs = Runner.maxjobs env in
   Utils.flush () ;
-  List.iter (Format.printf "Prover %a@." Prover.pp_prover) prvs ;
+  Prover.(Mdesc.iter (fun _ -> Format.printf "Prover %a@." pp_prover) prvs) ;
   Format.printf "Server %s@." server ;
   let context = Zmq.Context.create () in
   let timeout = int_of_float (polling *. 1e3) in

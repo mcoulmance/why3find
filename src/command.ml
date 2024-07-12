@@ -380,6 +380,24 @@ let rec configuration configs provers =
       if c = q then q :: configuration cs ps else
         Prover.infoname p :: configuration cs ps
 
+let check_custom_drivers main p =
+  let check_driver (extra_dir, n) =
+    let path = Why3.Driver.resolve_driver_name main "drivers" ~extra_dir n in
+    let prefix = Utils.absolute (Why3.Whyconf.datadir main) in
+    if not (String.starts_with ~prefix (Utils.absolute path)) then
+      begin
+        Log.warning
+          "Prover %a has a custom driver %s. Modifying this driver or one of \
+           its dependencies might leave the cache unsound, remember to clean \
+           it with 'rm -rf .why3find/%a'."
+          Prover.pp_prover p
+          path
+          Prover.pp_prover p;
+      end in
+  check_driver p.config.driver;
+  List.iter (fun (d, l) -> List.iter (fun n -> check_driver (Some d, n)) l)
+    p.config.extra_drivers
+
 let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
     begin fun argv ->
       let list = ref true in
@@ -436,6 +454,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
         end ;
       (* --- Provers ----- *)
       let time = Wenv.time () in
+      let allprovers = Prover.all env in
       let patterns, provers =
         if !default || !detect then
           let provers = Prover.default env in
@@ -449,7 +468,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           let config = Wenv.provers () in
           let patterns =
             if !relax then List.map Prover.pattern_name config else config in
-          let provers = Prover.select env ~patterns in
+          let provers = Prover.select ~patterns allprovers in
           let patterns =
             if !strict then List.map Prover.fullname provers else
             if !relax then List.map Prover.name provers else
@@ -480,7 +499,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
             match crc.Crc.state with
             | Stuck -> ()
             | Prover (p, _) ->
-              if Prover.check_and_get_prover env ~patterns p = None then
+              if Prover.check_and_get_prover ~patterns allprovers p = None then
                 retval := 1;
             | Tactic { children; _ } -> List.iter check_crc children in
           let check f =
@@ -489,6 +508,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           in
           Wenv.allfiles check "."
         end ;
+      let wmain = Why3.Whyconf.get_main env.wconfig in
+      List.iter (check_custom_drivers wmain) provers;
       (* --- Printing -------------- *)
       if !list then
         begin

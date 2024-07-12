@@ -31,6 +31,7 @@ type henv = {
   time : float ;
   client : Client.client option ;
   maxdepth : int ;
+  allprovers : Prover.prover Prover.Mdesc.t ;
   patterns : string list ;
   provers : Prover.prover list ;
   tactics : string list ;
@@ -87,23 +88,23 @@ let rec sequence (f : 'a -> strategy) (xs : 'a list) : strategy =
 (* -------------------------------------------------------------------------- *)
 
 let prove env ?client ?cancel prover timeout : strategy = fun n ->
-  let task = Session.goal_task n.goal in
   let name = Session.goal_name n.goal in
   let* alpha = Calibration.velocity env n.profile prover in
   let to_profile = Runner.map (fun t -> t /. alpha) in
   let runner_time = timeout *. alpha in
   let callback = Session.result n.goal in
   let+ verdict =
-    match Runner.prove_cached prover task runner_time with
-    | `Cached result ->
+    match Runner.prove_cached prover n.goal runner_time with
+    | Some result ->
       Runner.notify env prover result callback ;
       Fibers.return (to_profile result)
-    | `Prepared task ->
+    | None ->
+      let task = Runner.prepare prover n.goal in
       let kill = Fibers.signal () in
       let runner =
         Fibers.monitor ?signal:cancel ~handler:(Fibers.emit kill) @@
         Fibers.map to_profile @@
-        Fibers.finally ~callback:(Runner.update prover task) @@
+        Fibers.finally ~callback:(Runner.update prover n.goal) @@
         Runner.prove_prepared env ~name ~cancel:kill ~callback
           prover task runner_time
       in match client with
@@ -186,7 +187,7 @@ let overhead t = max (t *. 2.0) 1.0
 
 let replay h p t =
   let client = if t > h.time *. 0.2 then h.client else None in
-  match Prover.check_and_get_prover h.env ~patterns:h.patterns p with
+  match Prover.check_and_get_prover ~patterns:h.patterns h.allprovers p with
   | None -> stuck
   | Some p -> prove h.env ?client p (overhead t)
 

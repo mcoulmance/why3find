@@ -56,12 +56,6 @@ let desc_version p = p.version
 
 let pp_desc fmt p = Format.fprintf fmt "%s@%s" p.name p.version
 
-type prover = {
-  desc : prover_desc ;
-  config : Whyconf.config_prover ;
-  driver : Driver.driver ;
-}
-
 type sem = V of int | S of string
 let sem s = try V (int_of_string s) with Failure _ -> S s
 let cmp x y =
@@ -80,8 +74,21 @@ let compare_desc p q =
   if c <> 0 then c else
     compare_version p.version q.version
 
+module Mdesc = Extmap.Make (struct
+    type t = prover_desc
+    let compare = compare_desc
+  end)
+
+type prover = {
+  desc : prover_desc ;
+  config : Whyconf.config_prover ;
+  driver : Driver.driver ;
+  digest : string ;
+}
+
 let compare_prover (p : prover) (q : prover) =
   compare_desc p.desc q.desc
+[@@warning "-32"]
 
 let why3_desc prv = Whyconf.prover_parseable_format prv.config.prover
 let name prv = prv.desc.name
@@ -89,6 +96,30 @@ let version prv = prv.desc.version
 let fullname p = Format.sprintf "%s@%s" (name p) (version p)
 let infoname p = Format.sprintf "%s(%s)" (name p) (version p)
 let pp_prover fmt p = Format.fprintf fmt "%s@%s" (name p) (version p)
+
+(* Digest the file that why3 will load *)
+let digest_driver main (dir, name) =
+  let file = Driver.resolve_driver_name main "drivers" ~extra_dir:dir name in
+  Digest.file file
+
+let digest_config main (c : Whyconf.config_prover) =
+  let open Buffer in
+  let buf = create 128 in
+  add_string buf (Digest.string c.prover.prover_name);
+  add_string buf (Digest.string c.prover.prover_version);
+  add_string buf (Digest.string c.prover.prover_altern);
+  add_string buf (Digest.string c.command);
+  if c.command_steps = None then
+    add_string buf "None                            "
+  else
+    add_string buf (Digest.string (Option.get c.command_steps));
+  add_string buf (digest_driver main c.driver);
+  List.iter (fun s -> add_string buf (Digest.string s))
+    c.extra_options;
+  List.iter (fun (d, l) ->
+      List.iter (fun f -> add_string buf (digest_driver main (Some d, f))) l
+    ) c.extra_drivers;
+  Digest.(to_hex (string (Buffer.contents buf)))
 
 let pmatch ~pattern d =
   let (name, version) = split_pattern pattern in
@@ -113,6 +144,7 @@ let load (env : Wenv.env) (config : Whyconf.config_prover) =
       desc = desc_of_config config ;
       config ;
       driver = Driver.load_driver_for_prover main env.wenv config ;
+      digest = digest_config main config;
     }
   with _ ->
     Log.error "failed to load driver for %s"
@@ -120,37 +152,24 @@ let load (env : Wenv.env) (config : Whyconf.config_prover) =
     exit 2
 
 let all env =
-  let aux c =
+  let folder _ c m =
     if c.Whyconf.prover.prover_altern = ""
-    then Some (load env c)
-    else None in
-  let configs = Whyconf.(Mprover.values @@ get_provers env.Wenv.wconfig) in
-  List.sort compare_prover @@ List.filter_map aux @@ configs
+    then let p = load env c in Mdesc.add p.desc p m
+    else m in
+  let configs = Whyconf.get_provers env.Wenv.wconfig in
+  Whyconf.Mprover.fold folder configs Mdesc.empty
 
 let filter_prover ~name ?version p =
   p.desc.name = name
   && (version = None || p.desc.version = Option.get version)
 
-let take_one = function
-  | [] -> raise Not_found
-  | [ p ] -> p
-  | _ :: _ -> assert false
-
-let take_best = function
-  | [] -> raise Not_found
-  | prv :: _ -> prv
-
-let prover (env : Wenv.env) desc =
-  let filter = filter_prover ~name:desc.name ~version:desc.version in
-  take_one @@ List.filter filter @@ all env
-
-let find_exn env ~pattern =
+let find_exn ~pattern all =
   let (name, version) = split_pattern pattern in
-  let filter = filter_prover ~name ?version in
-  take_best @@ List.filter filter @@ all env
+  let filter _ p = filter_prover ~name ?version p in
+  snd @@ Mdesc.min_binding @@ Mdesc.filter filter all
 
 let find_default env name =
-  try [ find_exn env ~pattern:name ] with Not_found -> []
+  try [ find_exn ~pattern:name @@ all env ] with Not_found -> []
 
 let default env =
   find_default env "alt-ergo" @
@@ -158,18 +177,18 @@ let default env =
   find_default env "cvc4" @
   find_default env "cvc5"
 
-let select env ~patterns =
+let select ~patterns all =
   let find pattern =
-    try Some (find_exn env ~pattern) with
+    try Some (find_exn ~pattern all) with
     | InvalidPattern s -> Log.warning "invalid prover pattern %s" s; None
     | Not_found -> Log.warning "prover %s not found (why3)" pattern; None in
   List.filter_map find patterns
 
-let check_and_get_prover env ~patterns pr =
+let check_and_get_prover ~patterns all pr =
   let prmatch pattern =
     try pmatch ~pattern pr with
     | InvalidPattern _ -> false in
-  let prover = try Some (prover env pr) with Not_found -> None in
+  let prover = Mdesc.find_opt pr all in
   if List.exists prmatch patterns
   then prover (* either the prover is available or we already complained *)
   else
