@@ -102,24 +102,35 @@ let digest_driver main (dir, name) =
   let file = Driver.resolve_driver_name main "drivers" ~extra_dir:dir name in
   Digest.file file
 
-let digest_config main (c : Whyconf.config_prover) =
+let digest_config main Whyconf.{
+    prover ;
+    command ;
+    command_steps ;
+    driver ;
+    in_place = _ ;
+    editor = _ ;
+    interactive = _ ;
+    extra_options ;
+    extra_drivers ;
+  } =
   let open Buffer in
   let buf = create 128 in
-  add_string buf (Digest.string c.prover.prover_name);
-  add_string buf (Digest.string c.prover.prover_version);
-  add_string buf (Digest.string c.prover.prover_altern);
-  add_string buf (Digest.string c.command);
-  if c.command_steps = None then
+  add_string buf (Digest.string prover.prover_name);
+  add_string buf (Digest.string prover.prover_version);
+  add_string buf (Digest.string prover.prover_altern);
+  add_string buf (Digest.string command);
+  if command_steps = None then
     add_string buf "None                            "
   else
-    add_string buf (Digest.string (Option.get c.command_steps));
-  add_string buf (digest_driver main c.driver);
+    add_string buf (Digest.string (Option.get command_steps));
+  add_string buf (digest_driver main driver);
   List.iter (fun s -> add_string buf (Digest.string s))
-    c.extra_options;
+    extra_options;
   List.iter (fun (d, l) ->
       List.iter (fun f -> add_string buf (digest_driver main (Some d, f))) l
-    ) c.extra_drivers;
+    ) extra_drivers;
   Digest.(to_hex (string (Buffer.contents buf)))
+[@@ocaml.warning "+9"]
 
 let pmatch ~pattern d =
   let (name, version) = split_pattern pattern in
