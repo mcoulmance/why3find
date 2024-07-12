@@ -46,3 +46,10 @@ val joption : (t -> 'a) -> t -> 'a option
 val jdefault : 'a -> (t -> 'a) -> t -> 'a
 val jmem : string -> t -> bool
 val jiter : (string -> t -> unit) -> t -> unit
+
+val int : int -> t
+val string : string -> t
+val assoc : (string * t) list -> t
+val list : t list -> t
+val list_map : ('a -> t) -> 'a list -> t
+val option_map : ('a -> t) -> 'a option -> t

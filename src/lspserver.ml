@@ -19,6 +19,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
+let self = ()
+
 (* -------------------------------------------------------------------------- *)
 (* --- URI Utilities                                                      --- *)
 (* -------------------------------------------------------------------------- *)
@@ -60,11 +62,7 @@ let () = Lsp.register ~force:true "initialize"
 (* --- Documents                                                          --- *)
 (* -------------------------------------------------------------------------- *)
 
-type document = {
-  uri: string ;
-  lang: string ;
-  text: Ropes.t ;
-}
+type document = { uri: string ; lang: string ; text: Ropes.t }
 
 (* Indexed by uri *)
 let documents : (string,document) Hashtbl.t = Hashtbl.create 0
@@ -72,6 +70,7 @@ let documents : (string,document) Hashtbl.t = Hashtbl.create 0
 type position = { line: int ; char : int }
 type range = { start: position ; stop: position }
 type change = Text of string | Update of range * string
+type update = { before: Ropes.t ; change: change ; after: Ropes.t }
 
 let to_pos { line ; char } = line,char
 let to_range { start ; stop } = to_pos start, to_pos stop
@@ -124,32 +123,32 @@ let on_save = register dsave
 let on_update = register dupdate
 
 let () = Lsp.register "textDocument/didOpen"
-    begin fun _channel data ->
+    begin fun channel data ->
       let doc = Json.jfield "textDocument" data in
       let uri = Json.jfield "uri" doc |> Json.jstring in
       let lang = Json.jfield "languageId" doc |> Json.jstring in
       let text = Json.jfield "text" doc |> Json.jstring |> Ropes.of_string in
       let doc = { uri ; lang ; text } in
       Hashtbl.replace documents uri doc ;
-      List.iter (fun f -> f doc) !dopen ;
+      List.iter (fun f -> f channel doc) !dopen ;
       `Null
     end
 
 let () = Lsp.register "textDocument/didClose"
-    begin fun _channel data ->
+    begin fun channel data ->
       let doc = Json.jfield "textDocument" data in
       let uri = Json.jfield "uri" doc |> Json.jstring in
       begin
         try
           let doc = Hashtbl.find documents uri in
           Hashtbl.remove documents uri ;
-          List.iter (fun f -> f doc) !dclose ;
+          List.iter (fun f -> f channel doc) !dclose ;
         with Not_found -> ()
       end ; `Null
     end
 
 let () = Lsp.register "textDocument/didChange"
-    begin fun _channel data ->
+    begin fun channel data ->
       let doc = Json.jfield "textDocument" data in
       let uri = Json.jfield "uri" doc |> Json.jstring in
       let changes = Json.jfield "contentChanges" data |> Json.jmap jchange in
@@ -157,31 +156,67 @@ let () = Lsp.register "textDocument/didChange"
       let stack = ref [] in
       let push d u =
         let d' = apply d u in
-        stack := (d.text,u,d'.text) :: !stack ; d' in
+        let upd = { before = d.text ; change = u ; after = d'.text } in
+        stack := upd :: !stack ; d' in
       let newDoc = List.fold_left push doc changes in
       Hashtbl.replace documents uri newDoc ;
       begin
         if !dupdate <> [] then
-          let changes = List.rev !stack in
-          List.iter (fun f ->
-              List.iter
-                (fun (old,change,upd) -> f ~uri ~old ~change ~upd)
-                changes
-            ) !dupdate ;
+          let updates = List.rev !stack in
+          List.iter (fun f -> List.iter (f channel ~uri) updates) !dupdate
       end ;
       `Null
     end
 
 let () = Lsp.register "textDocument/didSave"
-    begin fun _channel data ->
+    begin fun channel data ->
       let doc = Json.jfield "textDocument" data in
       let uri = Json.jfield "uri" doc |> Json.jstring in
       begin
         try
           let doc = Hashtbl.find documents uri in
-          List.iter (fun f -> f doc) !dsave ;
+          List.iter (fun f -> f channel doc) !dsave ;
         with Not_found -> ()
       end ; `Null
     end
 
-let self = ()
+(* -------------------------------------------------------------------------- *)
+(* ---  Diagnostics                                                       --- *)
+(* -------------------------------------------------------------------------- *)
+
+type severity = [ `Error | `Warning | `Information | `Hint ]
+
+type diagnostic = Diag of {
+    range : range ;
+    severity : severity ;
+    source : string option ;
+    message : string ;
+    data : Json.t ;
+  }
+
+let wseverity (s : severity) : Json.t =
+  match s with
+  | `Error -> `Int 1
+  | `Warning -> `Int 2
+  | `Information -> `Int 3
+  | `Hint -> `Int 4
+
+let diagnostic ~range ?(severity=`Error) ?source ~message ?(data=`Null) () =
+  Diag { range ; severity ; source ; message ; data }
+
+let wdiagnostic =
+  function Diag { range ; severity ; source ; message ; data } ->
+    Json.assoc [
+      "range", wrange range ;
+      "severity", wseverity severity ;
+      "source", Json.option_map Json.string source ;
+      "message", `String message ;
+      "data", data ;
+    ]
+
+let publish_diagnostic channel ~uri (ds : diagnostic list) =
+  Lsp.notify channel "textDocument/publishDiagnostics" @@
+  `Assoc [
+    "uri", `String uri ;
+    "diagnostics", `List (List.map wdiagnostic ds) ;
+  ]

@@ -19,6 +19,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
+val self : unit
+
 val to_file : uri:string -> string option
 val to_uri : filename:string -> string
 
@@ -26,18 +28,31 @@ type position = { line: int ; char : int }
 type range = { start: position ; stop: position }
 type change = Text of string | Update of range * string
 
-type document = {
-  uri: string ;
-  lang: string ;
-  text: Ropes.t ;
-}
+type document = { uri: string ; lang: string ; text: Ropes.t }
+type update = { before: Ropes.t ; change: change ; after: Ropes.t }
 
 val document : uri:string -> document
 
-val on_save : (document -> unit) -> unit
-val on_open : (document -> unit) -> unit
-val on_close : (document -> unit) -> unit
-val on_update :
-  (uri:string -> old:Ropes.t -> change:change -> upd:Ropes.t -> unit) -> unit
+val on_save : (Lsp.channel -> document -> unit) -> unit
+val on_open : (Lsp.channel -> document -> unit) -> unit
+val on_close : (Lsp.channel -> document -> unit) -> unit
+val on_update : (Lsp.channel -> uri:string -> update -> unit) -> unit
 
-val self : unit
+type severity = [ `Error | `Warning | `Information | `Hint ]
+type diagnostic = Diag of {
+    range : range ;
+    severity : severity ;
+    source : string option ;
+    message : string ;
+    data : Json.t ;
+  }
+
+val diagnostic :
+  range:range ->
+  ?severity:severity ->
+  ?source:string ->
+  message:string ->
+  ?data:Json.t ->
+  unit -> diagnostic
+
+val publish_diagnostic : Lsp.channel -> uri:string -> diagnostic list -> unit

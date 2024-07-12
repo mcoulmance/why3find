@@ -72,7 +72,7 @@
 			"patterns": [
 				{
 					"name": "comment.doc",
-					"begin": "\\(\\*\\*", "end": "\\*\\)",
+					"begin": "\\(\\*\\*[ \n\r]", "end": "\\*\\)",
 					"patterns": [
 						{ "match": "\\(\\*+\\)" },
 						{ "include": "#documentation" }
