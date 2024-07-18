@@ -326,6 +326,85 @@ let set_logfile = function
     at_exit (fun () -> close_out_noerr oc);
     logchannel := Some oc
 
+module type WRunner = sig
+
+  type prover_call
+
+  val prove_task : command:string -> config:Whyconf.main
+    -> limit:Call_provers.resource_limit -> Driver.driver -> prepared_task
+    -> prover_call
+
+  val interrupt_call : config:Whyconf.main -> prover_call -> unit
+
+  val query_call : prover_call -> Call_provers.prover_update
+
+end
+
+module WRunner : WRunner = struct
+
+  type prover_call = Call_provers.prover_call
+
+  let prove_task ~command ~config ~limit driver = function
+    | Prooftask (Prepared task) ->
+      Driver.prove_task_prepared ~command ~config ~limit driver task
+    | Buffered buffer ->
+      Driver.prove_buffer_prepared ~command ~config ~limit driver buffer
+
+  let interrupt_call ~config c =
+    Call_provers.interrupt_call ~config c
+
+  let query_call c =
+    Call_provers.query_call c
+
+end
+
+module MockRunner : WRunner = struct
+
+  type state =
+    | Unstarted
+    | Started
+    | Interrupted
+    | Done
+
+  type prover_call = {
+    mutable state : state;
+  }
+
+  let prove_task ~command:_ ~config:_ ~limit:_ _ _ =
+    { state = Unstarted }
+
+  let interrupt_call ~config:_ c =
+    match c.state with
+    | Started -> c.state <- Interrupted
+    | _ -> assert false
+
+  let interrupted = (* expected answer, see below *)
+    let highfailure = Call_provers.{
+        pr_answer = HighFailure ;
+        pr_status = Unix.WEXITED 0 ;
+        pr_time = 0. ;
+        pr_steps = 0 ;
+        pr_output = "" ;
+        pr_models = [] ;
+      } in
+    Call_provers.ProverFinished highfailure
+
+  let query_call c =
+    match c.state with
+    | Unstarted -> c.state <- Started; Call_provers.ProverStarted
+    | Started -> Call_provers.NoUpdates
+    | Interrupted -> c.state <- Done; interrupted
+    | Done -> assert false
+
+end
+
+let wrunner = ref (module WRunner : WRunner)
+
+let mock_runner () =
+  wrunner := (module MockRunner)
+
+let _ = Debug.create_flag ~callback:mock_runner "fake-local-timeouts"
+
 let call_prover (config : Why3.Whyconf.main)
     ?(name : string option)
     ?(idename : string option)
@@ -334,6 +413,7 @@ let call_prover (config : Why3.Whyconf.main)
     ~(prepared : prepared_task)
     ~(prover : Prover.prover)
     ~(timeout : float) () =
+  let module WRunner = (val !wrunner) in
   let limit = limit config timeout in
   let timer = Timer.create () in
   let clockwall = ref 0.0 in
@@ -345,22 +425,15 @@ let call_prover (config : Why3.Whyconf.main)
   schedule () ;
   Timer.start launch_proof_timer;
   let call =
-    match prepared with
-    | Prooftask (Prepared task) ->
-      Driver.prove_task_prepared
-        ~command:(Whyconf.get_complete_command prover.config ~with_steps:false)
-        ~config ~limit prover.driver task
-    | Buffered buffer ->
-      Driver.prove_buffer_prepared
-        ~command:(Whyconf.get_complete_command prover.config ~with_steps:false)
-        ~config ~limit prover.driver buffer
+    WRunner.prove_task ~config ~limit prover.driver prepared
+      ~command:(Whyconf.get_complete_command prover.config ~with_steps:false)
   in
   Timer.stop launch_proof_timer;
   let kill () =
     if not !killed then
       begin
         try
-          Call_provers.interrupt_call ~config call ;
+          WRunner.interrupt_call ~config call ;
           killed := true ;
         with _ -> ()
       end in
@@ -380,7 +453,7 @@ let call_prover (config : Why3.Whyconf.main)
           (timedout := true ; kill ()) ;
       end ;
     let query =
-      try Call_provers.query_call call with e -> InternalFailure e in
+      try WRunner.query_call call with e -> InternalFailure e in
     match query with
     | NoUpdates
     | ProverInterrupted ->
