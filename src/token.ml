@@ -60,10 +60,10 @@ type input = {
 let src_lexer = ref (fun _ -> assert false)
 let doc_lexer = ref (fun _ -> assert false)
 
-let input ?(doc=false) file =
+let input ?(doc=false) ?(filename) file =
   let inc = open_in file in
   let lexbuf = Lexing.from_channel inc in
-  Lexing.set_filename lexbuf file ;
+  Lexing.set_filename lexbuf @@ Option.value ~default:file filename ;
   {
     lexbuf ;
     channel = inc ;

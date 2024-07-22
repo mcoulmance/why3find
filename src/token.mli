@@ -53,7 +53,7 @@ val doc_lexer : (Lexing.lexbuf -> token) ref
 type input
 
 (** Opens the given file. *)
-val input : ?doc:bool -> string -> input
+val input : ?doc:bool -> ?filename:string -> string -> input
 
 (** Closes the opened chanel. *)
 val close : input -> unit

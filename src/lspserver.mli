@@ -31,6 +31,9 @@ type change = Text of string | Update of range * string
 type document = { uri: string ; lang: string ; text: Ropes.t }
 type update = { before: Ropes.t ; change: change ; after: Ropes.t }
 
+val backward_position : update -> position -> position option
+val backward_range : update -> range -> range option
+
 val document : uri:string -> document
 
 val on_save : (Lsp.channel -> document -> unit) -> unit
@@ -39,6 +42,7 @@ val on_close : (Lsp.channel -> document -> unit) -> unit
 val on_update : (Lsp.channel -> uri:string -> update -> unit) -> unit
 
 type severity = [ `Error | `Warning | `Information | `Hint ]
+
 type diagnostic = Diag of {
     range : range ;
     severity : severity ;
