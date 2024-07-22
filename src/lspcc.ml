@@ -42,9 +42,16 @@ let range_of_loc (loc : Why3.Loc.position) : string * Lspserver.range =
     stop = { line = l2 - 1 ; char = c2 }
   }
 
+let library ~loadpath ~filename =
+  if String.starts_with ~prefix:loadpath filename then
+    let p = String.length loadpath in
+    let n = String.length filename in
+    Docref.library_path @@ String.sub filename p (n-p)
+  else
+    Docref.library_path @@ filename
+
 let compile filename text diagnostics =
   try
-    Format.printf "Compiling %s@." filename ;
     Why3.Loc.set_warning_hook
       begin fun ?loc message ->
         match loc with
@@ -62,23 +69,27 @@ let compile filename text diagnostics =
     let loadpath =
       match config_for ~filename with
       | None ->
-        Format.printf "No config found.@." ;
+        Format.printf "File %s (no config)@." filename ;
         Filename.dirname filename
       | Some(dir,cfg) ->
-        Format.printf "Using %s@." cfg ; dir in
+        Format.printf "Config %s@." cfg ;
+        Format.printf "Source %s@." filename ; dir
+    in
     let tmp,out = Filename.open_temp_file "lsp" ".mlw" in
     Ropes.to_channel out text ;
     close_out out ;
     Wenv.local ~loadpath () ;
     let env = Wenv.init () in
+    let cenv = Docref.init () in
+    let henv = Axioms.init env in
+    let lib = library ~loadpath ~filename in
     let inc = open_in tmp in
-    let theories =
-      Why3.Env.read_channel Why3.Env.base_language env.wenv filename inc in
-    Why3.Wstdlib.Mstr.iter
-      (fun tname _thy ->
-         Format.printf " - Theory %s@\n" tname
-      ) theories ;
-    Format.printf "Done.@." ;
+    try
+      let source = Docref.source ~wenv:env.wenv ~cenv ~henv ~lib ~filename inc in
+      Format.printf "Library %s@." (String.concat "." source.lib) ;
+      close_in inc ;
+    with exn ->
+      close_in inc ; raise exn
   with
   | Why3.Loc.Located(loc,exn) ->
     let file,range = range_of_loc loc in

@@ -66,6 +66,8 @@ val find_clone : cenv ->
   ?source:ident -> ?target:ident ->
   theory -> clone option
 
+val library_path : string -> string list
+
 val parse : wenv:Why3.Env.env -> cenv:cenv -> henv:Axioms.henv ->
   string -> source
 
