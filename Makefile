@@ -30,7 +30,7 @@ lint:
 	@ocp-indent -i $(SOURCES_MI)
 
 headers:
-	headache -c headers.cfg -h HEADER $(SOURCES_ML) $(SOURCES_TS)
+	@headache -c headers.cfg -h HEADER $(SOURCES_ML) $(SOURCES_TS)
 
 # --------------------------------------------------------------------------
 # --- Tests
