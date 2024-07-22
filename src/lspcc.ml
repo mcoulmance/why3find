@@ -19,7 +19,11 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* Compiler for the LSP Server *)
+let self = ()
+
+(* -------------------------------------------------------------------------- *)
+(* --- Compiler for the LSP Server                                        --- *)
+(* -------------------------------------------------------------------------- *)
 
 let config_for ~filename =
   let rec lookup = function
@@ -89,7 +93,7 @@ let compile filename text diagnostics =
   | exn ->
     Format.printf "[Error] %s@." (Printexc.to_string exn)
 
-let updated channel doc =
+let compile channel doc =
   let Lspserver.{ uri ; text } = doc in
   match Lspserver.to_file ~uri with
   | None -> ()
@@ -101,6 +105,5 @@ let updated channel doc =
         Lspserver.publish_diagnostic channel ~uri !diagnostics
       end
 
-let () = Lspserver.on_open updated
-let () = Lspserver.on_save updated
-let self = ()
+let () = Lspserver.on_open compile
+let () = Lspserver.on_save compile

@@ -66,7 +66,12 @@ val find_clone : cenv ->
   ?source:ident -> ?target:ident ->
   theory -> clone option
 
-val parse : wenv:Why3.Env.env -> cenv:cenv -> henv:Axioms.henv -> string -> source
+val parse : wenv:Why3.Env.env -> cenv:cenv -> henv:Axioms.henv ->
+  string -> source
+
+val source : wenv:Why3.Env.env -> cenv:cenv -> henv:Axioms.henv ->
+  lib:string list -> filename:string -> in_channel -> source
+
 val empty : unit -> source
 val derived : source -> string -> string (* URL name *)
 
