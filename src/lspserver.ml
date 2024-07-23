@@ -49,7 +49,8 @@ let () = Lsp.register ~force:true "initialize"
             "openClose", `Bool true ;
             "change", `Int 2 ;
             "save", `Bool true ;
-          ]
+          ] ;
+          "definitionProvider", `Bool true ;
         ];
         "serverInfo", `Assoc [
           "name", `String "why3find" ;
@@ -61,11 +62,6 @@ let () = Lsp.register ~force:true "initialize"
 (* -------------------------------------------------------------------------- *)
 (* --- Documents                                                          --- *)
 (* -------------------------------------------------------------------------- *)
-
-type document = { uri: string ; lang: string ; text: Ropes.t }
-
-(* Indexed by uri *)
-let documents : (string,document) Hashtbl.t = Hashtbl.create 0
 
 type position = { line: int ; char : int }
 type range = { start: position ; stop: position }
@@ -98,14 +94,51 @@ let jchange js =
   | None -> Text text
   | Some range -> Update(range,text)
 
-let apply doc update =
+type document = Doc of { uri: string ; lang: string ; text: Ropes.t }
+type location = Loc of { uri: string ; range: range}
+
+let wlocation (loc: location) : Json.t =
+  match loc with Loc { uri ; range } ->
+    `Assoc [
+      "uri", `String uri ;
+      "range", wrange range ;
+    ]
+
+let apply (Doc doc) update =
   let text =
     match update with
     | Text text -> Ropes.of_string text
     | Update(range,text) -> Ropes.update (to_range range) text doc.text
-  in { doc with text }
+  in Doc { doc with text }
+
+(* Indexed by uri *)
+let documents : (string,document) Hashtbl.t = Hashtbl.create 0
 
 let document ~uri = Hashtbl.find documents uri
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Position Translation                                              --- *)
+(* -------------------------------------------------------------------------- *)
+
+let backward_position (u : update) (p : position) =
+  match u.change with
+  | Text _ -> None
+  | Update( { start ; stop },_) ->
+    if p.line < start.line then Some p else
+    if p.line = start.line then
+      if p.char <= start.char then Some p else None
+    else
+    if p.line > stop.line then
+      let delta = Ropes.lines u.after - Ropes.lines u.before in
+      Some { line = p.line + delta ; char = p.char }
+    else
+      None
+
+let backward_range (u: update) (r : range) =
+  match
+    backward_position u r.start,
+    backward_position u r.stop
+  with Some start , Some stop -> Some { start ; stop } | _ -> None
 
 (* -------------------------------------------------------------------------- *)
 (* --- Document Synchronization                                           --- *)
@@ -128,7 +161,7 @@ let () = Lsp.register "textDocument/didOpen"
       let uri = Json.jfield "uri" doc |> Json.jstring in
       let lang = Json.jfield "languageId" doc |> Json.jstring in
       let text = Json.jfield "text" doc |> Json.jstring |> Ropes.of_string in
-      let doc = { uri ; lang ; text } in
+      let doc = Doc { uri ; lang ; text } in
       Hashtbl.replace documents uri doc ;
       List.iter (fun f -> f channel doc) !dopen ;
       `Null
@@ -156,7 +189,9 @@ let () = Lsp.register "textDocument/didChange"
       let stack = ref [] in
       let push d u =
         let d' = apply d u in
-        let upd = { before = d.text ; change = u ; after = d'.text } in
+        let Doc { text = before } = d in
+        let Doc { text = after } = d' in
+        let upd = { before ; change = u ; after } in
         stack := upd :: !stack ; d' in
       let newDoc = List.fold_left push doc changes in
       Hashtbl.replace documents uri newDoc ;
@@ -178,6 +213,24 @@ let () = Lsp.register "textDocument/didSave"
           List.iter (fun f -> f channel doc) !dsave ;
         with Not_found -> ()
       end ; `Null
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Goto Definition                                                   --- *)
+(* -------------------------------------------------------------------------- *)
+
+let on_definition fn =
+  Lsp.register "textDocument/definition"
+    begin fun channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      let pos = Json.jfield "position" data |> jposition in
+      try
+        match fn channel ~uri pos with
+        | [] -> `Null
+        | [p] -> wlocation p
+        | ps -> `List (List.map wlocation ps)
+      with Not_found -> `Null
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -220,29 +273,5 @@ let publish_diagnostic channel ~uri (ds : diagnostic list) =
     "uri", `String uri ;
     "diagnostics", `List (List.map wdiagnostic ds) ;
   ]
-
-(* -------------------------------------------------------------------------- *)
-(* ---  Translation                                                       --- *)
-(* -------------------------------------------------------------------------- *)
-
-let backward_position (u : update) (p : position) =
-  match u.change with
-  | Text _ -> None
-  | Update( { start ; stop },_) ->
-    if p.line < start.line then Some p else
-    if p.line = start.line then
-      if p.char <= start.char then Some p else None
-    else
-    if p.line > stop.line then
-      let delta = Ropes.lines u.after - Ropes.lines u.before in
-      Some { line = p.line + delta ; char = p.char }
-    else
-      None
-
-let backward_range (u: update) (r : range) =
-  match
-    backward_position u r.start,
-    backward_position u r.stop
-  with Some start , Some stop -> Some { start ; stop } | _ -> None
 
 (* -------------------------------------------------------------------------- *)

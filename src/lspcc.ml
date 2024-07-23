@@ -22,6 +22,21 @@
 let self = ()
 
 (* -------------------------------------------------------------------------- *)
+(* ---  Source Management                                                 --- *)
+(* -------------------------------------------------------------------------- *)
+
+type source = {
+  env : Wenv.env ;
+  src : Docref.source ;
+  mutable updates : Lspserver.update list ;
+}
+
+let sources = Hashtbl.create 0
+
+let set_source ~filename env src =
+  Hashtbl.replace sources filename { env ; src ; updates = [] }
+
+(* -------------------------------------------------------------------------- *)
 (* --- Compiler for the LSP Server                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -50,7 +65,7 @@ let library ~loadpath ~filename =
   else
     Docref.library_path @@ filename
 
-let compile filename text diagnostics =
+let preprocess filename text diagnostics =
   try
     Why3.Loc.set_warning_hook
       begin fun ?loc message ->
@@ -85,11 +100,13 @@ let compile filename text diagnostics =
     let lib = library ~loadpath ~filename in
     let inc = open_in tmp in
     try
-      let source = Docref.source ~wenv:env.wenv ~cenv ~henv ~lib ~filename inc in
-      Format.printf "Library %s@." (String.concat "." source.lib) ;
+      let src = Docref.source ~wenv:env.wenv ~cenv ~henv ~lib ~filename inc in
+      set_source ~filename env src ;
       close_in inc ;
     with exn ->
-      close_in inc ; raise exn
+      close_in inc ;
+      Hashtbl.remove sources filename ;
+      raise exn
   with
   | Why3.Loc.Located(loc,exn) ->
     let file,range = range_of_loc loc in
@@ -105,16 +122,29 @@ let compile filename text diagnostics =
     Format.printf "[Error] %s@." (Printexc.to_string exn)
 
 let compile channel doc =
-  let Lspserver.{ uri ; text } = doc in
+  let Lspserver.Doc { uri ; text } = doc in
   match Lspserver.to_file ~uri with
   | None -> ()
   | Some filename ->
     if Filename.check_suffix filename ".mlw" then
       begin
         let diagnostics = ref [] in
-        compile filename text diagnostics ;
+        preprocess filename text diagnostics ;
         Lspserver.publish_diagnostic channel ~uri !diagnostics
       end
 
+let update _channel ~uri update =
+  match Lspserver.to_file ~uri with
+  | None -> ()
+  | Some filename ->
+    match Hashtbl.find sources filename with
+    | exception Not_found -> ()
+    | source -> source.updates <- update :: source.updates
+
 let () = Lspserver.on_open compile
 let () = Lspserver.on_save compile
+let () = Lspserver.on_update update
+
+(* -------------------------------------------------------------------------- *)
+(* --- Compute References                                                 --- *)
+(* -------------------------------------------------------------------------- *)

@@ -28,7 +28,8 @@ type position = { line: int ; char : int }
 type range = { start: position ; stop: position }
 type change = Text of string | Update of range * string
 
-type document = { uri: string ; lang: string ; text: Ropes.t }
+type document = Doc of { uri: string ; lang: string ; text: Ropes.t }
+type location = Loc of { uri: string ; range: range }
 type update = { before: Ropes.t ; change: change ; after: Ropes.t }
 
 val backward_position : update -> position -> position option
@@ -40,6 +41,7 @@ val on_save : (Lsp.channel -> document -> unit) -> unit
 val on_open : (Lsp.channel -> document -> unit) -> unit
 val on_close : (Lsp.channel -> document -> unit) -> unit
 val on_update : (Lsp.channel -> uri:string -> update -> unit) -> unit
+val on_definition : (Lsp.channel -> uri:string -> position -> location list) -> unit
 
 type severity = [ `Error | `Warning | `Information | `Hint ]
 
