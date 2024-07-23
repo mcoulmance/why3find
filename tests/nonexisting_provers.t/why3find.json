@@ -1,9 +1,10 @@
 {
-  "configs": [],
+  "time": 1.0,
   "depth": 4,
-  "drivers": [],
+  "configs": [],
   "packages": [],
   "provers": [ "foo", "bar" ],
   "tactics": [ "split_vc" ],
-  "time": 1.0
+  "drivers": [],
+  "warnoff": []
 }

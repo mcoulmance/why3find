@@ -99,15 +99,15 @@ let pp_range fmt = function
 [@@ warning "-32"]
 
 type qenv = {
-  env : Wenv.env ;
+  wmain : Why3.Whyconf.main ;
   time : float ;
   time_lo : float ;
   time_up : float ;
   time_out : float ;
 }
 
-let qenv env time = {
-  env ; time ;
+let qenv wmain time = {
+  wmain ; time ;
   time_lo = time *. 0.9 ;
   time_up = time *. 1.1 ;
   time_out = time *. 2.0
@@ -121,7 +121,7 @@ let rec seqlookup ~progress q prv rg best =
         ( Utils.progress "%s (%d)" (name prv) n ; None )
       else Some (name prv)
     in
-    let* result = Runner.prove q.env ?name prv (generate n) q.time_out in
+    let* result = Runner.prove q.wmain ?name prv (generate n) q.time_out in
     match result with
     | Valid t ->
       let best = choose q.time best (Some (n,t)) in
@@ -168,7 +168,7 @@ let ptry c ~cancel ?(upper=[]) ?(lower=[]) n =
       else Some (name prv)
     in
     let q = c.qenv in
-    let+ r = Runner.prove q.env ?name ~cancel prv (generate n) q.time_out in
+    let+ r = Runner.prove q.wmain ?name ~cancel prv (generate n) q.time_out in
     match r with
     | Valid t ->
       c.best <- choose q.time c.best (Some (n,t)) ;
@@ -231,11 +231,11 @@ let lookup ~progress q prv =
 
 let qhash = Hashtbl.create 0
 
-let calibrate ?(progress=false) env prv : (int * float) option Fibers.t =
+let calibrate ?(progress=false) wmain prv : (int * float) option Fibers.t =
   try Hashtbl.find qhash prv.desc
   with Not_found ->
     let p = Fibers.var () in
-    let q = qenv env !reftime in
+    let q = qenv wmain !reftime in
     Fibers.background ~callback:(Fibers.set p) (lookup ~progress q prv) ;
     Hashtbl.add qhash prv.desc p ; p
 
@@ -282,12 +282,12 @@ let to_json (p : profile) : Json.t =
 (* --- Velocity                                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-let gauge env profile prv : gauge Fibers.t =
+let gauge wmain profile prv : gauge Fibers.t =
   let p = prv.desc in
   try Hashtbl.find profile p
   with Not_found ->
     let gv =
-      let+ r = calibrate env prv in
+      let+ r = calibrate wmain prv in
       match r with
       | Some (size,time) -> { time ; size ; alpha = None }
       | None ->
@@ -296,12 +296,12 @@ let gauge env profile prv : gauge Fibers.t =
         exit 2
     in Hashtbl.replace profile p gv ; gv
 
-let profile env profile prv =
-  let+ { size ; time } = gauge env profile prv in (size,time)
+let profile wmain profile prv =
+  let+ { size ; time } = gauge wmain profile prv in (size,time)
 
-let alpha env prv ~size ~time : float Fibers.t =
+let alpha wmain prv ~size ~time : float Fibers.t =
   let timeout = 5.0 *. (max 1.0 time) in
-  let+ result = Runner.prove env
+  let+ result = Runner.prove wmain
       ~name:(Prover.name prv)
       prv (generate size) timeout in
   match result with
@@ -313,13 +313,13 @@ let alpha env prv ~size ~time : float Fibers.t =
 
 let local = ref false
 
-let velocity env profile prv : float Fibers.t =
+let velocity wmain profile prv : float Fibers.t =
   if !local then Fibers.return 1.0 else
-    let* g = gauge env profile prv in
+    let* g = gauge wmain profile prv in
     match g.alpha with
     | Some a -> a
     | None ->
-      let ga = alpha env prv ~size:g.size ~time:g.time in
+      let ga = alpha wmain prv ~size:g.size ~time:g.time in
       g.alpha <- Some ga ; ga
 
 let observed profile prv =
@@ -362,50 +362,47 @@ let iter f profile =
 (* --- Calibration                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
-let default () =
+let default (env : Why3find.Config.env) =
   if !local then create () else
-    try Wenv.get "profile" ~of_json:(of_json ?default:None)
-    with Not_found -> create ()
+    match env.config.profile with
+    | Some p -> of_json p
+    | None -> create ()
 
-let calibrate_provers ~saved env provers =
+let calibrate_provers ~saved (env : Why3find.Config.env) provers =
+  let q = qenv (Whyconf.get_main env.wconfig) !reftime in
+  let+ results =
+    Fibers.all @@ List.map
+      (fun prv ->
+         let+ r = lookup ~progress:true q prv in prv, r
+      ) provers
+  in
+  Utils.flush () ;
+  let profile = create () in
+  Format.printf "Calibration:@." ;
+  List.iter
+    (fun (prv,res) ->
+       let name = fullname prv in
+       match res with
+       | None ->
+         Format.printf " - %-16s no result@." name
+       | Some(n,t) ->
+         Hashtbl.add profile prv.desc
+           (Fibers.var ~init:{ size = n ; time = t ; alpha = None } ()) ;
+         Format.printf " - %-16s n=%d %a (%s)@." name n Utils.pp_time t
+           (if saved then "master" else "locally")
+    ) results ;
+  profile
+
+let velocity_provers (env : Why3find.Config.env) provers =
   Fibers.await @@
   begin
-    let q = qenv env !reftime in
-    let* results =
-      Fibers.all @@ List.map
-        (fun prv ->
-           let+ r = lookup ~progress:true q prv in prv, r
-        ) provers
-    in
-    Utils.flush () ;
-    let profile = create () in
-    Format.printf "Calibration:@." ;
-    List.iter
-      (fun (prv,res) ->
-         let name = fullname prv in
-         match res with
-         | None ->
-           Format.printf " - %-16s no result@." name
-         | Some(n,t) ->
-           Hashtbl.add profile prv.desc
-             (Fibers.var ~init:{ size = n ; time = t ; alpha = None } ()) ;
-           Format.printf " - %-16s n=%d %a (%s)@." name n Utils.pp_time t
-             (if saved then "master" else "locally")
-      ) results ;
-    Wenv.set "profile" ~to_json profile ;
-    Fibers.return () ;
-  end
-
-let velocity_provers env provers =
-  Fibers.await @@
-  begin
-    let profile = default () in
+    let profile = default env in
     let* results =
       Fibers.all @@ List.map
         (fun prv ->
            try
              let g = Fibers.find @@ Hashtbl.find profile prv.desc in
-             let+ a = velocity env profile prv in
+             let+ a = velocity (Whyconf.get_main env.wconfig) profile prv in
              prv , Some(g.size,g.time,a)
            with Not_found ->
              Fibers.return (prv , None)

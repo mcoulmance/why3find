@@ -27,7 +27,7 @@ open Crc
 open Fibers.Monad
 
 type henv = {
-  env : Wenv.env ;
+  env : Config.env ;
   time : float ;
   client : Client.client option ;
   maxdepth : int ;
@@ -88,15 +88,16 @@ let rec sequence (f : 'a -> strategy) (xs : 'a list) : strategy =
 (* -------------------------------------------------------------------------- *)
 
 let prove env ?client ?cancel prover timeout : strategy = fun n ->
+  let wmain = Why3.Whyconf.get_main env.Config.wconfig in
   let name = Session.goal_name n.goal in
-  let* alpha = Calibration.velocity env n.profile prover in
+  let* alpha = Calibration.velocity wmain n.profile prover in
   let to_profile = Runner.map (fun t -> t /. alpha) in
   let runner_time = timeout *. alpha in
   let callback = Session.result n.goal in
   let+ verdict =
     match Runner.prove_cached prover n.goal runner_time with
     | Some result ->
-      Runner.notify env prover result callback ;
+      Runner.notify wmain prover result callback ;
       Fibers.return (to_profile result)
     | None ->
       let task = Runner.prepare prover n.goal in
@@ -105,7 +106,7 @@ let prove env ?client ?cancel prover timeout : strategy = fun n ->
         Fibers.monitor ?signal:cancel ~handler:(Fibers.emit kill) @@
         Fibers.map to_profile @@
         Fibers.finally ~callback:(Runner.update prover n.goal) @@
-        Runner.prove_prepared env ~name ~cancel:kill ~callback
+        Runner.prove_prepared wmain ~name ~cancel:kill ~callback
           prover task runner_time
       in match client with
       | None -> runner
@@ -142,7 +143,7 @@ let children tr = function
 let apply h tac cs : strategy = fun n ->
   if n.depth > h.maxdepth then stuck n else
     let id = Tactic.name tac in
-    match Session.apply h.env.Wenv.wenv id n.goal with
+    match Session.apply h.env.Config.wenv id n.goal with
     | None -> stuck n
     | Some gs ->
       let hs = children id cs in

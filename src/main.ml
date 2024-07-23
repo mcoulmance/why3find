@@ -25,7 +25,7 @@
 
 let version () : unit =
   begin
-    Format.printf "why3find v%s@." Config.version ;
+    Format.printf "why3find v%s@." Version.version ;
     exit 0
   end
 

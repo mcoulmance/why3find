@@ -149,25 +149,25 @@ let desc_of_config config = {
   version = config.Whyconf.prover.prover_version ;
 }
 
-let load (env : Wenv.env) (config : Whyconf.config_prover) =
+let load wconfig wenv (pconfig : Whyconf.config_prover) =
   try
-    let main = Whyconf.get_main env.wconfig in {
-      desc = desc_of_config config ;
-      config ;
-      driver = Driver.load_driver_for_prover main env.wenv config ;
-      digest = digest_config main config;
+    let main = Whyconf.get_main wconfig in {
+      desc = desc_of_config pconfig ;
+      config = pconfig ;
+      driver = Driver.load_driver_for_prover main wenv pconfig ;
+      digest = digest_config main pconfig;
     }
   with _ ->
     Log.error "failed to load driver for %s"
-      (Whyconf.prover_parseable_format config.prover) ;
+      (Whyconf.prover_parseable_format pconfig.prover) ;
     exit 2
 
-let all env =
+let all wconfig wenv =
   let folder _ c m =
     if c.Whyconf.prover.prover_altern = "" && not c.Whyconf.interactive
-    then let p = load env c in Mdesc.add p.desc p m
+    then let p = load wconfig wenv c in Mdesc.add p.desc p m
     else m in
-  let configs = Whyconf.get_provers env.Wenv.wconfig in
+  let configs = Whyconf.get_provers wconfig in
   Whyconf.Mprover.fold folder configs Mdesc.empty
 
 let filter_prover ~name ?version p =
@@ -179,8 +179,8 @@ let find_exn ~pattern all =
   let filter _ p = filter_prover ~name ?version p in
   snd @@ Mdesc.min_binding @@ Mdesc.filter filter all
 
-let find_default env name =
-  try [ find_exn ~pattern:name @@ all env ] with Not_found -> []
+let find_default (env : Why3find.Config.env) name =
+  try [ find_exn ~pattern:name @@ all env.wconfig env.wenv ] with Not_found -> []
 
 let default env =
   find_default env "alt-ergo" @

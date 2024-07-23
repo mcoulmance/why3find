@@ -31,11 +31,11 @@ type theories = Crc.crc M.t M.t
 val proofs_file : string -> string
 (** Returns the proofs file associated with the given mlw file *)
 
-val load_proofs : ?local:bool -> string -> profile * theories
+val load_proofs : ?local:profile -> string -> profile * theories
 (**
    Load the content of the proofs file associated with the given mlw file.
-   If [~local:true] is specified, the calibration profile also inherits from
-   the local environment. Otherwize, it is taken as it is from the file.
+   If a [~local] profile is provided, the returned profile also inherits from
+   it in addition to the one present in the file.
 *)
 
 type dumper

@@ -31,7 +31,7 @@ val schedule :
   profile -> replay:bool -> depth:int -> goal -> crc -> crc Fibers.t
 
 type henv = {
-  env : Wenv.env ;
+  env : Config.env ;
   time : float ;
   client : Client.client option ;
   maxdepth : int ;

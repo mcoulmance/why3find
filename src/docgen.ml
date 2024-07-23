@@ -1298,12 +1298,10 @@ let process ~wenv ~henv ~out ~title (file,kind) =
   | None -> process_markdown ~wenv ~henv ~out ~title file
   | Some src -> process_source ~wenv ~henv ~out file src
 
-let generate ~out ~title ~files ~url ~package_url =
+let generate ~(env:Config.env) ~out ~title ~files ~url ~package_url =
   begin
     (* Keywords *)
     let cenv = Docref.init () in
-    (* Package config *)
-    let env = Wenv.init () in
     (* Why3 environment *)
     let wenv = env.wenv in
     (* Axioms config *)

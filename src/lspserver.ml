@@ -66,7 +66,7 @@ let () = Lsp.register ~force:true "initialize"
         ];
         "serverInfo", `Assoc [
           "name", `String "why3find" ;
-          "version", `String Config.version ;
+          "version", `String Version.version ;
         ];
       ]
     end
