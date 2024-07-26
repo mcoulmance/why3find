@@ -222,3 +222,15 @@ let pp_proof_ahref fmt r =
   pp_proof_aname fmt r
 
 (* -------------------------------------------------------------------------- *)
+(* --- Declaration Resolution                                             --- *)
+(* -------------------------------------------------------------------------- *)
+
+type decl = Tdecl of Why3.Decl.decl | Pdecl of Why3.Pdecl.pdecl
+
+let find env id =
+  let thy = Why3.Env.read_theory env id.id_lib id.id_mod in
+  match Why3.Pmodule.restore_module thy with
+  | m -> Pdecl (Why3.Ident.Mid.find id.self m.mod_known)
+  | exception Not_found -> Tdecl (Why3.Ident.Mid.find id.self thy.th_known)
+
+(* -------------------------------------------------------------------------- *)

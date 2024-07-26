@@ -78,6 +78,8 @@ val empty : unit -> source
 val derived : source -> string -> string (* URL name *)
 
 val is_keyword : string -> bool
+val is_opening : string -> bool
+val is_closing : string -> bool
 
 type href =
   | NoRef

@@ -37,6 +37,9 @@ val output_and_close : out_channel -> (out_channel -> unit) -> unit
 val outputfile : file:string -> (out_channel -> unit) -> unit
 val formatfile : file:string -> (Format.formatter -> unit) -> unit
 
+val input : file:string -> (in_channel -> 'a) -> 'a
+val output : file:string -> (out_channel -> 'a) -> 'a
+
 val readdir : (string -> unit) -> string -> unit
 val iterpath :
   ?enter:(string -> unit) ->

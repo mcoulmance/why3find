@@ -55,14 +55,6 @@ let pp_mode fmt = function
   | Item n -> Format.fprintf fmt "ITEM%d" n
 [@@ warning "-32"]
 
-let is_opening = function
-  | "scope" | "match" | "try" | "begin" -> true
-  | _ -> false
-
-let is_closing = function
-  | "end" -> true
-  | _ -> false
-
 (* -------------------------------------------------------------------------- *)
 (* --- Cloning Substitution                                               --- *)
 (* -------------------------------------------------------------------------- *)
@@ -539,12 +531,6 @@ let process_clone_token env (tok : clone_token) =
 (* --- References                                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
-let rec fetch_module_id input =
-  match Token.token input with
-  | Space | Newline -> fetch_module_id input
-  | Ident s -> s
-  | _ -> Token.error input "missing module or theory name"
-
 let resolve env ?(infix=false) () =
   Docref.resolve
     ~src:env.src ~theory:env.theory
@@ -837,10 +823,10 @@ let process_close_section env title =
 let process_open_module env key =
   begin
     if not (env.mode = Body && env.opened = 0) then
-      Token.error env.input "unexpected module or theory" ;
+      Token.error env.input "unexpected %s" key ;
     let forking = env.block in
     let prelude = Pdoc.buffered env.out in
-    let id = fetch_module_id env.input in
+    let id = Token.fetch_id ~kind:key env.input in
     let href = resolve env () in
     let kind = String.capitalize_ascii key in
     let url = Docref.derived env.src id in
@@ -918,8 +904,8 @@ let process_ident env s =
       | "assume" ->
         Pdoc.pp env.out Pdoc.pp_admitted s
       | _ ->
-        if is_opening s then env.opened <- succ env.opened ;
-        if is_closing s then env.opened <- pred env.opened ;
+        if Docref.is_opening s then env.opened <- succ env.opened ;
+        if Docref.is_closing s then env.opened <- pred env.opened ;
         if s = "clone" then env.clone_decl <- Token.indent env.input ;
         text env ;
         Pdoc.pp env.out Pdoc.pp_keyword s

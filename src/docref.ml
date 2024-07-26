@@ -36,6 +36,14 @@ module Mstr = Why3.Wstdlib.Mstr
 let keywords = Hashtbl.create 97
 let is_keyword = Hashtbl.mem keywords
 
+let is_opening = function
+  | "scope" | "match" | "try" | "begin" -> true
+  | _ -> false
+
+let is_closing = function
+  | "end" -> true
+  | _ -> false
+
 (* Reference Parsing *)
 
 let is_uppercased s =

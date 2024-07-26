@@ -28,13 +28,14 @@ let self = ()
 type source = {
   env : Wenv.env ;
   src : Docref.source ;
+  hrefs : Docref.href Rangemap.t ;
   mutable updates : Lspserver.update list ;
 }
 
 let sources = Hashtbl.create 0
 
-let set_source ~filename env src =
-  Hashtbl.replace sources filename { env ; src ; updates = [] }
+let set_source ~filename env src hrefs =
+  Hashtbl.replace sources filename { env ; src ; hrefs ; updates = [] }
 
 (* -------------------------------------------------------------------------- *)
 (* --- Compiler for the LSP Server                                        --- *)
@@ -94,19 +95,15 @@ let preprocess filename text diagnostics =
     Ropes.to_channel out text ;
     close_out out ;
     Wenv.local ~loadpath () ;
+    Hashtbl.remove sources filename ;
     let env = Wenv.init () in
     let cenv = Docref.init () in
     let henv = Axioms.init env in
     let lib = library ~loadpath ~filename in
-    let inc = open_in tmp in
-    try
-      let src = Docref.source ~wenv:env.wenv ~cenv ~henv ~lib ~filename inc in
-      set_source ~filename env src ;
-      close_in inc ;
-    with exn ->
-      close_in inc ;
-      Hashtbl.remove sources filename ;
-      raise exn
+    let parser = Docref.source ~wenv:env.wenv ~cenv ~henv ~lib ~filename in
+    let src = Utils.input ~file:tmp parser in
+    let hrefs = Srcref.parse ~doc:false ~filename ~env ~src tmp in
+    set_source ~filename env src hrefs ;
   with
   | Why3.Loc.Located(loc,exn) ->
     let file,range = range_of_loc loc in
