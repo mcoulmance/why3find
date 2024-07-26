@@ -26,6 +26,16 @@ type 'a t =
   | Range of { range : range ; value : 'a ; inner : 'a t }
   | Node of { range : range ; left : 'a t ; right : 'a t }
 
+let rec dump pp fmt = function
+  | Empty -> Format.fprintf fmt "-"
+  | Range { range ; value ; inner } ->
+    Format.fprintf fmt "@[<hv 2>{ %a@ value: %a@ inner: %a }@]"
+      Range.pp_range range pp value (dump pp) inner
+  | Node { range ; left ; right } ->
+    Format.fprintf fmt "@[<hv 2>{ %a@ left: %a@ right: %a }@]"
+      Range.pp_range range (dump pp) left (dump pp) right
+[@@ warning "-32"]
+
 let empty = Empty
 
 let compare (a,b) (c,d) =

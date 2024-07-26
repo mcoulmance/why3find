@@ -230,7 +230,7 @@ let on_definition fn =
         | [] -> `Null
         | [p] -> wlocation p
         | ps -> `List (List.map wlocation ps)
-      with Not_found -> `Null
+      with Exit | Not_found -> `Null
     end
 
 (* -------------------------------------------------------------------------- *)

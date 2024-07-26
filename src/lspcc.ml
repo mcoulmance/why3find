@@ -58,6 +58,14 @@ let range_of_loc (loc : Why3.Loc.position) : string * Lspserver.range =
     stop = { line = l2 - 1 ; char = c2 }
   }
 
+type lexpos = Lexing.position * Lexing.position
+
+let range_of_pos ((p,q) : lexpos) : string * Lspserver.range =
+  p.pos_fname , {
+    start = { line = p.pos_lnum ; char = p.pos_cnum - p.pos_bol } ;
+    stop = { line = q.pos_lnum ; char = q.pos_cnum - q.pos_cnum } ;
+  }
+
 let library ~loadpath ~filename =
   if String.starts_with ~prefix:loadpath filename then
     let p = String.length loadpath in
@@ -68,28 +76,29 @@ let library ~loadpath ~filename =
 
 let preprocess filename text diagnostics =
   try
+    let warning (file,range) message =
+      if file = filename then
+        let severity = `Warning in
+        let diag = Lspserver.diagnostic ~range ~severity ~message () in
+        diagnostics := diag :: !diagnostics
+      else
+        Format.printf "[Warning] File %s, line %d: %s@."
+          file range.start.line message
+    in
     Why3.Loc.set_warning_hook
       begin fun ?loc message ->
         match loc with
         | None -> Format.printf "[Warning] %s@." message
-        | Some loc ->
-          let file,range = range_of_loc loc in
-          if file = filename then
-            let severity = `Warning in
-            let diag = Lspserver.diagnostic ~range ~severity ~message () in
-            diagnostics := diag :: !diagnostics
-          else
-            Format.printf "[Warning] File %a: %s@."
-              Why3.Loc.pp_position loc message
+        | Some loc -> warning (range_of_loc loc) message
+      end ;
+    Token.set_handler
+      begin fun input message ->
+        warning (range_of_pos @@ Token.position input) message
       end ;
     let loadpath =
       match config_for ~filename with
-      | None ->
-        Format.printf "File %s (no config)@." filename ;
-        Filename.dirname filename
-      | Some(dir,cfg) ->
-        Format.printf "Config %s@." cfg ;
-        Format.printf "Source %s@." filename ; dir
+      | None -> Filename.dirname filename
+      | Some(dir,_) -> dir
     in
     let tmp,out = Filename.open_temp_file "lsp" ".mlw" in
     Ropes.to_channel out text ;
@@ -145,3 +154,22 @@ let () = Lspserver.on_update update
 (* -------------------------------------------------------------------------- *)
 (* --- Compute References                                                 --- *)
 (* -------------------------------------------------------------------------- *)
+
+let locate ~uri (pos : Lspserver.position) =
+  match Lspserver.to_file ~uri with
+  | None -> raise Not_found
+  | Some filename ->
+    let src = Hashtbl.find sources filename in
+    let range,href = Rangemap.find (pos.line, pos.char) src.hrefs in
+    filename, src, range, href
+
+let definition _channel ~uri (pos : Lspserver.position) =
+  let _,_,_,href = locate ~uri pos in
+  match href with
+  | Ref { id_pkg = `Local ; self = { id_loc = Some loc } } ->
+    let filename,range = range_of_loc loc in
+    let uri = Lspserver.to_uri ~filename in
+    [Lspserver.Loc { uri ; range }]
+  | _ -> []
+
+let () = Lspserver.on_definition definition

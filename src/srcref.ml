@@ -35,31 +35,15 @@ let init env src input = {
 type lexpos = Lexing.position * Lexing.position
 
 let lexpos (pos : Lexing.position) : Range.pos =
-  pos.pos_lnum, pos.pos_cnum - pos.pos_bol
+  pos.pos_lnum - 1, pos.pos_cnum - pos.pos_bol - 1
 
 let lexrange ((p,q) : lexpos) : Range.range = lexpos p, lexpos q
 
 let process_href (env:env) (pos:lexpos) (href : Docref.href) =
-  env.refs <- Rangemap.add (lexrange pos) href env.refs ;
-  match href with
+  if href <> NoRef then
+    env.refs <- Rangemap.add (lexrange pos) href env.refs
 
-  | Docref.Def(id,proof) ->
-    Format.printf "DEF %a: %a" Range.pp_range (lexrange pos) Id.pp_local id ;
-    Option.iter (Format.printf " %a" Crc.pretty) proof ;
-    Format.print_newline () ;
-
-  | Docref.Ref id ->
-    Format.printf "REF %a: %a" Range.pp_range (lexrange pos) Id.pp_title id ;
-    Option.iter
-      (fun loc ->
-         let file,l,c,_,_ = Why3.Loc.get loc in
-         Format.printf " => %s:%d:%d@." file l c
-      ) id.self.id_loc ;
-    Format.print_newline ()
-
-  | Docref.NoRef -> ()
-
-let process_identifier ?(infix=false) env =
+let process_identifier ?(infix=false) env (_token:string) =
   let pos = Token.position env.input in
   let href = Docref.resolve ~infix ~src:env.src ~theory:env.thy pos in
   process_href env pos href
@@ -88,7 +72,7 @@ let process_word env s =
         if Docref.is_closing s then env.opened <- pred env.opened ;
     end
   else
-    process_identifier env
+    process_identifier env s
 
 let parse ?doc ?filename ~env ~src file =
   let input = Token.input ?doc ?filename file in
@@ -100,8 +84,8 @@ let parse ?doc ?filename ~env ~src file =
 
       (* scanned *)
       | Token.Ident s -> process_word env s
-      | Token.Infix _ -> process_identifier ~infix:true env
-      | Token.Ref s -> Format.printf "DOCREF %S@." s
+      | Token.Infix s -> process_identifier ~infix:true env s
+      | Token.Ref _ -> ()
 
       (* skipped *)
       | Token.Eof | Token.Newline
