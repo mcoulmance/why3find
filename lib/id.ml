@@ -225,12 +225,53 @@ let pp_proof_ahref fmt r =
 (* --- Declaration Resolution                                             --- *)
 (* -------------------------------------------------------------------------- *)
 
-type decl = Tdecl of Why3.Decl.decl | Pdecl of Why3.Pdecl.pdecl
+type decl =
+  | Type of Why3.Ty.tysymbol
+  | Logic of Why3.Term.lsymbol
+  | Var of Why3.Ity.pvsymbol
+  | Let of Why3.Expr.rsymbol
+  | Exn of Why3.Ity.xsymbol
 
-let find env id =
+let find_list id name ds =
+  fst @@ List.find (fun (d,_) -> Why3.Ident.id_equal id (name d)) ds
+
+let find_decl id (d: Why3.Decl.decl) =
+  match d.d_node with
+  | Dtype ts -> Type ts
+  | Dparam ls -> Logic ls
+  | Ddata ds -> Type (find_list id (fun ts -> ts.Why3.Ty.ts_name) ds)
+  | Dlogic ds -> Logic (find_list id (fun ls -> ls.Why3.Term.ls_name) ds)
+  | Dind(_,ds) -> Logic (find_list id (fun ls -> ls.Why3.Term.ls_name) ds)
+  | Dprop _ -> raise Not_found
+
+let rec find_letdefs id = function
+  | [] -> raise Not_found
+  | (d : Why3.Expr.rec_defn) :: ds ->
+    let rs = d.rec_rsym in
+    if Why3.Ident.id_equal id rs.rs_name
+    then rs else find_letdefs id ds
+
+let find_pdecl id (pd : Why3.Pdecl.pdecl) =
+  match pd.pd_node with
+  | PDtype _ | PDpure ->
+    begin
+      match
+        List.find_map
+          (fun d -> try Some (find_decl id d) with Not_found -> None)
+          pd.pd_pure
+      with None -> raise Not_found | Some d -> d
+    end
+  | PDlet (LDvar(x,_)) -> Var x
+  | PDlet (LDsym (s, _)) -> Let s
+  | PDlet (LDrec ds) -> Let (find_letdefs id ds)
+  | PDexn x -> Exn x
+
+let find env id : decl =
   let thy = Why3.Env.read_theory env id.id_lib id.id_mod in
   match Why3.Pmodule.restore_module thy with
-  | m -> Pdecl (Why3.Ident.Mid.find id.self m.mod_known)
-  | exception Not_found -> Tdecl (Why3.Ident.Mid.find id.self thy.th_known)
+  | m ->
+    find_pdecl id.self (Why3.Ident.Mid.find id.self m.mod_known)
+  | exception Not_found ->
+    find_decl id.self (Why3.Ident.Mid.find id.self thy.th_known)
 
 (* -------------------------------------------------------------------------- *)

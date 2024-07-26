@@ -163,13 +163,15 @@ let locate ~uri (pos : Lspserver.position) =
     let range,href = Rangemap.find (pos.line, pos.char) src.hrefs in
     filename, src, range, href
 
+let goto loc =
+  let filename,range = range_of_loc loc in
+  let uri = Lspserver.to_uri ~filename in
+  Lspserver.Loc { uri ; range }
+
 let definition _channel ~uri (pos : Lspserver.position) =
   let _,_,_,href = locate ~uri pos in
   match href with
-  | Ref { id_pkg = `Local ; self = { id_loc = Some loc } } ->
-    let filename,range = range_of_loc loc in
-    let uri = Lspserver.to_uri ~filename in
-    [Lspserver.Loc { uri ; range }]
+  | Ref { id_pkg = `Local ; self = { id_loc = Some loc } } -> [goto loc]
   | _ -> []
 
 let () = Lspserver.on_definition definition

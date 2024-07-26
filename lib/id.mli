@@ -63,7 +63,13 @@ val pp_ahref : scope:string option -> package_url:string option
 val pp_proof_aname : Format.formatter -> id -> unit
 val pp_proof_ahref : Format.formatter -> id -> unit
 
-type decl = Tdecl of Why3.Decl.decl | Pdecl of Why3.Pdecl.pdecl
+type decl =
+  | Type of Why3.Ty.tysymbol
+  | Logic of Why3.Term.lsymbol
+  | Var of Why3.Ity.pvsymbol
+  | Let of Why3.Expr.rsymbol
+  | Exn of Why3.Ity.xsymbol
+
 val find : Why3.Env.env -> id -> decl
 
 (* -------------------------------------------------------------------------- *)
