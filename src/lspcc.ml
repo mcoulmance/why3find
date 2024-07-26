@@ -51,11 +51,18 @@ let config_for ~filename =
       else lookup (Filename.dirname dir)
   in lookup (Filename.dirname filename)
 
-let range_of_loc (loc : Why3.Loc.position) : string * Lspserver.range =
+let of_loc (loc : Why3.Loc.position) : string * Lspserver.range =
   let file,l1,c1,l2,c2 = Why3.Loc.get loc in
   file , {
     start = { line = l1 - 1 ; char = c1 } ;
     stop = { line = l2 - 1 ; char = c2 }
+  }
+
+let of_range (rg : Range.range) : Lspserver.range =
+  let ((l1,c1),(l2,c2)) = rg in
+  {
+    start = { line = l1 ; char = c1 } ;
+    stop = { line = l2 ; char = c2 } ;
   }
 
 type lexpos = Lexing.position * Lexing.position
@@ -89,7 +96,7 @@ let preprocess filename text diagnostics =
       begin fun ?loc message ->
         match loc with
         | None -> Format.printf "[Warning] %s@." message
-        | Some loc -> warning (range_of_loc loc) message
+        | Some loc -> warning (of_loc loc) message
       end ;
     Token.set_handler
       begin fun input message ->
@@ -115,7 +122,7 @@ let preprocess filename text diagnostics =
     set_source ~filename env src hrefs ;
   with
   | Why3.Loc.Located(loc,exn) ->
-    let file,range = range_of_loc loc in
+    let file,range = of_loc loc in
     if file = filename then
       let severity = `Error in
       let message = Printexc.to_string exn in
@@ -152,7 +159,7 @@ let () = Lspserver.on_save compile
 let () = Lspserver.on_update update
 
 (* -------------------------------------------------------------------------- *)
-(* --- Compute References                                                 --- *)
+(* --- References                                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
 let locate ~uri (pos : Lspserver.position) =
@@ -164,14 +171,34 @@ let locate ~uri (pos : Lspserver.position) =
     filename, src, range, href
 
 let goto loc =
-  let filename,range = range_of_loc loc in
+  let filename,range = of_loc loc in
   let uri = Lspserver.to_uri ~filename in
   Lspserver.Loc { uri ; range }
+
+(* -------------------------------------------------------------------------- *)
+(* --- Goto Definition                                                    --- *)
+(* -------------------------------------------------------------------------- *)
 
 let definition _channel ~uri (pos : Lspserver.position) =
   let _,_,_,href = locate ~uri pos in
   match href with
-  | Ref { id_pkg = `Local ; self = { id_loc = Some loc } } -> [goto loc]
+  | Ref { self = { id_loc = Some loc } } -> [goto loc]
   | _ -> []
 
 let () = Lspserver.on_definition definition
+
+(* -------------------------------------------------------------------------- *)
+(* --- Hover                                                              --- *)
+(* -------------------------------------------------------------------------- *)
+
+let hover _channel ~uri (pos : Lspserver.position) =
+  let _,_,rg,href = locate ~uri pos in
+  match href with
+  | Ref id ->
+    let title = Format.asprintf "%a" Id.pp_title id in
+    Lspserver.hover ~range:(of_range rg) [title]
+  | _ -> raise Not_found
+
+let () = Lspserver.on_hover hover
+
+(* -------------------------------------------------------------------------- *)

@@ -32,6 +32,22 @@ type document = Doc of { uri: string ; lang: string ; text: Ropes.t }
 type location = Loc of { uri: string ; range: range }
 type update = { before: Ropes.t ; change: change ; after: Ropes.t }
 
+type markup = [ `Plaintext | `Markdown ]
+type hover = Hover of {
+    range : range option ;
+    kind : markup ;
+    value : string list ;
+  }
+
+type severity = [ `Error | `Warning | `Information | `Hint ]
+type diagnostic = Diag of {
+    range : range ;
+    severity : severity ;
+    source : string option ;
+    message : string ;
+    data : Json.t ;
+  }
+
 val backward_position : update -> position -> position option
 val backward_range : update -> range -> range option
 
@@ -41,17 +57,17 @@ val on_save : (Lsp.channel -> document -> unit) -> unit
 val on_open : (Lsp.channel -> document -> unit) -> unit
 val on_close : (Lsp.channel -> document -> unit) -> unit
 val on_update : (Lsp.channel -> uri:string -> update -> unit) -> unit
-val on_definition : (Lsp.channel -> uri:string -> position -> location list) -> unit
 
-type severity = [ `Error | `Warning | `Information | `Hint ]
+val on_definition :
+  (Lsp.channel -> uri:string -> position -> location list) -> unit
 
-type diagnostic = Diag of {
-    range : range ;
-    severity : severity ;
-    source : string option ;
-    message : string ;
-    data : Json.t ;
-  }
+(** Markdown code block *)
+val code : ?lang:string -> string list -> string list
+
+(** Markdown hover. Default is `Plaintext *)
+val hover : ?range:range -> ?kind:markup -> string list -> hover
+
+val on_hover : (Lsp.channel -> uri:string -> position -> hover) -> unit
 
 val diagnostic :
   range:range ->

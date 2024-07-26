@@ -51,6 +51,7 @@ let () = Lsp.register ~force:true "initialize"
             "save", `Bool true ;
           ] ;
           "definitionProvider", `Bool true ;
+          "hoverProvider", `Bool true ;
         ];
         "serverInfo", `Assoc [
           "name", `String "why3find" ;
@@ -230,6 +231,43 @@ let on_definition fn =
         | [] -> `Null
         | [p] -> wlocation p
         | ps -> `List (List.map wlocation ps)
+      with Exit | Not_found -> `Null
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Hover                                                             --- *)
+(* -------------------------------------------------------------------------- *)
+
+type markup = [ `Plaintext | `Markdown ]
+type hover = Hover of {
+    range : range option ;
+    kind : markup ;
+    value : string list ;
+  }
+
+let wmarkup = function
+  | `Plaintext -> "plaintext"
+  | `Markdown -> "markdown"
+
+let whover (Hover h) : Json.t = Json.assoc [
+    "contents", Json.assoc [
+      "kind", `String (wmarkup h.kind);
+      "value", `String (String.concat "\n" h.value);
+    ] ;
+    "range", Json.option_map wrange h.range ;
+]
+
+let code ?(lang="") lines = ["```" ^ lang] @ lines @ ["```"]
+
+let hover ?range ?(kind=`Plaintext) value = Hover { range ; kind ; value }
+
+let on_hover fn =
+  Lsp.register "textDocument/hover"
+    begin fun channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      let pos = Json.jfield "position" data |> jposition in
+      try whover @@ fn channel ~uri pos
       with Exit | Not_found -> `Null
     end
 
