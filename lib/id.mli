@@ -64,7 +64,7 @@ val pp_proof_aname : Format.formatter -> id -> unit
 val pp_proof_ahref : Format.formatter -> id -> unit
 
 type decl =
-  | Type of Why3.Ty.tysymbol
+  | Type of Why3.Ty.tysymbol * Why3.Decl.constructor list
   | Logic of Why3.Term.lsymbol
   | Var of Why3.Ity.pvsymbol
   | Let of Why3.Expr.rsymbol

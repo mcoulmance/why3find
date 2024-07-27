@@ -162,13 +162,22 @@ let () = Lspserver.on_update update
 (* --- References                                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
+let rec rollback updates pos =
+  match updates with
+  | [] -> Some pos
+  | upd::updates ->
+    Option.bind (Lspserver.backward_position upd pos) (rollback updates)
+
 let locate ~uri (pos : Lspserver.position) =
   match Lspserver.to_file ~uri with
   | None -> raise Not_found
   | Some filename ->
     let src = Hashtbl.find sources filename in
-    let range,href = Rangemap.find (pos.line, pos.char) src.hrefs in
-    filename, src, range, href
+    match rollback src.updates pos with
+    | Some pos ->
+      let range,href = Rangemap.find (pos.line, pos.char) src.hrefs in
+      filename, src, range, href
+    | None -> raise Not_found
 
 let goto loc =
   let filename,range = of_loc loc in

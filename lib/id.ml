@@ -226,22 +226,25 @@ let pp_proof_ahref fmt r =
 (* -------------------------------------------------------------------------- *)
 
 type decl =
-  | Type of Why3.Ty.tysymbol
+  | Type of Why3.Ty.tysymbol * Why3.Decl.constructor list
   | Logic of Why3.Term.lsymbol
   | Var of Why3.Ity.pvsymbol
   | Let of Why3.Expr.rsymbol
   | Exn of Why3.Ity.xsymbol
 
 let find_list id name ds =
-  fst @@ List.find (fun (d,_) -> Why3.Ident.id_equal id (name d)) ds
+  List.find (fun (d,_) -> Why3.Ident.id_equal id (name d)) ds
 
 let find_decl id (d: Why3.Decl.decl) =
   match d.d_node with
-  | Dtype ts -> Type ts
+  | Dtype ts -> Type(ts,[])
   | Dparam ls -> Logic ls
-  | Ddata ds -> Type (find_list id (fun ts -> ts.Why3.Ty.ts_name) ds)
-  | Dlogic ds -> Logic (find_list id (fun ls -> ls.Why3.Term.ls_name) ds)
-  | Dind(_,ds) -> Logic (find_list id (fun ls -> ls.Why3.Term.ls_name) ds)
+  | Ddata ds ->
+    let ts,cs = find_list id (fun ts -> ts.Why3.Ty.ts_name) ds in Type(ts,cs)
+  | Dlogic ds ->
+    Logic (fst @@ find_list id (fun ls -> ls.Why3.Term.ls_name) ds)
+  | Dind(_,ds) ->
+    Logic (fst @@ find_list id (fun ls -> ls.Why3.Term.ls_name) ds)
   | Dprop _ -> raise Not_found
 
 let rec find_letdefs id = function
