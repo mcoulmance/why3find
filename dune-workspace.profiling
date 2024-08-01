@@ -1,0 +1,8 @@
+(lang dune 3.5)
+
+(context
+ (default
+  (name profiling)
+  (instrument_with landmarks)
+  (env
+   (_ (env-vars ("OCAML_LANDMARKS" "auto"))))))

@@ -3,7 +3,8 @@
  (public_name why3find)
  (flags "-open" "Why3findUtils")
  (libraries Why3findUtils why3 dune-site)
- (instrumentation (backend bisect_ppx)))
+ (instrumentation (backend bisect_ppx))
+ (instrumentation (backend landmarks)))
 
 (rule
   (target version.ml)
