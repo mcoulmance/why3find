@@ -28,7 +28,13 @@ open Calibration
 open Session
 
 val schedule :
-  profile -> replay:bool -> depth:int -> goal -> crc -> crc Fibers.t
+  profile ->
+  replay:bool ->
+  depth:int ->
+  idename:string ->
+  goal ->
+  crc ->
+  crc Fibers.t
 
 type henv = {
   env : Config.env ;

@@ -41,6 +41,7 @@ type henv = {
 type node = {
   depth : int ;
   profile : Calibration.profile ;
+  idename : string;
   goal : Session.goal ;
   hint : crc ;
   replay : bool ;
@@ -54,10 +55,10 @@ type node = {
 let q1 : node Queue.t = Queue.create ()
 let q2 : node Queue.t = Queue.create ()
 
-let schedule profile ~replay ~depth goal hint =
+let schedule profile ~replay ~depth ~idename goal hint =
   let result = Fibers.var () in
   Queue.push
-    { profile ; goal ; hint ; replay ; depth ; result }
+    { profile ; idename; goal ; hint ; replay ; depth ; result }
     (if is_complete hint then q2 else q1) ;
   result
 
@@ -107,7 +108,7 @@ let prove env ?client ?cancel prover timeout : strategy = fun n ->
         Fibers.map to_profile @@
         Fibers.finally ~callback:(Runner.update prover n.goal) @@
         Runner.prove_prepared wmain ~name ~cancel:kill ~callback
-          prover task runner_time
+          prover task runner_time ~idename:n.idename
       in match client with
       | None -> runner
       | Some cl ->
@@ -127,14 +128,16 @@ let prove env ?client ?cancel prover timeout : strategy = fun n ->
 (* --- Try Transformation on Node                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
-let rec subgoals ({ profile ; replay ; depth } as n) goals hints =
+let rec subgoals ({ profile ; replay ; depth } as n) i goals hints =
   match goals, hints with
   | [], _ -> []
   | g::gs, [] ->
     let h = Crc.stuck () in
-    schedule profile ~replay ~depth:(succ depth) g h :: subgoals n gs []
+    let idename = Printf.sprintf "%s.%d" n.idename i in
+    schedule profile ~replay ~depth:(succ depth) ~idename g h :: subgoals n (i+1) gs []
   | g::gs, h::hs ->
-    schedule profile ~replay ~depth:(succ depth) g h :: subgoals n gs hs
+    let idename = Printf.sprintf "%s.%d" n.idename i in
+    schedule profile ~replay ~depth:(succ depth) ~idename g h :: subgoals n (i+1) gs hs
 
 let children tr = function
   | Tactic { id ; children } when id = tr -> children
@@ -147,7 +150,7 @@ let apply h tac cs : strategy = fun n ->
     | None -> stuck n
     | Some gs ->
       let hs = children id cs in
-      Crc.tactic ~goal:n.goal id @+ Fibers.all @@ subgoals n gs hs
+      Crc.tactic ~goal:n.goal id @+ Fibers.all @@ subgoals n 0 gs hs
 
 (* -------------------------------------------------------------------------- *)
 (* --- Hammer Strategy                                                    --- *)

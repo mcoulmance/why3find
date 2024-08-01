@@ -204,6 +204,7 @@
     -D  same as --driver
     -c force cache update
     -j JOBS max parallel provers
+    --log-prover-results FILE log the prover results in the given file
     -m calibrate provers (master)
     -v evaluate prover velocity (local)
     --quiet do not list final configuration
@@ -251,6 +252,7 @@
     -D  same as --driver
     -c force cache update
     -j JOBS max parallel provers
+    --log-prover-results FILE log the prover results in the given file
     -f force rebuild proofs
     -u update proofs (default)
     -r replay proofs (no update)
@@ -352,6 +354,7 @@
   
     -c force cache update
     -j JOBS max parallel provers
+    --log-prover-results FILE log the prover results in the given file
     --server URL proof server address (default "tcp://localhost:5555")
     --polling TIME server polling interval (default 1.0s)
     --trace Trace server protocol
