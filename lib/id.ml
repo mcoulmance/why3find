@@ -71,13 +71,19 @@ type id = {
 
 let lemma id = String.ends_with ~suffix:"'lemma" id.I.id_string
 
-let resolve ~lib id =
+let is_relative ?loadpath f =
+  Filename.is_relative f ||
+  match loadpath with
+  | None -> false
+  | Some prefix -> String.starts_with ~prefix f
+
+let resolve ~lib ?loadpath id =
   let lp,id_mod,id_qid = path id in
   if lp = [] then
     { self = id ; id_pkg = `Local ; id_lib = lib ; id_mod ; id_qid }
   else
     let id_pkg =
-      if Filename.is_relative (file id) then `Local else
+      if is_relative ?loadpath (file id) then `Local else
         try `Package (Meta.find (List.hd lp))
         with _ -> `Stdlib
     in { self = id ; id_pkg ; id_lib = lp ; id_mod ; id_qid }

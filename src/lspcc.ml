@@ -114,9 +114,10 @@ let preprocess filename text diagnostics =
     Hashtbl.remove sources filename ;
     let env = Wenv.init () in
     let cenv = Docref.init () in
+    let wenv = env.wenv in
     let henv = Axioms.init env in
     let lib = library ~loadpath ~filename in
-    let parser = Docref.source ~wenv:env.wenv ~cenv ~henv ~lib ~filename in
+    let parser = Docref.source ~wenv ~cenv ~henv ~lib ~loadpath ~filename in
     let src = Utils.input ~file:tmp parser in
     let hrefs = Srcref.parse ~doc:false ~filename ~env ~src tmp in
     set_source ~filename env src hrefs ;

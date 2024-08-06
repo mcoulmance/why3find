@@ -80,6 +80,7 @@ type theory = {
 
 type source = {
   lib: string list;
+  loadpath: string option;
   urlbase: string;
   profile: Calibration.profile ;
   theories: theory Mstr.t;
@@ -130,10 +131,10 @@ let resolve ~src ~theory ~infix pos =
     | (id, Why3.Glob.Def, _) ->
       let id = strip_lemma id theory in
       let proof = find_proof id theory in
-      Def (Id.resolve ~lib:src.lib id, proof)
+      Def (Id.resolve ~lib:src.lib ?loadpath:src.loadpath id, proof)
     | (id, Why3.Glob.Use, _) ->
       let id = strip_lemma id theory in
-      Ref (Id.resolve ~lib:src.lib id)
+      Ref (Id.resolve ~lib:src.lib ?loadpath:src.loadpath id)
   with Not_found -> NoRef
 
 (* -------------------------------------------------------------------------- *)
@@ -253,12 +254,12 @@ let derived src id =
   Printf.sprintf "%s.%s.html" (String.concat "." src.lib) id
 
 let empty () = {
-  lib = [] ; urlbase = "" ;
+  lib = [] ; urlbase = "" ; loadpath = None ;
   profile = Calibration.create () ;
   theories = Mstr.empty ;
 }
 
-let source ~wenv ~cenv ~henv ~lib ~filename inc =
+let source ~wenv ~cenv ~henv ~lib ?loadpath ~filename inc =
   let path = String.concat "." lib in
   let thys = Why3.Env.read_channel Why3.Env.base_language wenv filename inc in
   let profile, proofs = Proofs.load_proofs filename in
@@ -287,7 +288,7 @@ let source ~wenv ~cenv ~henv ~lib ~filename inc =
          }
       ) thys
   in
-  { lib ; urlbase = path ; profile ; theories }
+  { lib ; loadpath ; urlbase = path ; profile ; theories }
 
 let parse ~wenv ~cenv ~henv file =
   if not @@ String.ends_with ~suffix:".mlw" file then

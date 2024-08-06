@@ -255,7 +255,7 @@ let whover (Hover h) : Json.t = Json.assoc [
       "value", `String (String.concat "\n" h.value);
     ] ;
     "range", Json.option_map wrange h.range ;
-]
+  ]
 
 let code ?(lang="") lines = ["```" ^ lang] @ lines @ ["```"]
 
