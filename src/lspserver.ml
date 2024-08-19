@@ -257,7 +257,10 @@ let whover (Hover h) : Json.t = Json.assoc [
     "range", Json.option_map wrange h.range ;
   ]
 
-let code ?(lang="") lines = ["```" ^ lang] @ lines @ ["```"]
+let is_empty s = String.length @@ String.trim s = 0
+
+let code ?(lang="") lines =
+  if List.for_all is_empty lines then [] else ["```" ^ lang] @ lines @ ["```"]
 
 let hover ?range ?(kind=`Plaintext) value = Hover { range ; kind ; value }
 

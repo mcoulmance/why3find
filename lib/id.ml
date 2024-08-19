@@ -238,20 +238,22 @@ type decl =
   | Let of Why3.Expr.rsymbol
   | Exn of Why3.Ity.xsymbol
 
+let eq = Why3.Ident.id_equal
+
 let find_list id name ds =
-  List.find (fun (d,_) -> Why3.Ident.id_equal id (name d)) ds
+  List.find (fun (d,_) -> eq id @@ name d) ds
 
 let find_decl id (d: Why3.Decl.decl) =
   match d.d_node with
-  | Dtype ts -> Type(ts,[])
-  | Dparam ls -> Logic ls
+  | Dtype ts when eq id ts.ts_name -> Type(ts,[])
+  | Dparam ls when eq id ls.ls_name -> Logic ls
   | Ddata ds ->
     let ts,cs = find_list id (fun ts -> ts.Why3.Ty.ts_name) ds in Type(ts,cs)
   | Dlogic ds ->
     Logic (fst @@ find_list id (fun ls -> ls.Why3.Term.ls_name) ds)
   | Dind(_,ds) ->
     Logic (fst @@ find_list id (fun ls -> ls.Why3.Term.ls_name) ds)
-  | Dprop _ -> raise Not_found
+  | _ -> raise Not_found
 
 let rec find_letdefs id = function
   | [] -> raise Not_found

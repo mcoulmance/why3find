@@ -201,12 +201,140 @@ let () = Lspserver.on_definition definition
 (* --- Hover                                                              --- *)
 (* -------------------------------------------------------------------------- *)
 
+let pp_name fmt (id : Why3.Ident.ident) =
+  Format.pp_print_string fmt id.id_string
+
+let pp_tvar fmt (x : Why3.Ty.tvsymbol) =
+  Format.fprintf fmt "'%a" pp_name x.tv_name
+
+let rec pp_type fmt (t : Why3.Ty.ty) =
+  match t.ty_node with
+  | Why3.Ty.Tyvar x -> pp_tvar fmt x
+  | Why3.Ty.Tyapp (t, ts) when Why3.Ty.is_ts_tuple t -> pp_tuple fmt ts
+  | Why3.Ty.Tyapp (t, [a;b]) when Why3.Ty.(ts_equal t ts_func) ->
+    Format.fprintf fmt "@[<hov 2>(%a@ -> %a)@]" pp_type a pp_func b ;
+  | Why3.Ty.Tyapp (t,[]) -> pp_name fmt t.ts_name
+  | Why3.Ty.Tyapp (t, ts) ->
+    Format.fprintf fmt "@[<hov 2>(%a" pp_name t.ts_name ;
+    List.iter (Format.fprintf fmt "@ %a" pp_type) ts ;
+    Format.fprintf fmt ")@]"
+
+and pp_tuple fmt = function
+  | [] -> Format.pp_print_string fmt "unit"
+  | t::ts ->
+    Format.fprintf fmt "@[<hov 2>(%a" pp_type t ;
+    List.iter (Format.fprintf fmt ",@ %a" pp_type) ts ;
+    Format.fprintf fmt ")@]"
+
+and pp_func fmt t =
+  match t.ty_node with
+  | Why3.Ty.Tyapp (t, [a;b]) when Why3.Ty.(ts_equal t ts_func) ->
+    Format.fprintf fmt "%a@ -> %a" pp_type a pp_func b
+  | _ -> pp_type fmt t
+
+let is_record (c : Why3.Decl.constructor) =
+  List.for_all (function None -> false | Some _ -> true) @@ snd c
+
+let is_unit ty = Why3.Ity.(ity_equal ty ity_unit)
+
+let pp_ity fmt ty =
+  pp_type fmt @@ Why3.Ity.ty_of_ity ty
+
+let pp_field fmt (f : Why3.Term.lsymbol option) =
+  match f with
+  | None -> ()
+  | Some ls ->
+    Format.fprintf fmt "@ @[<hov 2>%a:" pp_name ls.ls_name ;
+    List.iter (Format.fprintf fmt "@ %a" pp_type) ls.ls_args ;
+    Format.fprintf fmt " ;@]"
+
+let pp_constr fmt (c : Why3.Decl.constructor) =
+  let ls = fst c in
+  Format.fprintf fmt "@ | %a" pp_name ls.ls_name ;
+  List.iter (Format.fprintf fmt " %a" pp_type) ls.ls_args
+
+let pp_tdecl fmt (ts : Why3.Ty.tysymbol) =
+  pp_name fmt ts.ts_name ;
+  List.iter (Format.fprintf fmt " %a" pp_tvar) ts.ts_args
+
+let pp_vdecl fmt (pv : Why3.Ity.pvsymbol) =
+  if pv.pv_ghost then Format.fprintf fmt "ghost " ;
+  let vs = pv.pv_vs in
+  Format.fprintf fmt "%a : %a" pp_name vs.vs_name pp_type vs.vs_ty
+
+let pp_varg fmt (pv : Why3.Ity.pvsymbol) =
+  if pv.pv_ghost then Format.fprintf fmt "(ghost %a)" pp_ity pv.pv_ity
+  else pp_ity fmt pv.pv_ity
+
+let pp_decl fmt (d : Id.decl) =
+  match d with
+  | Id.Type (t, []) ->
+    begin
+      match t.ts_def with
+      | Why3.Ty.NoDef ->
+        Format.fprintf fmt "type %a" pp_tdecl t
+      | Why3.Ty.Alias ty ->
+        Format.fprintf fmt "type %a = %a" pp_tdecl t pp_type ty
+      | Why3.Ty.Range { ir_lower ; ir_upper } ->
+        Format.fprintf fmt "type %a = <range %s %s>" pp_name t.ts_name
+          (Why3.BigInt.to_string ir_lower)
+          (Why3.BigInt.to_string ir_upper)
+      | Why3.Ty.Float ff ->
+        Format.fprintf fmt "type %a = <float %d %d>" pp_name t.ts_name
+          ff.fp_significand_digits ff.fp_exponent_digits
+    end
+  | Id.Type (t, [r]) when is_record r ->
+    Format.fprintf fmt "@[<hv 0>@[<hv 2>type %a = {" pp_tdecl t ;
+    List.iter (pp_field fmt) @@ snd r ;
+    Format.fprintf fmt "@]@ }@]"
+  | Id.Type (t, cs) ->
+    Format.fprintf fmt "@[<hv 2>type %a =" pp_tdecl t ;
+    List.iter (pp_constr fmt) cs ;
+    Format.fprintf fmt "@]"
+  | Id.Logic ( { ls_name ; ls_args ; ls_value = None } ) ->
+    Format.fprintf fmt "@[<hv 2>predicate %a" pp_name ls_name ;
+    List.iter (Format.fprintf fmt "@ %a" pp_type) ls_args ;
+    Format.fprintf fmt "@]"
+  | Id.Logic ( { ls_name ; ls_args ; ls_value = Some ls_result } ) ->
+    Format.fprintf fmt "@[<hv 2>function %a" pp_name ls_name ;
+    List.iter (Format.fprintf fmt "@ %a" pp_type) ls_args ;
+    Format.fprintf fmt "@ : %a@]" pp_type ls_result
+  | Id.Var x ->
+    Format.fprintf fmt "@[<hov 2>val %a@]" pp_vdecl x
+  | Id.Let r ->
+    begin
+      Format.fprintf fmt "@[<hov 2>val" ;
+      if Why3.Expr.rs_ghost r then Format.fprintf fmt " ghost" ;
+      begin match Why3.Expr.rs_kind r with
+        | RKnone | RKlocal -> ()
+        | RKfunc -> Format.fprintf fmt " function"
+        | RKpred -> Format.fprintf fmt " predicate"
+        | RKlemma -> Format.fprintf fmt " lemma"
+      end ;
+      let args = r.rs_cty.cty_args in
+      List.iter (Format.fprintf fmt "@ %a" pp_varg) args ;
+      Format.fprintf fmt "@ : %a" pp_ity r.rs_cty.cty_result
+    end
+  | Id.Exn x ->
+    Format.fprintf fmt "@[<hov 2>exception %a" pp_name x.xs_name ;
+    let ty = x.xs_ity in
+    if not @@ is_unit ty then Format.fprintf fmt " : %a" pp_ity ty ;
+    Format.fprintf fmt "@]"
+
+let code env id =
+  try
+    String.split_on_char '\n' @@
+    Format.asprintf "%a" pp_decl @@
+    Id.find env id
+  with Not_found -> []
+
 let hover _channel ~uri (pos : Lspserver.position) =
-  let _,_,rg,href = locate ~uri pos in
+  let _,src,rg,href = locate ~uri pos in
   match href with
   | Ref id ->
     let title = Format.asprintf "%a" Id.pp_title id in
-    Lspserver.hover ~range:(of_range rg) [title]
+    let code = Lspserver.code ~lang:"why3" @@ code src.env.wenv id in
+    Lspserver.hover ~range:(of_range rg) ~kind:`Markdown (title::code)
   | _ -> raise Not_found
 
 let () = Lspserver.on_hover hover
