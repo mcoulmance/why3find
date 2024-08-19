@@ -80,7 +80,7 @@ let rec task (t : Tsk.task) : shape =
   | Some { task_decl ; task_prev } ->
     tdecl task_decl <|> task task_prev
 
-let by_range (_,r1) (_,r2) = Range.compare_range r1 r2
+let by_range (_,r1) (_,r2) = Stdlib.compare r1 r2
 
 let rank = function Goal -> 2 | WhenNot -> 1 | When -> 0
 
@@ -92,7 +92,10 @@ let rec segment = function
     if rank c1 > rank c2 then
       (c1,r1) :: segment ((c2,Range.diff r2 r1) :: w)
     else
-      (c1,Range.diff r1 r2) :: segment (v::w)
+      let r = Range.diff r1 r2 in
+      if Range.is_empty r
+      then segment (v::w)
+      else (c1,r) :: segment (v::w)
 
 let rec collect ~file s acc =
   match s with

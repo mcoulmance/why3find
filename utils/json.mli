@@ -27,6 +27,10 @@ type t = Yojson.Basic.t
 
 val of_file : string -> t
 val to_file : string -> t -> unit
+val of_string : string -> t
+val to_string : t -> string
+val pretty : Format.formatter -> t -> unit
+
 val is_empty : t -> bool
 
 val jint : t -> int
@@ -38,6 +42,14 @@ val jlist : t -> t list
 val jmap : (t -> 'a) -> t -> 'a list
 val jfield : string -> t -> t
 val jfield_exn : string -> t -> t
+val joption : (t -> 'a) -> t -> 'a option
 val jdefault : 'a -> (t -> 'a) -> t -> 'a
 val jmem : string -> t -> bool
 val jiter : (string -> t -> unit) -> t -> unit
+
+val int : int -> t
+val string : string -> t
+val assoc : (string * t) list -> t
+val list : t list -> t
+val list_map : ('a -> t) -> 'a list -> t
+val option_map : ('a -> t) -> 'a option -> t

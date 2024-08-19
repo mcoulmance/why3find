@@ -1,0 +1,318 @@
+(**************************************************************************)
+(*                                                                        *)
+(*  This file is part of the why3find.                                    *)
+(*                                                                        *)
+(*  Copyright (C) 2022-2024                                               *)
+(*    CEA (Commissariat à l'énergie atomique et aux énergies              *)
+(*         alternatives)                                                  *)
+(*                                                                        *)
+(*  you can redistribute it and/or modify it under the terms of the GNU   *)
+(*  Lesser General Public License as published by the Free Software       *)
+(*  Foundation, version 2.1.                                              *)
+(*                                                                        *)
+(*  It is distributed in the hope that it will be useful,                 *)
+(*  but WITHOUT ANY WARRANTY; without even the implied warranty of        *)
+(*  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *)
+(*  GNU Lesser General Public License for more details.                   *)
+(*                                                                        *)
+(*  See the enclosed LICENSE.md for details.                              *)
+(*                                                                        *)
+(**************************************************************************)
+
+let self = ()
+
+(* -------------------------------------------------------------------------- *)
+(* --- URI Utilities                                                      --- *)
+(* -------------------------------------------------------------------------- *)
+
+let file_uri = "file://"
+let to_file ~uri =
+  if String.starts_with ~prefix:file_uri uri then
+    let p = String.length file_uri in
+    let n = String.length uri in
+    Some (String.sub uri p (n-p))
+  else None
+
+let to_uri ~filename =
+  assert (not @@ Filename.is_relative filename) ;
+  file_uri ^ filename
+
+(* -------------------------------------------------------------------------- *)
+(* --- LSP Initialize                                                     --- *)
+(* -------------------------------------------------------------------------- *)
+
+let () = Lsp.register ~force:true "initialize"
+    begin fun _channel _data ->
+      `Assoc [
+        "capabilities", `Assoc [
+          "textDocumentSync", `Assoc [
+            "openClose", `Bool true ;
+            "change", `Int 2 ;
+            "save", `Bool true ;
+          ] ;
+          "definitionProvider", `Bool true ;
+          "hoverProvider", `Bool true ;
+        ];
+        "serverInfo", `Assoc [
+          "name", `String "why3find" ;
+          "version", `String Config.version ;
+        ];
+      ]
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* --- Documents                                                          --- *)
+(* -------------------------------------------------------------------------- *)
+
+type position = { line: int ; char : int }
+type range = { start: position ; stop: position }
+type change = Text of string | Update of range * string
+type update = { before: Ropes.t ; change: change ; after: Ropes.t }
+
+let to_pos { line ; char } = line,char
+let to_range { start ; stop } = to_pos start, to_pos stop
+
+let jposition js = {
+  line = Json.jfield "line" js |> Json.jint ;
+  char = Json.jfield "character" js |> Json.jint ;
+}
+
+let wposition { line ; char } : Json.t =
+  `Assoc [ "line", `Int line ; "character", `Int char ]
+
+let jrange js = {
+  start = Json.jfield "start" js |> jposition ;
+  stop =  Json.jfield "end" js |> jposition ;
+}
+
+let wrange { start ; stop } : Json.t =
+  `Assoc [ "start", wposition start ; "end", wposition stop ]
+[@@ warning "-32"]
+
+let jchange js =
+  let text = Json.jfield "text" js |> Json.jstring in
+  match Json.jfield "range" js |> Json.joption jrange with
+  | None -> Text text
+  | Some range -> Update(range,text)
+
+type document = Doc of { uri: string ; lang: string ; text: Ropes.t }
+type location = Loc of { uri: string ; range: range}
+
+let wlocation (loc: location) : Json.t =
+  match loc with Loc { uri ; range } ->
+    `Assoc [
+      "uri", `String uri ;
+      "range", wrange range ;
+    ]
+
+let apply (Doc doc) update =
+  let text =
+    match update with
+    | Text text -> Ropes.of_string text
+    | Update(range,text) -> Ropes.update (to_range range) text doc.text
+  in Doc { doc with text }
+
+(* Indexed by uri *)
+let documents : (string,document) Hashtbl.t = Hashtbl.create 0
+
+let document ~uri = Hashtbl.find documents uri
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Position Translation                                              --- *)
+(* -------------------------------------------------------------------------- *)
+
+let backward_position (u : update) (p : position) =
+  match u.change with
+  | Text _ -> None
+  | Update( { start ; stop },_) ->
+    if p.line < start.line then Some p else
+    if p.line = start.line then
+      if p.char <= start.char then Some p else None
+    else
+    if p.line > stop.line then
+      let delta = Ropes.lines u.after - Ropes.lines u.before in
+      Some { line = p.line + delta ; char = p.char }
+    else
+      None
+
+let backward_range (u: update) (r : range) =
+  match
+    backward_position u r.start,
+    backward_position u r.stop
+  with Some start , Some stop -> Some { start ; stop } | _ -> None
+
+(* -------------------------------------------------------------------------- *)
+(* --- Document Synchronization                                           --- *)
+(* -------------------------------------------------------------------------- *)
+
+let dopen = ref []
+let dclose = ref []
+let dsave = ref []
+let dupdate = ref []
+let register demons f = demons := !demons @ [f]
+
+let on_open = register dopen
+let on_close = register dclose
+let on_save = register dsave
+let on_update = register dupdate
+
+let () = Lsp.register "textDocument/didOpen"
+    begin fun channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      let lang = Json.jfield "languageId" doc |> Json.jstring in
+      let text = Json.jfield "text" doc |> Json.jstring |> Ropes.of_string in
+      let doc = Doc { uri ; lang ; text } in
+      Hashtbl.replace documents uri doc ;
+      List.iter (fun f -> f channel doc) !dopen ;
+      `Null
+    end
+
+let () = Lsp.register "textDocument/didClose"
+    begin fun channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      begin
+        try
+          let doc = Hashtbl.find documents uri in
+          Hashtbl.remove documents uri ;
+          List.iter (fun f -> f channel doc) !dclose ;
+        with Not_found -> ()
+      end ; `Null
+    end
+
+let () = Lsp.register "textDocument/didChange"
+    begin fun channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      let changes = Json.jfield "contentChanges" data |> Json.jmap jchange in
+      let doc = Hashtbl.find documents uri in
+      let stack = ref [] in
+      let push d u =
+        let d' = apply d u in
+        let Doc { text = before } = d in
+        let Doc { text = after } = d' in
+        let upd = { before ; change = u ; after } in
+        stack := upd :: !stack ; d' in
+      let newDoc = List.fold_left push doc changes in
+      Hashtbl.replace documents uri newDoc ;
+      begin
+        if !dupdate <> [] then
+          let updates = List.rev !stack in
+          List.iter (fun f -> List.iter (f channel ~uri) updates) !dupdate
+      end ;
+      `Null
+    end
+
+let () = Lsp.register "textDocument/didSave"
+    begin fun channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      begin
+        try
+          let doc = Hashtbl.find documents uri in
+          List.iter (fun f -> f channel doc) !dsave ;
+        with Not_found -> ()
+      end ; `Null
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Goto Definition                                                   --- *)
+(* -------------------------------------------------------------------------- *)
+
+let on_definition fn =
+  Lsp.register "textDocument/definition"
+    begin fun channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      let pos = Json.jfield "position" data |> jposition in
+      try
+        match fn channel ~uri pos with
+        | [] -> `Null
+        | [p] -> wlocation p
+        | ps -> `List (List.map wlocation ps)
+      with Exit | Not_found -> `Null
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Hover                                                             --- *)
+(* -------------------------------------------------------------------------- *)
+
+type markup = [ `Plaintext | `Markdown ]
+type hover = Hover of {
+    range : range option ;
+    kind : markup ;
+    value : string list ;
+  }
+
+let wmarkup = function
+  | `Plaintext -> "plaintext"
+  | `Markdown -> "markdown"
+
+let whover (Hover h) : Json.t = Json.assoc [
+    "contents", Json.assoc [
+      "kind", `String (wmarkup h.kind);
+      "value", `String (String.concat "\n" h.value);
+    ] ;
+    "range", Json.option_map wrange h.range ;
+  ]
+
+let is_empty s = String.length @@ String.trim s = 0
+
+let code ?(lang="") lines =
+  if List.for_all is_empty lines then [] else ["```" ^ lang] @ lines @ ["```"]
+
+let hover ?range ?(kind=`Plaintext) value = Hover { range ; kind ; value }
+
+let on_hover fn =
+  Lsp.register "textDocument/hover"
+    begin fun channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      let pos = Json.jfield "position" data |> jposition in
+      try whover @@ fn channel ~uri pos
+      with Exit | Not_found -> `Null
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Diagnostics                                                       --- *)
+(* -------------------------------------------------------------------------- *)
+
+type severity = [ `Error | `Warning | `Information | `Hint ]
+
+type diagnostic = Diag of {
+    range : range ;
+    severity : severity ;
+    source : string option ;
+    message : string ;
+    data : Json.t ;
+  }
+
+let wseverity (s : severity) : Json.t =
+  match s with
+  | `Error -> `Int 1
+  | `Warning -> `Int 2
+  | `Information -> `Int 3
+  | `Hint -> `Int 4
+
+let diagnostic ~range ?(severity=`Error) ?source ~message ?(data=`Null) () =
+  Diag { range ; severity ; source ; message ; data }
+
+let wdiagnostic =
+  function Diag { range ; severity ; source ; message ; data } ->
+    Json.assoc [
+      "range", wrange range ;
+      "severity", wseverity severity ;
+      "source", Json.option_map Json.string source ;
+      "message", `String message ;
+      "data", data ;
+    ]
+
+let publish_diagnostic channel ~uri (ds : diagnostic list) =
+  Lsp.notify channel "textDocument/publishDiagnostics" @@
+  `Assoc [
+    "uri", `String uri ;
+    "diagnostics", `List (List.map wdiagnostic ds) ;
+  ]
+
+(* -------------------------------------------------------------------------- *)

@@ -72,12 +72,12 @@
 			"patterns": [
 				{
 					"name": "comment.doc",
-					"begin": "\\(\\*\\*", "end": "\\*\\)",
+					"begin": "\\(\\*\\*[ \n\r]", "end": "\\*\\)",
 					"patterns": [
 						{ "match": "\\(\\*+\\)" },
 						{ "include": "#documentation" }
 					]
-				}]
+				} ]
 		},
 		"comments": {
 			"patterns": [
@@ -88,7 +88,7 @@
 						{ "match": "\\(\\*+\\)" },
 						{ "include": "#comments" }
 					]
-				}]
+				} ]
 		}
 	},
 	"scopeName": "source.why3"

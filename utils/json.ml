@@ -26,6 +26,7 @@
 type t = Yojson.Basic.t
 
 let of_file f : t = (Yojson.Basic.from_file f :> t)
+let of_string s : t = (Yojson.Basic.from_string s :> t)
 
 let rec to_raw : Yojson.Basic.t -> Yojson.Raw.t = function
   | `Int i -> `Intlit (string_of_int i)
@@ -41,6 +42,13 @@ let to_file f js =
   Yojson.Raw.pretty_to_channel ~std:true out js ;
   output_char out '\n';
   close_out out
+
+let to_string js =
+  let js = to_raw js in
+  Yojson.Raw.pretty_to_string ~std:true js
+
+let pretty fmt js =
+  Format.pp_print_string fmt @@ to_string js
 
 let jbool = function
   | `Bool b -> b
@@ -76,6 +84,10 @@ let jfield fd = function
   | `Assoc fds -> (try List.assoc fd fds with Not_found -> `Null)
   | _ -> `Null
 
+let joption f = function
+  | `Null -> None
+  | js -> Some (f js)
+
 let jdefault value pp = function
   | `Null -> value
   | js -> pp js
@@ -93,5 +105,16 @@ let is_empty = function
   | `List [] -> true
   | `Assoc [] -> true
   | _ -> false
+
+let is_nonnull = function `Null -> false | _ -> true
+
+let int n  = `Int n
+let string s = `String s
+let assoc fts = `Assoc (List.filter (fun (_,v) -> is_nonnull v) fts)
+let list js = `List (List.filter is_nonnull js)
+let option_map f = function None -> `Null | Some a -> f a
+let list_map f xs = `List
+    (List.filter_map
+       (fun x -> let v = f x in if is_nonnull v then None else Some v) xs)
 
 (* -------------------------------------------------------------------------- *)

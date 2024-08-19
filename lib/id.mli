@@ -50,7 +50,7 @@ type id = {
 
 val lemma : t -> bool
 val standard : t -> bool
-val resolve : lib:string list -> t -> id
+val resolve : lib:string list -> ?loadpath:string -> t -> id
 
 val of_infix : string -> string
 val to_infix : string -> string
@@ -62,5 +62,14 @@ val pp_ahref : scope:string option -> package_url:string option
   -> Format.formatter -> id -> unit
 val pp_proof_aname : Format.formatter -> id -> unit
 val pp_proof_ahref : Format.formatter -> id -> unit
+
+type decl =
+  | Type of Why3.Ty.tysymbol * Why3.Decl.constructor list
+  | Logic of Why3.Term.lsymbol
+  | Var of Why3.Ity.pvsymbol
+  | Let of Why3.Expr.rsymbol
+  | Exn of Why3.Ity.xsymbol
+
+val find : Why3.Env.env -> id -> decl
 
 (* -------------------------------------------------------------------------- *)

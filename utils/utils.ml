@@ -210,6 +210,16 @@ let formatfile ~file pp =
     pp fmt ; Format.pp_print_flush fmt ()
   end
 
+let input ~file fn =
+  let inc = open_in file in
+  try let r = fn inc in close_in inc ; r
+  with exn -> close_in inc ; raise exn
+
+let output ~file fn =
+  let out = open_out file in
+  try let r = fn out in close_out out ; r
+  with exn -> close_out out ; raise exn
+
 (* -------------------------------------------------------------------------- *)
 (* --- Time Utilities                                                     --- *)
 (* -------------------------------------------------------------------------- *)

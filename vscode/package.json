@@ -5,24 +5,81 @@
   "repository": "https://git.frama-c.com/pub/why3find",
   "license": "SEE LICENSE IN LICENSE.md",
   "version": "0.0.1",
-  "icon": "./why3.png",
+  "icon": "./why3.platform.png",
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
     "Programming Languages"
   ],
+  "main": "./out/main.js",
+  "activationEvents": [
+    "onlanguage:why3"
+  ],
   "contributes": {
-    "languages": [{
-      "id": "why3",
-      "aliases": ["Why3", "why3"],
-      "extensions": [".mlw"],
-      "configuration": "./language-configuration.json"
-    }],
-    "grammars": [{
-      "language": "why3",
-      "scopeName": "source.why3",
-      "path": "./syntaxes/why3.tmLanguage.json"
-    }]
+    "languages": [
+      {
+        "id": "why3",
+        "aliases": [
+          "Why3",
+          "why3"
+        ],
+        "extensions": [
+          ".mlw"
+        ],
+        "configuration": "./why3.language.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "why3",
+        "scopeName": "source.why3",
+        "path": "./why3.syntax.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Example configuration",
+      "properties": {
+        "why3lsp.trace.server": {
+          "scope": "window",
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace exchanges with the LSP Server."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "why3lsp.start",
+        "title": "Start the Why3 LSP Server (restart if running)"
+      },
+      {
+        "command": "why3lsp.stop",
+        "title": "Stop the Why3 LSP Server (if running)"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "watch": "tsc -b -w",
+    "typecheck": "tsc --noEmit",
+    "bundle": "esbuild ./src/main.ts --bundle --platform=node --external:vscode --minify --outfile=./out/main.js",
+    "package": "vsce package --yarn"
+  },
+  "devDependencies": {
+    "@types/node": "^18.14.6",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^2.29.0",
+    "esbuild": "^0.23.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
   }
 }

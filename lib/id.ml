@@ -71,13 +71,19 @@ type id = {
 
 let lemma id = String.ends_with ~suffix:"'lemma" id.I.id_string
 
-let resolve ~lib id =
+let is_relative ?loadpath f =
+  Filename.is_relative f ||
+  match loadpath with
+  | None -> false
+  | Some prefix -> String.starts_with ~prefix f
+
+let resolve ~lib ?loadpath id =
   let lp,id_mod,id_qid = path id in
   if lp = [] then
     { self = id ; id_pkg = `Local ; id_lib = lib ; id_mod ; id_qid }
   else
     let id_pkg =
-      if Filename.is_relative (file id) then `Local else
+      if is_relative ?loadpath (file id) then `Local else
         try `Package (Meta.find (List.hd lp))
         with _ -> `Stdlib
     in { self = id ; id_pkg ; id_lib = lp ; id_mod ; id_qid }
@@ -220,5 +226,63 @@ let pp_proof_ahref fmt r =
   List.iter (pp_prefix fmt) r.id_lib ;
   Format.pp_print_string fmt "proof.html#" ;
   pp_proof_aname fmt r
+
+(* -------------------------------------------------------------------------- *)
+(* --- Declaration Resolution                                             --- *)
+(* -------------------------------------------------------------------------- *)
+
+type decl =
+  | Type of Why3.Ty.tysymbol * Why3.Decl.constructor list
+  | Logic of Why3.Term.lsymbol
+  | Var of Why3.Ity.pvsymbol
+  | Let of Why3.Expr.rsymbol
+  | Exn of Why3.Ity.xsymbol
+
+let eq = Why3.Ident.id_equal
+
+let find_list id name ds =
+  List.find (fun (d,_) -> eq id @@ name d) ds
+
+let find_decl id (d: Why3.Decl.decl) =
+  match d.d_node with
+  | Dtype ts when eq id ts.ts_name -> Type(ts,[])
+  | Dparam ls when eq id ls.ls_name -> Logic ls
+  | Ddata ds ->
+    let ts,cs = find_list id (fun ts -> ts.Why3.Ty.ts_name) ds in Type(ts,cs)
+  | Dlogic ds ->
+    Logic (fst @@ find_list id (fun ls -> ls.Why3.Term.ls_name) ds)
+  | Dind(_,ds) ->
+    Logic (fst @@ find_list id (fun ls -> ls.Why3.Term.ls_name) ds)
+  | _ -> raise Not_found
+
+let rec find_letdefs id = function
+  | [] -> raise Not_found
+  | (d : Why3.Expr.rec_defn) :: ds ->
+    let rs = d.rec_rsym in
+    if Why3.Ident.id_equal id rs.rs_name
+    then rs else find_letdefs id ds
+
+let find_pdecl id (pd : Why3.Pdecl.pdecl) =
+  match pd.pd_node with
+  | PDtype _ | PDpure ->
+    begin
+      match
+        List.find_map
+          (fun d -> try Some (find_decl id d) with Not_found -> None)
+          pd.pd_pure
+      with None -> raise Not_found | Some d -> d
+    end
+  | PDlet (LDvar(x,_)) -> Var x
+  | PDlet (LDsym (s, _)) -> Let s
+  | PDlet (LDrec ds) -> Let (find_letdefs id ds)
+  | PDexn x -> Exn x
+
+let find env id : decl =
+  let thy = Why3.Env.read_theory env id.id_lib id.id_mod in
+  match Why3.Pmodule.restore_module thy with
+  | m ->
+    find_pdecl id.self (Why3.Ident.Mid.find id.self m.mod_known)
+  | exception Not_found ->
+    find_decl id.self (Why3.Ident.Mid.find id.self thy.th_known)
 
 (* -------------------------------------------------------------------------- *)

@@ -22,5 +22,6 @@
 type level = [ `Message | `Warning | `Error ]
 
 val emit : ?level:level -> ('a, Format.formatter, unit) format -> 'a
+val message : ('a, Format.formatter, unit) format -> 'a
 val warning : ('a, Format.formatter, unit) format -> 'a
 val error : ('a, Format.formatter, unit) format -> 'a

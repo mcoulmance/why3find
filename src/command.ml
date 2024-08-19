@@ -724,6 +724,34 @@ let () = register ~name:"extract" ~args:"[OPTIONS] MODULE..."
     end
 
 (* -------------------------------------------------------------------------- *)
+(* --- LSP                                                                --- *)
+(* -------------------------------------------------------------------------- *)
+
+let () = Lspserver.self
+let () = Lspcc.self
+
+let () = register ~name:"lsp" ~args:"[OPTIONS]"
+    begin fun argv ->
+      let transport = ref None in
+      let set_port n = transport := Some (Lsp.PORT n) in
+      let set_pipe s = transport := Some (Lsp.PIPE s) in
+      Arg.parse_argv argv [
+        "--pipe", Arg.String set_pipe, "<SOCKFILE> unix linux socket" ;
+        "--port", Arg.Int set_port, "<PORT> use socket port" ;
+        "--socket", Arg.Int set_port, "<PORT> use socket port (same as --port)" ;
+      ] (Utils.failwith "Unexpected argument %S")
+        "USAGE:\n\
+         \n  why3find lsp [--pipe=<SOCKFILE>]\n\n\
+         DESCRIPTION:\n\
+         \n  Launch the Language Server Protocol on the specified socket.\
+         \n\n\
+         OPTIONS:\n" ;
+      match !transport with
+      | None -> Log.error "No transport protocol specified." ; exit 1
+      | Some transport -> Lsp.run transport
+    end
+
+(* -------------------------------------------------------------------------- *)
 (* --- SERVER                                                             --- *)
 (* -------------------------------------------------------------------------- *)
 

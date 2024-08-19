@@ -25,6 +25,7 @@
 
 let config = "why3find.json"
 let prefix = ref ""
+let sources = ref "."
 let sections = Hashtbl.create 0
 let loaded = ref false
 let reset = ref false
@@ -35,6 +36,7 @@ let load () =
   if not !loaded then
     begin
       loaded := true ;
+      sources := "." ;
       Hashtbl.clear sections ;
       if !chdir <> "" then
         Utils.chdir !chdir
@@ -47,6 +49,18 @@ let load () =
       if not !reset && Sys.file_exists config then
         Json.of_file config |> Json.jiter (Hashtbl.add sections)
     end
+
+let local ?(loadpath=".") () =
+  begin
+    reset := true ;
+    loaded := true ;
+    modified := false ;
+    sources := loadpath ;
+    Hashtbl.clear sections ;
+    let cfg = Filename.concat loadpath config in
+    if Sys.file_exists cfg then
+      Json.of_file cfg |> Json.jiter (Hashtbl.add sections) ;
+  end
 
 let get fd ~of_json =
   load () ; of_json @@ Hashtbl.find sections fd
@@ -299,7 +313,8 @@ let set_modified () = modified := true
 let save () =
   if !modified then
     begin
-      let path = Filename.concat (Sys.getcwd ()) config in
+      let root = match !sources with "." -> Sys.getcwd () | s -> s in
+      let path = Filename.concat root config in
       let sections =
         List.sort (fun a b -> String.compare (fst a) (fst b)) @@
         Hashtbl.fold
@@ -322,8 +337,10 @@ type env = {
 
 (* TODO: fix this ugly workaround one way or another *)
 let disable_warning s =
-  let w = Why3.Loc.register_warning s Why3.Pp.empty_formatted in
-  Why3.Loc.disable_warning w
+  Why3.Loc.disable_warning @@
+  Why3.Loc.register_warning s Why3.Pp.empty_formatted
+
+let plugins = ref false
 
 let init () =
   begin
@@ -333,10 +350,14 @@ let init () =
     let wconfig = Why3.Whyconf.init_config ~extra_config None in
     let wmain = Why3.Whyconf.get_main wconfig in
     let wpath = Why3.Whyconf.loadpath wmain in
-    let wenv = Why3.Env.create_env ("." :: pkg_path @ wpath) in
-    Why3.Whyconf.load_plugins wmain;
+    let wenv = Why3.Env.create_env (!sources :: pkg_path @ wpath) in
+    if not @@ !plugins then
+      begin
+        Why3.Whyconf.load_plugins wmain;
+        plugins := true ;
+      end ;
     Debug.init_why3_debug ();
-    List.iter disable_warning (warnoff ());
+    List.iter disable_warning @@ warnoff () ;
     { wconfig ; wenv ; pkgs }
   end
 

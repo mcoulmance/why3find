@@ -12,16 +12,6 @@ clean:
 build:
 	dune build
 
-test:
-	@rm -f why3find.json
-	dune test
-
-lint:
-	ocp-indent -i src/*.ml src/*.mli utils/*.ml utils/*.mli
-
-headers:
-	headache -h HEADER src/*.ml src/*.mli src/*.mll utils/*.ml utils/*.mli
-
 install:
 	dune install 2> /dev/null
 
@@ -29,6 +19,26 @@ uninstall:
 	dune uninstall 2> /dev/null
 
 # --------------------------------------------------------------------------
+# --- Linter
+# --------------------------------------------------------------------------
+
+SOURCES_MI=$(shell find src utils -name "*.ml" -or -name "*.mli")
+SOURCES_ML=$(shell find src utils -name "*.ml*")
+SOURCES_TS=$(shell find vscode/src -name "*.ts*")
+
+lint:
+	@ocp-indent -i $(SOURCES_MI)
+
+headers:
+	@headache -c headers.cfg -h HEADER $(SOURCES_ML) $(SOURCES_TS)
+
+# --------------------------------------------------------------------------
+# --- Tests
+# --------------------------------------------------------------------------
+
+test:
+	@rm -f why3find.json
+	dune test
 
 test-coverage:
 	@rm -rf _bisect

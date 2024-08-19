@@ -60,10 +60,10 @@ type input = {
 let src_lexer = ref (fun _ -> assert false)
 let doc_lexer = ref (fun _ -> assert false)
 
-let input ?(doc=false) file =
+let input ?(doc=false) ?(filename) file =
   let inc = open_in file in
   let lexbuf = Lexing.from_channel inc in
-  Lexing.set_filename lexbuf file ;
+  Lexing.set_filename lexbuf @@ Option.value ~default:file filename ;
   {
     lexbuf ;
     channel = inc ;
@@ -76,17 +76,21 @@ let close input =
   close_in_noerr input.channel ;
   input.context <- End
 
+let handler : (input -> string -> unit) ref =
+  ref begin fun input msg ->
+    let p = Lexing.lexeme_start_p input.lexbuf in
+    let q = Lexing.lexeme_end_p input.lexbuf in
+    let a = p.pos_cnum - p.pos_bol in
+    let b = q.pos_cnum - p.pos_bol in
+    Format.printf "File \"%s\", line %d, characters %d-%d: %s@."
+      p.pos_fname p.pos_lnum a b msg ;
+    exit 1
+  end
+
+let set_handler fn = handler := fn
+
 let error input msg =
-  Format.kasprintf
-    (fun msg ->
-       let p = Lexing.lexeme_start_p input.lexbuf in
-       let q = Lexing.lexeme_end_p input.lexbuf in
-       let a = p.pos_cnum - p.pos_bol in
-       let b = q.pos_cnum - p.pos_bol in
-       Format.printf "File \"%s\", line %d, characters %d-%d: %s@."
-         p.pos_fname p.pos_lnum a b msg ;
-       exit 1
-    ) msg
+  Format.kasprintf (fun msg -> !handler input msg ; raise Exit) msg
 
 let eof input = input.context = End
 let src input = input.context = Src
@@ -137,5 +141,28 @@ let token input =
     spaces input tk ;
     context input tk ;
   end ; tk
+
+let rec fetch_id ~kind input =
+  match token input with
+  | Space | Newline -> fetch_id ~kind input
+  | Ident s -> s
+  | _ -> error input "missing %s name" kind
+
+let pp fmt = function
+  | Eof -> Format.pp_print_string fmt "Eof"
+  | Space -> Format.pp_print_string fmt "Space"
+  | Newline -> Format.pp_print_string fmt "Newline"
+  | Char c -> Format.fprintf fmt "Char %S" (String.make 1 c)
+  | Text s -> Format.fprintf fmt "Text %S" s
+  | Comment s -> Format.fprintf fmt "Commont %S" s
+  | Infix s -> Format.fprintf fmt "Infix %s" s
+  | Ident s -> Format.fprintf fmt "Ident %s" s
+  | OpenDoc -> Format.pp_print_string fmt "OpenDoc \"(**\""
+  | CloseDoc -> Format.pp_print_string fmt "CloseDoc \"*)\""
+  | OpenSection (o,s) -> Format.fprintf fmt "OpenSection %c%s" (if o then '+' else '-') s
+  | CloseSection s -> Format.fprintf fmt "CloseSection %s" s
+  | Style (_sty, s) -> Format.fprintf fmt "Styled %S" s
+  | Ref s -> Format.fprintf fmt "Ref %S" s
+  | Verb s -> Format.fprintf fmt "Verb %S" s
 
 (* -------------------------------------------------------------------------- *)

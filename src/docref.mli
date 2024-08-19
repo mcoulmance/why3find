@@ -52,6 +52,7 @@ type theory = {
 
 type source = {
   lib: string list;
+  loadpath: string option;
   urlbase: string;
   profile: Calibration.profile;
   theories: theory Mstr.t;
@@ -66,11 +67,21 @@ val find_clone : cenv ->
   ?source:ident -> ?target:ident ->
   theory -> clone option
 
-val parse : wenv:Why3.Env.env -> cenv:cenv -> henv:Axioms.henv -> string -> source
+val library_path : string -> string list
+
+val parse : wenv:Why3.Env.env -> cenv:cenv -> henv:Axioms.henv ->
+  string -> source
+
+val source : wenv:Why3.Env.env -> cenv:cenv -> henv:Axioms.henv ->
+  lib:string list -> ?loadpath:string -> filename:string ->
+  in_channel -> source
+
 val empty : unit -> source
 val derived : source -> string -> string (* URL name *)
 
 val is_keyword : string -> bool
+val is_opening : string -> bool
+val is_closing : string -> bool
 
 type href =
   | NoRef
