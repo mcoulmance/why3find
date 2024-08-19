@@ -67,3 +67,17 @@ vscode:
     - make -C vscode
   tags:
     - docker
+
+vscode-extension:
+  image: node:lts-buster
+  when: manual
+  cache:
+    paths:
+      - vscode/node_modules/
+  script:
+    - make -C vscode
+  artifacts:
+    paths:
+      - vscode/why3-platform-*.vsix
+  tags:
+    - docker
