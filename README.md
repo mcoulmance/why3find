@@ -11,6 +11,7 @@ debugging proofs. In additional, it can be used to build enhanced documentation,
 package and install libraries or setup a distributed solver cloud.
 
 - [Quick Setup](#quick-usage)
+- [VSCode Integration](#vscode-integration)
 - [Why3 Packages](#why3-packages)
 - [Package Development](#package-development)
 - [Package Configuration](#package-configuration)
@@ -48,6 +49,16 @@ change in future versions of the system. We are also looking for feedback and
 are very opened to discussions and propositions. Please, do not hesitate to open
 issues on our public BTS for submitting bugs or exchanging on feature wishes
 and new ideas.
+
+## VSCode Integration
+
+Why3find features a Language Server Protocol (LSP) and a Visual Studio Code
+client for the Why3 language. The LSP is still at early stage and
+only provides syntax highlighting, goto-definition and typing information.
+Save your files to keep information in sync.
+
+You must have `why3find` installed and available from your `PATH` to use the
+VSCode client.
 
 ## Packages
 
