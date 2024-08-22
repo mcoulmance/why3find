@@ -29,13 +29,18 @@ type source = {
   env : Wenv.env ;
   src : Docref.source ;
   hrefs : Docref.href Rangemap.t ;
+  mutable reloaded : bool ;
   mutable updates : Lspserver.update list ;
 }
 
 let sources = Hashtbl.create 0
 
 let set_source ~filename env src hrefs =
-  Hashtbl.replace sources filename { env ; src ; hrefs ; updates = [] }
+  Hashtbl.replace sources filename {
+    env ; src ; hrefs ;
+    reloaded = false ;
+    updates = [] ;
+  }
 
 let find_decl (source:source) id =
   let env = source.env.wenv in
@@ -422,24 +427,65 @@ let pp_crc fmt (crc : Crc.crc) =
     pp_depth fmt crc ;
   end
 
+let get_proof source = function
+  | Docref.NoRef | Ref _ -> None
+  | Def(_,proof) when not source.reloaded -> proof
+  | Def(id,_) ->
+    let thy = Docref.Mstr.find_opt id.id_mod source.src.theories in
+    Docref.find_proof id.self thy
+
 let lenses _channel ~uri =
   match Lspserver.to_file ~uri with
   | None -> raise Not_found
   | Some filename ->
-    let src = Hashtbl.find sources filename in
+    let source = Hashtbl.find sources filename in
     let pool = ref [] in
     Rangemap.iter
       begin fun rg (href : Docref.href) ->
-        match href with
-        | NoRef | Ref _ | Def (_,None) -> ()
-        | Def (_, Some crc) ->
+        match get_proof source href with
+        | None -> ()
+        | Some crc ->
           let line = fst @@ fst rg in
           let title = Format.asprintf "%a" pp_crc crc in
           let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
           pool := Lspserver.resolved ~line cmd :: !pool
-      end src.hrefs ;
+      end source.hrefs ;
     !pool
 
 let () = Lspserver.on_codelens lenses
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Proof Watcher                                                     --- *)
+(* -------------------------------------------------------------------------- *)
+
+let watching = ref false
+
+let () = Lspserver.on_open
+    begin fun channel _doc ->
+      if not !watching then
+        begin
+          watching := true ;
+          ignore @@ Lspserver.watch channel ["**/proof.json"]
+        end
+    end
+
+let () = Lspserver.on_file_event
+    begin fun channel ~uri _evt ->
+      match Lspserver.to_file ~uri with
+      | None -> ()
+      | Some file ->
+        let suffix = "/proof.json" in
+        if String.ends_with ~suffix file then
+          let n = String.length suffix in
+          let base = String.sub file 0 (String.length file - n) in
+          let file = base ^ ".mlw" in
+          match Hashtbl.find_opt sources file with
+          | None -> ()
+          | Some source ->
+            Docref.reload_proofs source.src ;
+            source.reloaded <- true ;
+            Lspserver.refresh_codelens channel
+    end
+
 
 (* -------------------------------------------------------------------------- *)

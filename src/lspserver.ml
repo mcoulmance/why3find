@@ -354,7 +354,7 @@ let on_codelens ?resolve fn =
     end resolve
 
 let refresh_codelens channel =
-  Lsp.notify channel "workspace/codeLens/refresh" `Null
+  Lsp.send channel "workspace/codeLens/refresh" `Null
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Diagnostics                                                       --- *)

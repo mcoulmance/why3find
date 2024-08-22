@@ -243,7 +243,10 @@ let notify channel meth param =
   else
     send_notification channel meth param
 
-let send channel meth param callback =
+let error meth = function Ok _ -> () | Error data ->
+  Format.eprintf "[%s] ERROR: %a@." meth Json.pretty data
+
+let send channel meth ?(callback = error meth) param =
   if channel.processing then
     Queue.push (Request { meth ; param ; callback }) channel.queue
   else
@@ -359,13 +362,13 @@ let jregistration id meth param : Json.t =
 
 let register_capability channel meth param =
   let id = make_id () in
-  notify channel "client/registerCapability" @@ Json.assoc [
+  send channel "client/registerCapability" @@ Json.assoc [
     "registrations", `List [ jregistration id meth param ]
   ] ;
   Capability { id ; meth }
 
 let unregister_capability channel = function Capability { id ; meth } ->
-  notify channel "client/unregisterCapability" @@ Json.assoc [
+  send channel "client/unregisterCapability" @@ Json.assoc [
     "unregisterations", `List [ jregistration id meth `Null ]
   ]
 

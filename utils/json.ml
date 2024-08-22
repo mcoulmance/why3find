@@ -110,7 +110,7 @@ let is_empty = function
   | `Assoc [] -> true
   | _ -> false
 
-let is_nonnull = function `Null -> true | _ -> true
+let is_nonnull = function `Null -> false | _ -> true
 
 let int n  = `Int n
 let string s = `String s

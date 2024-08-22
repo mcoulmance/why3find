@@ -68,7 +68,7 @@ val ignore: string -> unit
 val notify: channel -> string -> Json.t -> unit
 
 (** Send a request or notification to the server *)
-val send: channel -> string -> Json.t -> (response -> unit) -> unit
+val send: channel -> string -> ?callback:(response -> unit) -> Json.t -> unit
 
 (** Launch the server until it is terminated *)
 val run: transport -> unit

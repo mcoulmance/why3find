@@ -47,10 +47,11 @@ type theory = {
   depends: Thy.theory list ;
   signature: Axioms.signature ;
   clones: clone list ;
-  proofs: Crc.crc Mstr.t ;
+  mutable proofs: Crc.crc Mstr.t ;
 }
 
 type source = {
+  filename: string;
   lib: string list;
   loadpath: string option;
   urlbase: string;
@@ -91,6 +92,7 @@ type href =
 type position = Lexing.position * Lexing.position
 
 val find_proof : ident -> theory option -> Crc.crc option
+val reload_proofs : source -> unit
 
 val resolve :
   src:source -> theory:theory option -> infix:bool ->
