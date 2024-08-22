@@ -67,8 +67,9 @@ val publish_diagnostic : Lsp.channel -> uri:string -> diagnostic list -> unit
 (** {2 Goto Definitions} *)
 
 type location = Loc of { uri: string ; range: range }
+type defkind = [ `Def | `Typedef | `Implementation ]
 
-val on_definition :
+val on_definition : ?kind:defkind ->
   (Lsp.channel -> uri:string -> position -> location list) -> unit
 
 (** {2 Code Hovers} *)

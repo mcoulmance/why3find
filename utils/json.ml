@@ -110,7 +110,7 @@ let is_empty = function
   | `Assoc [] -> true
   | _ -> false
 
-let is_nonnull = function `Null -> false | _ -> true
+let is_nonnull = function `Null -> true | _ -> true
 
 let int n  = `Int n
 let string s = `String s
@@ -119,6 +119,6 @@ let list js = `List (List.filter is_nonnull js)
 let option_map f = function None -> `Null | Some a -> f a
 let list_map f xs = `List
     (List.filter_map
-       (fun x -> let v = f x in if is_nonnull v then None else Some v) xs)
+       (fun x -> let v = f x in if is_nonnull v then Some v else None) xs)
 
 (* -------------------------------------------------------------------------- *)

@@ -37,6 +37,11 @@ let sources = Hashtbl.create 0
 let set_source ~filename env src hrefs =
   Hashtbl.replace sources filename { env ; src ; hrefs ; updates = [] }
 
+let find_decl (source:source) id =
+  let env = source.env.wenv in
+  let src = source.src in
+  Docref.find_decl env src id
+
 (* -------------------------------------------------------------------------- *)
 (* --- Compiler for the LSP Server                                        --- *)
 (* -------------------------------------------------------------------------- *)
@@ -180,22 +185,52 @@ let locate ~uri (pos : Lspserver.position) =
       filename, src, range, href
     | None -> raise Not_found
 
-let goto loc =
-  let filename,range = of_loc loc in
-  let uri = Lspserver.to_uri ~filename in
-  Lspserver.Loc { uri ; range }
-
 (* -------------------------------------------------------------------------- *)
 (* --- Goto Definition                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
+let goto = function
+  | None -> raise Not_found
+  | Some loc ->
+    let filename,range = of_loc loc in
+    let uri = Lspserver.to_uri ~filename in
+    Lspserver.Loc { uri ; range }
+
 let definition _channel ~uri (pos : Lspserver.position) =
   let _,_,_,href = locate ~uri pos in
   match href with
-  | Ref { self = { id_loc = Some loc } } -> [goto loc]
+  | Ref id -> [goto id.self.id_loc]
   | _ -> []
 
 let () = Lspserver.on_definition definition
+
+let typeof_ty (ty : Why3.Ty.ty) =
+  match ty.ty_node with
+  | Why3.Ty.Tyvar _ -> raise Not_found
+  | Why3.Ty.Tyapp (ts, _) -> ts
+
+let typeof_decl = function
+  | Id.Type(ts,_) -> ts
+  | Id.Logic { ls_value = Some result } -> typeof_ty result
+  | Id.Logic { ls_value = None } -> raise Not_found
+  | Id.Var pv -> typeof_ty pv.pv_vs.vs_ty
+  | Id.Let r -> typeof_ty @@ Why3.Ity.ty_of_ity r.rs_cty.cty_result
+  | Id.Exn x -> typeof_ty @@ Why3.Ity.ty_of_ity x.xs_ity
+
+let typedef _channel ~uri (pos : Lspserver.position) =
+  let _,src,_,href = locate ~uri pos in
+  match href with
+  | Ref id ->
+    begin
+      try
+        let ts = typeof_decl @@ find_decl src id in
+        [goto ts.ts_name.id_loc]
+      with Not_found ->
+        [goto id.self.id_loc]
+    end
+  | _ -> []
+
+let () = Lspserver.on_definition ~kind:`Typedef typedef
 
 (* -------------------------------------------------------------------------- *)
 (* --- Hover                                                              --- *)
@@ -324,12 +359,9 @@ let pp_decl fmt (d : Id.decl) =
     if not @@ is_unit ty then Format.fprintf fmt " : %a" pp_ity ty ;
     Format.fprintf fmt "@]"
 
-let code (source:source) id =
+let code source id =
   try
-    let env = source.env.wenv in
-    let src = source.src in
-    let decl = Docref.find_decl env src id in
-    String.split_on_char '\n' @@ Format.asprintf "%a" pp_decl decl
+    String.split_on_char '\n' @@ Format.asprintf "%a" pp_decl @@ find_decl source id
   with Not_found -> []
 
 let hover _channel ~uri (pos : Lspserver.position) =

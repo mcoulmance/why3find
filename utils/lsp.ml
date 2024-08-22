@@ -355,7 +355,7 @@ let jregistration id meth param : Json.t =
     "id", `String id ;
     "method", `String meth ;
     "registerOptions", param ;
-]
+  ]
 
 let register_capability channel meth param =
   let id = make_id () in

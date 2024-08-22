@@ -44,6 +44,8 @@ let to_uri ~filename =
 (* -------------------------------------------------------------------------- *)
 
 let definitionProvider = ref false
+let typedefProvider = ref false
+let implementationProvider = ref false
 let hoverProvider = ref false
 let codeLensProvider = ref false
 
@@ -57,6 +59,8 @@ let () = Lsp.register ~force:true "initialize"
             "save", `Bool true ;
           ] ;
           "definitionProvider", `Bool !definitionProvider ;
+          "typeDefinitionProvider", `Bool !typedefProvider ;
+          "implementationProvider", `Bool !implementationProvider ;
           "hoverProvider", `Bool !hoverProvider ;
           "codeLensProvider", `Bool !codeLensProvider ;
         ];
@@ -223,9 +227,17 @@ let () = Lsp.register "textDocument/didSave"
 (* ---  Goto Definition                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
-let on_definition fn =
-  definitionProvider := true ;
-  Lsp.register "textDocument/definition"
+type defkind = [ `Def | `Typedef | `Implementation ]
+
+let on_definition ?(kind:defkind = `Def) fn =
+  let provider, meth =
+    match kind with
+    | `Def -> definitionProvider, "textDocument/definition"
+    | `Typedef -> typedefProvider, "textDocument/typeDefinition"
+    | `Implementation -> implementationProvider, "textDocument/implementation"
+  in
+  provider := true ;
+  Lsp.register meth
     begin fun channel data ->
       let doc = Json.jfield "textDocument" data in
       let uri = Json.jfield "uri" doc |> Json.jstring in
