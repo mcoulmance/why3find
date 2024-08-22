@@ -5,13 +5,14 @@ Provides support for the Why3 language and Why3find proof environment.
 ## Features
 
  - Syntax highlighting
- - Typechecking
+ - Typechecking (update on save)
  - Goto definition
  - Goto type definition
- - Symbol information (full name, signature, etc.)
+ - Hover (full name, signature, updated on save)
+ - Code Lens (proof feedback, dynamically updated)
 
 ## Known Issues
 
-Typing and symbol information are only available after complete file
-typechecking. During code edition, code information is only available outside
-the modified area, until the file is saved again.
+Hovers are only available for top-level declarations, and only after
+complete file typechecking. During code edition, code information is only
+available outside the modified area, until the file is saved again.
