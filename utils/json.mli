@@ -40,6 +40,7 @@ val jstring : t -> string
 val jstringlist : t -> string list
 val jlist : t -> t list
 val jmap : (t -> 'a) -> t -> 'a list
+val mfield : string -> t -> bool
 val jfield : string -> t -> t
 val jfield_exn : string -> t -> t
 val joption : (t -> 'a) -> t -> 'a option

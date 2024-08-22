@@ -25,6 +25,8 @@ type transport =
 
 type channel
 
+type response = (Json.t,Json.t) result
+
 (** Establish the server or exit *)
 val establish: transport -> channel
 
@@ -53,6 +55,9 @@ val ignore: string -> unit
 
 (** Notify the server *)
 val notify: channel -> string -> Json.t -> unit
+
+(** Send a request or notification to the server *)
+val send: channel -> string -> Json.t -> (response -> unit) -> unit
 
 (** Launch the server until it is terminated *)
 val run: transport -> unit

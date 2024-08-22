@@ -80,6 +80,10 @@ let jmem fd = function
   | `Assoc fds -> List.mem_assoc fd fds
   | _ -> false
 
+let mfield fd = function
+  | `Assoc fds -> List.mem_assoc fd fds
+  | _ -> false
+
 let jfield fd = function
   | `Assoc fds -> (try List.assoc fd fds with Not_found -> `Null)
   | _ -> `Null
