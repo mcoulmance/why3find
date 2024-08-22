@@ -43,6 +43,17 @@ val yield: channel -> unit
 (** Process (at most, non-blocking) one pending LSP Request & Response *)
 val process: channel -> unit
 
+type capability
+
+(**
+   Dynamically register a server capability.
+   Can be unregistered mater with the returned capability.
+*)
+val register_capability: channel -> string -> Json.t -> capability
+
+(** Unregister a server capability. *)
+val unregister_capability: channel -> capability -> unit
+
 (**
    Register a request or notification handler. Some builtin request and
    notifications are already registered and shall be forced updated, namely

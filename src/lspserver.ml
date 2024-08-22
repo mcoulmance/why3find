@@ -19,7 +19,9 @@
 (*                                                                        *)
 (**************************************************************************)
 
-let self = ()
+let register demons f = Queue.push f demons
+let notify demons a b = Queue.iter (fun fn -> fn a b) demons
+let notify_all demons a xs = Queue.iter (fun fn -> List.iter (fn a) xs) demons
 
 (* -------------------------------------------------------------------------- *)
 (* --- URI Utilities                                                      --- *)
@@ -145,11 +147,10 @@ let backward_range (u: update) (r : range) =
 (* --- Document Synchronization                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-let dopen = ref []
-let dclose = ref []
-let dsave = ref []
-let dupdate = ref []
-let register demons f = demons := !demons @ [f]
+let dopen = Queue.create ()
+let dclose = Queue.create ()
+let dsave = Queue.create ()
+let dupdate = Queue.create ()
 
 let on_open = register dopen
 let on_close = register dclose
@@ -164,7 +165,7 @@ let () = Lsp.register "textDocument/didOpen"
       let text = Json.jfield "text" doc |> Json.jstring |> Ropes.of_string in
       let doc = Doc { uri ; lang ; text } in
       Hashtbl.replace documents uri doc ;
-      List.iter (fun f -> f channel doc) !dopen ;
+      notify dopen channel doc ;
       `Null
     end
 
@@ -176,7 +177,7 @@ let () = Lsp.register "textDocument/didClose"
         try
           let doc = Hashtbl.find documents uri in
           Hashtbl.remove documents uri ;
-          List.iter (fun f -> f channel doc) !dclose ;
+          notify dclose channel doc ;
         with Not_found -> ()
       end ; `Null
     end
@@ -196,11 +197,8 @@ let () = Lsp.register "textDocument/didChange"
         stack := upd :: !stack ; d' in
       let newDoc = List.fold_left push doc changes in
       Hashtbl.replace documents uri newDoc ;
-      begin
-        if !dupdate <> [] then
-          let updates = List.rev !stack in
-          List.iter (fun f -> List.iter (f channel ~uri) updates) !dupdate
-      end ;
+      let updates = List.rev !stack in
+      Queue.iter (fun f -> List.iter (f channel ~uri) updates) dupdate ;
       `Null
     end
 
@@ -211,7 +209,7 @@ let () = Lsp.register "textDocument/didSave"
       begin
         try
           let doc = Hashtbl.find documents uri in
-          List.iter (fun f -> f channel doc) !dsave ;
+          notify dsave channel doc ;
         with Not_found -> ()
       end ; `Null
     end
@@ -314,5 +312,69 @@ let publish_diagnostic channel ~uri (ds : diagnostic list) =
     "uri", `String uri ;
     "diagnostics", `List (List.map wdiagnostic ds) ;
   ]
+
+(* -------------------------------------------------------------------------- *)
+(* ---  File Watchers                                                     --- *)
+(* -------------------------------------------------------------------------- *)
+
+type event = [ `Created | `Changed | `Deleted ]
+type file_event = string * event
+
+let devents = Queue.create ()
+let on_file_event fn = register devents (fun ch (uri,evt) -> fn ch ~uri evt)
+
+let jevent (js : Json.t) : event =
+  match js with
+  | `Int 1 -> `Created
+  | `Int 2 -> `Changed
+  | `Int 3 -> `Deleted
+  | _ -> `Changed (* fallback *)
+
+let jchange (js : Json.t) : file_event option =
+  try
+    let uri = Json.jfield "uri" js |> Json.jstring in
+    let evt = Json.jfield "type" js |> jevent in
+    Some (uri,evt)
+  with Invalid_argument _ -> None
+
+let () = Lsp.register "workspace/didChangeWatchedFiles"
+    begin fun channel data ->
+      let changes =
+        Json.jfield "changes" data
+        |> Json.jlist
+        |> List.filter_map jchange
+      in notify_all devents channel changes ;
+      `Null
+    end
+
+let wevents (evts : event list) : Json.t =
+  let m = List.fold_left
+      (fun m evt ->
+         match evt with
+         | `Created -> m lor 1
+         | `Changed -> m lor 2
+         | `Deleted -> m lor 4
+      ) 0 evts
+  in `Int m
+
+let jpattern uri pattern =
+  match uri with
+  | None -> `String pattern
+  | Some base -> Json.assoc [
+      "baseUri", `String base;
+      "pattern",`String pattern;
+    ]
+
+let jwatcher events uri pattern = Json.assoc [
+    "globPattern", jpattern uri pattern ;
+    "kind", Json.option_map wevents events ;
+  ]
+
+let jwatchers events uri patterns : Json.t =
+  `Assoc [ "watchers" , Json.list_map (jwatcher events uri) patterns ]
+
+let watch channel ?events ?uri patterns =
+  Lsp.register_capability channel
+    "workspace/didChangeWatchedFiles" @@ jwatchers events uri patterns
 
 (* -------------------------------------------------------------------------- *)

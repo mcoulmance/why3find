@@ -25,11 +25,10 @@
 
 type response = (Json.t,Json.t) result
 type callback = response -> unit
-type request = {
-  meth: string;
-  param: Json.t;
-  callback: callback option;
-}
+
+type request =
+  | Notify of { meth: string; param: Json.t }
+  | Request of { meth: string; param: Json.t; callback: callback }
 
 type channel = {
   mutable shutdown : bool ; (* has been shutdown *)
@@ -143,9 +142,10 @@ let send_notification channel meth params =
   ]
 
 let rqid = ref 0
+let make_id () = incr rqid ; Printf.sprintf "#%d" !rqid
 
 let send_request channel meth params callback =
-  let id = incr rqid ; Printf.sprintf "#%d" !rqid in
+  let id = make_id () in
   Hashtbl.replace channel.callbacks id callback ;
   push channel @@ Json.to_string @@ json_rpc [
     "id", `String id ;
@@ -153,10 +153,11 @@ let send_request channel meth params callback =
     "params", params ;
   ]
 
-let send channel rq =
-  match rq.callback with
-  | None -> send_notification channel rq.meth rq.param
-  | Some fn -> send_request channel rq.meth rq.param fn
+let send ch = function
+  | Notify { meth = m ; param = p } ->
+    send_notification ch m p
+  | Request { meth = m ; param = p ; callback = fn } ->
+    send_request ch m p fn
 
 let flush channel =
   channel.processing <- false ;
@@ -238,15 +239,15 @@ let ignore name = register name (fun _ _ -> `Null)
 
 let notify channel meth param =
   if channel.processing then
-    Queue.push { meth ; param ; callback = None } channel.queue
+    Queue.push (Notify { meth ; param }) channel.queue
   else
     send_notification channel meth param
 
-let send channel meth param fn =
+let send channel meth param callback =
   if channel.processing then
-    Queue.push { meth ; param ; callback = Some fn } channel.queue
+    Queue.push (Request { meth ; param ; callback }) channel.queue
   else
-    send_request channel meth param fn
+    send_request channel meth param callback
 
 (* -------------------------------------------------------------------------- *)
 (* --- Handling Transport I/O                                             --- *)
@@ -342,6 +343,31 @@ let () = register "exit"
 
 let () = ignore "initialized"
 let () = ignore "$/setTrace"
+
+(* -------------------------------------------------------------------------- *)
+(* --- Capabilities                                                       --- *)
+(* -------------------------------------------------------------------------- *)
+
+type capability = Capability of { id: string ; meth: string }
+
+let jregistration id meth param : Json.t =
+  Json.assoc [
+    "id", `String id ;
+    "method", `String meth ;
+    "registerOptions", param ;
+]
+
+let register_capability channel meth param =
+  let id = make_id () in
+  notify channel "client/registerCapability" @@ Json.assoc [
+    "registrations", `List [ jregistration id meth param ]
+  ] ;
+  Capability { id ; meth }
+
+let unregister_capability channel = function Capability { id ; meth } ->
+  notify channel "client/unregisterCapability" @@ Json.assoc [
+    "unregisterations", `List [ jregistration id meth `Null ]
+  ]
 
 (* -------------------------------------------------------------------------- *)
 (* --- Launch Server                                                      --- *)

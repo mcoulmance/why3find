@@ -19,8 +19,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-val self : unit
-
 val to_file : uri:string -> string option
 val to_uri : filename:string -> string
 
@@ -78,3 +76,11 @@ val diagnostic :
   unit -> diagnostic
 
 val publish_diagnostic : Lsp.channel -> uri:string -> diagnostic list -> unit
+
+type event = [ `Created | `Changed | `Deleted ]
+
+val on_file_event : (Lsp.channel -> uri:string -> event -> unit) -> unit
+
+(** Starts watching for file events on the given global file patterns. *)
+val watch : Lsp.channel ->
+  ?events:event list -> ?uri:string -> string list -> Lsp.capability
