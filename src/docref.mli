@@ -101,4 +101,6 @@ val reference :
   src:source -> scope:string option ->
   string -> string * ident
 
+val find_decl : Why3.Env.env -> source -> Id.id -> Id.decl
+
 (* -------------------------------------------------------------------------- *)

@@ -204,6 +204,9 @@ let () = Lspserver.on_definition definition
 let pp_name fmt (id : Why3.Ident.ident) =
   Format.pp_print_string fmt id.id_string
 
+let pp_infix fmt (id : Why3.Ident.ident) =
+  Format.pp_print_string fmt (Id.of_infix id.id_string)
+
 let pp_tvar fmt (x : Why3.Ty.tvsymbol) =
   Format.fprintf fmt "'%a" pp_name x.tv_name
 
@@ -291,14 +294,14 @@ let pp_decl fmt (d : Id.decl) =
     Format.fprintf fmt "@[<hv 2>type %a =" pp_tdecl t ;
     List.iter (pp_constr fmt) cs ;
     Format.fprintf fmt "@]"
-  | Id.Logic ( { ls_name ; ls_args ; ls_value = None } ) ->
-    Format.fprintf fmt "@[<hv 2>predicate %a" pp_name ls_name ;
-    List.iter (Format.fprintf fmt "@ %a" pp_type) ls_args ;
+  | Id.Logic ls ->
+    let kind = if ls.ls_value = None then "predicate" else "function" in
+    Format.fprintf fmt "@[<hv 2>%s %a" kind pp_infix ls.ls_name ;
+    List.iter (Format.fprintf fmt "@ %a" pp_type) ls.ls_args ;
+    Option.iter (Format.fprintf fmt "@ : %a" pp_type) ls.ls_value ;
+    if ls.ls_proj then Format.fprintf fmt "@ (* field *)" ;
+    if ls.ls_constr > 0 then Format.fprintf fmt "@ (* constructor *)" ;
     Format.fprintf fmt "@]"
-  | Id.Logic ( { ls_name ; ls_args ; ls_value = Some ls_result } ) ->
-    Format.fprintf fmt "@[<hv 2>function %a" pp_name ls_name ;
-    List.iter (Format.fprintf fmt "@ %a" pp_type) ls_args ;
-    Format.fprintf fmt "@ : %a@]" pp_type ls_result
   | Id.Var x ->
     Format.fprintf fmt "@[<hov 2>val %a@]" pp_vdecl x
   | Id.Let r ->
@@ -321,19 +324,20 @@ let pp_decl fmt (d : Id.decl) =
     if not @@ is_unit ty then Format.fprintf fmt " : %a" pp_ity ty ;
     Format.fprintf fmt "@]"
 
-let code env id =
+let code (source:source) id =
   try
-    String.split_on_char '\n' @@
-    Format.asprintf "%a" pp_decl @@
-    Id.find env id
+    let env = source.env.wenv in
+    let src = source.src in
+    let decl = Docref.find_decl env src id in
+    String.split_on_char '\n' @@ Format.asprintf "%a" pp_decl decl
   with Not_found -> []
 
 let hover _channel ~uri (pos : Lspserver.position) =
-  let _,src,rg,href = locate ~uri pos in
+  let _,source,rg,href = locate ~uri pos in
   match href with
   | Ref id ->
     let title = Format.asprintf "%a" Id.pp_title id in
-    let code = Lspserver.code ~lang:"why3" @@ code src.env.wenv id in
+    let code = Lspserver.code ~lang:"why3" @@ code source id in
     Lspserver.hover ~range:(of_range rg) ~kind:`Markdown (title::code)
   | _ -> raise Not_found
 

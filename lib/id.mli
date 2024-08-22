@@ -70,6 +70,6 @@ type decl =
   | Let of Why3.Expr.rsymbol
   | Exn of Why3.Ity.xsymbol
 
-val find : Why3.Env.env -> id -> decl
+val find : Why3.Theory.theory -> t -> decl
 
 (* -------------------------------------------------------------------------- *)

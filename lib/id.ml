@@ -24,6 +24,7 @@
 (* -------------------------------------------------------------------------- *)
 
 module I = Why3.Ident
+module Mstr = Why3.Wstdlib.Mstr
 
 type t = I.ident
 let hash = I.id_hash
@@ -240,19 +241,24 @@ type decl =
 
 let eq = Why3.Ident.id_equal
 
-let find_list id name ds =
-  List.find (fun (d,_) -> eq id @@ name d) ds
+let find_logic id ds =
+  fst @@ List.find (fun (ls,_) -> eq id @@ ls.Why3.Term.ls_name) ds
+
+let rec find_data id (ds : Why3.Decl.data_decl list) =
+  match ds with
+  | [] -> raise Not_found
+  | (ts,cs) :: ds ->
+    if eq id ts.ts_name then Type(ts,cs) else
+      try Logic (find_logic id cs)
+      with Not_found -> find_data id ds
 
 let find_decl id (d: Why3.Decl.decl) =
   match d.d_node with
   | Dtype ts when eq id ts.ts_name -> Type(ts,[])
   | Dparam ls when eq id ls.ls_name -> Logic ls
-  | Ddata ds ->
-    let ts,cs = find_list id (fun ts -> ts.Why3.Ty.ts_name) ds in Type(ts,cs)
-  | Dlogic ds ->
-    Logic (fst @@ find_list id (fun ls -> ls.Why3.Term.ls_name) ds)
-  | Dind(_,ds) ->
-    Logic (fst @@ find_list id (fun ls -> ls.Why3.Term.ls_name) ds)
+  | Ddata ds -> find_data id ds
+  | Dlogic ds -> Logic (find_logic id ds)
+  | Dind(_,ds) -> Logic (find_logic id ds)
   | _ -> raise Not_found
 
 let rec find_letdefs id = function
@@ -277,12 +283,11 @@ let find_pdecl id (pd : Why3.Pdecl.pdecl) =
   | PDlet (LDrec ds) -> Let (find_letdefs id ds)
   | PDexn x -> Exn x
 
-let find env id : decl =
-  let thy = Why3.Env.read_theory env id.id_lib id.id_mod in
+let find thy id : decl =
   match Why3.Pmodule.restore_module thy with
   | m ->
-    find_pdecl id.self (Why3.Ident.Mid.find id.self m.mod_known)
+    find_pdecl id (Why3.Ident.Mid.find id m.mod_known)
   | exception Not_found ->
-    find_decl id.self (Why3.Ident.Mid.find id.self thy.th_known)
+    find_decl id (Why3.Ident.Mid.find id thy.th_known)
 
 (* -------------------------------------------------------------------------- *)

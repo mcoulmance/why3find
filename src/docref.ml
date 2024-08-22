@@ -378,6 +378,14 @@ let find kind qid thy =
 
 let find_theory kind qid { theory } = find kind qid theory
 
+let find_decl wenv (src:source) (id : Id.id) =
+  let thy =
+    if id.id_lib = src.lib then
+      (Mstr.find id.id_mod src.theories).theory
+    else
+      Why3.Env.read_theory wenv id.id_lib id.id_mod
+  in Id.find thy id.self
+
 let lookup ~scope ~theories kind m qid =
   match if m <> "" then Some m else scope with
   | Some m0 ->
