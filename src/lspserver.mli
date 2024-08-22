@@ -67,6 +67,23 @@ val hover : ?range:range -> ?kind:markup -> string list -> hover
 
 val on_hover : (Lsp.channel -> uri:string -> position -> hover) -> unit
 
+type command = Cmd of {
+  title : string ;
+  command : string ;
+  args : Json.t list ;
+}
+
+type codelens
+
+val codelens : line:int -> Json.t -> codelens
+val resolved : line:int -> command -> codelens
+
+val on_codelens :
+  ?resolve:(line:int -> Json.t -> command) ->
+  (Lsp.channel -> uri:string -> codelens list) -> unit
+
+val refresh_codelens : Lsp.channel -> unit
+
 val diagnostic :
   range:range ->
   ?severity:severity ->

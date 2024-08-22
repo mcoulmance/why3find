@@ -170,10 +170,10 @@ let jresponse rq =
   then Ok (Json.jfield "result" rq)
   else Error (Json.jfield "error" rq)
 
-let process_request channel ~id ~meth ~param =
+let process_request channel ~id ~meth ~params =
   begin
     channel.processing <- true ;
-    match Hashtbl.find protocol meth channel param with
+    match Hashtbl.find protocol meth channel params with
     | result ->
       send_response channel ~id ~result
     | exception Not_found ->
@@ -212,8 +212,8 @@ let process channel =
           if Json.mfield "method" rq then
             let id = Json.jfield "id" rq in
             let meth = Json.jfield "method" rq |> Json.jstring in
-            let param = Json.jfield "param" rq in
-            process_request channel ~id ~meth ~param
+            let params = Json.jfield "params" rq in
+            process_request channel ~id ~meth ~params
           else
             let id = Json.jfield "id" rq |> Json.jstring in
             let result = jresponse rq in
