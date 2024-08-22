@@ -112,3 +112,10 @@ let rec add rg v = function
     if rg <<< range right then add rg v left ++ right else
     if range left <<< rg then left ++ add rg v right else
       singleton rg v ++ a
+
+let rec iter f = function
+  | Empty -> ()
+  | Range r ->
+    iter f r.inner ;
+    f r.range r.value
+  | Node { left ; right } -> iter f left ; iter f right

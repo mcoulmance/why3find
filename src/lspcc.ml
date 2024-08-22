@@ -376,3 +376,70 @@ let hover _channel ~uri (pos : Lspserver.position) =
 let () = Lspserver.on_hover hover
 
 (* -------------------------------------------------------------------------- *)
+(* ---  Code Lenses                                                       --- *)
+(* -------------------------------------------------------------------------- *)
+
+module M = Map.Make(String)
+
+let add k a =
+  M.add k (try succ @@ M.find k a with Not_found -> 1) a
+
+let rec provers m (crc : Crc.crc) =
+  match crc.state with
+  | Stuck -> ()
+  | Prover (p, _) -> m := add (Prover.desc_name p) !m
+  | Tactic { id; children } -> m := add id !m ; List.iter (provers m) children
+
+let pp_verdict fmt crc =
+  match Crc.verdict crc with
+  | `Valid 0 -> Format.pp_print_string fmt "Valid (no goal)"
+  | `Valid _ -> Format.pp_print_string fmt "Valid"
+  | `Failed n -> Format.fprintf fmt "Failed (%d goals)" n
+  | `Partial (s,n) -> Format.fprintf fmt "Partial (%d/%d)" s n
+
+let pp_time fmt crc =
+  let t = Crc.get_time crc in
+  if t > 0.0 then Format.fprintf fmt " (%a)" Utils.pp_time t
+
+let pp_depth fmt crc =
+  let d = Crc.get_depth crc in
+  if d > 0 then Format.fprintf fmt " (depth %d)" d
+
+let pp_prover fmt p n =
+  if n > 1
+  then Format.fprintf fmt " (%s %d)" p n
+  else Format.fprintf fmt " (%s)" p
+
+let pp_provers fmt crc =
+  let m = ref M.empty in
+  provers m crc ; M.iter (pp_prover fmt) !m
+
+let pp_crc fmt (crc : Crc.crc) =
+  begin
+    pp_verdict fmt crc ;
+    pp_time fmt crc ;
+    pp_provers fmt crc ;
+    pp_depth fmt crc ;
+  end
+
+let lenses _channel ~uri =
+  match Lspserver.to_file ~uri with
+  | None -> raise Not_found
+  | Some filename ->
+    let src = Hashtbl.find sources filename in
+    let pool = ref [] in
+    Rangemap.iter
+      begin fun rg (href : Docref.href) ->
+        match href with
+        | NoRef | Ref _ | Def (_,None) -> ()
+        | Def (_, Some crc) ->
+          let line = fst @@ fst rg in
+          let title = Format.asprintf "%a" pp_crc crc in
+          let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
+          pool := Lspserver.resolved ~line cmd :: !pool
+      end src.hrefs ;
+    !pool
+
+let () = Lspserver.on_codelens lenses
+
+(* -------------------------------------------------------------------------- *)

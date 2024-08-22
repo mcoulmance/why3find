@@ -334,7 +334,8 @@ let on_codelens ?resolve fn =
     begin fun channel data ->
       let doc = Json.jfield "textDocument" data in
       let uri = Json.jfield "uri" doc |> Json.jstring in
-      Json.list_map wcodelens @@ fn channel ~uri
+      let lenses = try fn channel ~uri with Exit | Not_found -> [] in
+      Json.list_map wcodelens lenses
     end ;
   Option.iter
     begin fun fn ->
@@ -346,8 +347,9 @@ let on_codelens ?resolve fn =
             Json.jfield "line" |>
             Json.jint in
           let data = Json.jfield "data" param in
-          let cmd = fn ~line data in
-          wcodelens @@ Resolved { line ; cmd }
+          wcodelens @@
+          try Resolved { line ; cmd = fn ~line data }
+          with Exit | Not_found -> ToResolve { line ; data }
         end
     end resolve
 
