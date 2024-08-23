@@ -19,7 +19,7 @@
 (*                                                                        *)
 (**************************************************************************)
 
-let self = ()
+let init () = () (* for dependencies only *)
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Source Management                                                 --- *)
@@ -29,13 +29,23 @@ type source = {
   env : Wenv.env ;
   src : Docref.source ;
   hrefs : Docref.href Rangemap.t ;
+  mutable reloaded : bool ;
   mutable updates : Lspserver.update list ;
 }
 
 let sources = Hashtbl.create 0
 
 let set_source ~filename env src hrefs =
-  Hashtbl.replace sources filename { env ; src ; hrefs ; updates = [] }
+  Hashtbl.replace sources filename {
+    env ; src ; hrefs ;
+    reloaded = false ;
+    updates = [] ;
+  }
+
+let find_decl (source:source) id =
+  let env = source.env.wenv in
+  let src = source.src in
+  Docref.find_decl env src id
 
 (* -------------------------------------------------------------------------- *)
 (* --- Compiler for the LSP Server                                        --- *)
@@ -180,22 +190,52 @@ let locate ~uri (pos : Lspserver.position) =
       filename, src, range, href
     | None -> raise Not_found
 
-let goto loc =
-  let filename,range = of_loc loc in
-  let uri = Lspserver.to_uri ~filename in
-  Lspserver.Loc { uri ; range }
-
 (* -------------------------------------------------------------------------- *)
 (* --- Goto Definition                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
+let goto = function
+  | None -> raise Not_found
+  | Some loc ->
+    let filename,range = of_loc loc in
+    let uri = Lspserver.to_uri ~filename in
+    Lspserver.Loc { uri ; range }
+
 let definition _channel ~uri (pos : Lspserver.position) =
   let _,_,_,href = locate ~uri pos in
   match href with
-  | Ref { self = { id_loc = Some loc } } -> [goto loc]
+  | Ref id -> [goto id.self.id_loc]
   | _ -> []
 
 let () = Lspserver.on_definition definition
+
+let typeof_ty (ty : Why3.Ty.ty) =
+  match ty.ty_node with
+  | Why3.Ty.Tyvar _ -> raise Not_found
+  | Why3.Ty.Tyapp (ts, _) -> ts
+
+let typeof_decl = function
+  | Id.Type(ts,_) -> ts
+  | Id.Logic { ls_value = Some result } -> typeof_ty result
+  | Id.Logic { ls_value = None } -> raise Not_found
+  | Id.Var pv -> typeof_ty pv.pv_vs.vs_ty
+  | Id.Let r -> typeof_ty @@ Why3.Ity.ty_of_ity r.rs_cty.cty_result
+  | Id.Exn x -> typeof_ty @@ Why3.Ity.ty_of_ity x.xs_ity
+
+let typedef _channel ~uri (pos : Lspserver.position) =
+  let _,src,_,href = locate ~uri pos in
+  match href with
+  | Ref id ->
+    begin
+      try
+        let ts = typeof_decl @@ find_decl src id in
+        [goto ts.ts_name.id_loc]
+      with Not_found ->
+        [goto id.self.id_loc]
+    end
+  | _ -> []
+
+let () = Lspserver.on_definition ~kind:`Typedef typedef
 
 (* -------------------------------------------------------------------------- *)
 (* --- Hover                                                              --- *)
@@ -203,6 +243,9 @@ let () = Lspserver.on_definition definition
 
 let pp_name fmt (id : Why3.Ident.ident) =
   Format.pp_print_string fmt id.id_string
+
+let pp_infix fmt (id : Why3.Ident.ident) =
+  Format.pp_print_string fmt (Id.of_infix id.id_string)
 
 let pp_tvar fmt (x : Why3.Ty.tvsymbol) =
   Format.fprintf fmt "'%a" pp_name x.tv_name
@@ -291,14 +334,14 @@ let pp_decl fmt (d : Id.decl) =
     Format.fprintf fmt "@[<hv 2>type %a =" pp_tdecl t ;
     List.iter (pp_constr fmt) cs ;
     Format.fprintf fmt "@]"
-  | Id.Logic ( { ls_name ; ls_args ; ls_value = None } ) ->
-    Format.fprintf fmt "@[<hv 2>predicate %a" pp_name ls_name ;
-    List.iter (Format.fprintf fmt "@ %a" pp_type) ls_args ;
+  | Id.Logic ls ->
+    let kind = if ls.ls_value = None then "predicate" else "function" in
+    Format.fprintf fmt "@[<hv 2>%s %a" kind pp_infix ls.ls_name ;
+    List.iter (Format.fprintf fmt "@ %a" pp_type) ls.ls_args ;
+    Option.iter (Format.fprintf fmt "@ : %a" pp_type) ls.ls_value ;
+    if ls.ls_proj then Format.fprintf fmt "@ (* field *)" ;
+    if ls.ls_constr > 0 then Format.fprintf fmt "@ (* constructor *)" ;
     Format.fprintf fmt "@]"
-  | Id.Logic ( { ls_name ; ls_args ; ls_value = Some ls_result } ) ->
-    Format.fprintf fmt "@[<hv 2>function %a" pp_name ls_name ;
-    List.iter (Format.fprintf fmt "@ %a" pp_type) ls_args ;
-    Format.fprintf fmt "@ : %a@]" pp_type ls_result
   | Id.Var x ->
     Format.fprintf fmt "@[<hov 2>val %a@]" pp_vdecl x
   | Id.Let r ->
@@ -321,22 +364,128 @@ let pp_decl fmt (d : Id.decl) =
     if not @@ is_unit ty then Format.fprintf fmt " : %a" pp_ity ty ;
     Format.fprintf fmt "@]"
 
-let code env id =
+let code source id =
   try
-    String.split_on_char '\n' @@
-    Format.asprintf "%a" pp_decl @@
-    Id.find env id
+    String.split_on_char '\n' @@ Format.asprintf "%a" pp_decl @@ find_decl source id
   with Not_found -> []
 
 let hover _channel ~uri (pos : Lspserver.position) =
-  let _,src,rg,href = locate ~uri pos in
+  let _,source,rg,href = locate ~uri pos in
   match href with
   | Ref id ->
     let title = Format.asprintf "%a" Id.pp_title id in
-    let code = Lspserver.code ~lang:"why3" @@ code src.env.wenv id in
+    let code = Lspserver.code ~lang:"why3" @@ code source id in
     Lspserver.hover ~range:(of_range rg) ~kind:`Markdown (title::code)
   | _ -> raise Not_found
 
 let () = Lspserver.on_hover hover
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Code Lenses                                                       --- *)
+(* -------------------------------------------------------------------------- *)
+
+module M = Map.Make(String)
+
+let add k a =
+  M.add k (try succ @@ M.find k a with Not_found -> 1) a
+
+let rec provers m (crc : Crc.crc) =
+  match crc.state with
+  | Stuck -> ()
+  | Prover (p, _) -> m := add (Prover.desc_name p) !m
+  | Tactic { id; children } -> m := add id !m ; List.iter (provers m) children
+
+let pp_verdict fmt crc =
+  match Crc.verdict crc with
+  | `Valid 0 -> Format.pp_print_string fmt "Valid (no goal)"
+  | `Valid _ -> Format.pp_print_string fmt "Valid"
+  | `Failed n -> Format.fprintf fmt "Failed (%d goals)" n
+  | `Partial (s,n) -> Format.fprintf fmt "Partial (%d/%d)" s n
+
+let pp_time fmt crc =
+  let t = Crc.get_time crc in
+  if t > 0.0 then Format.fprintf fmt " (%a)" Utils.pp_time t
+
+let pp_depth fmt crc =
+  let d = Crc.get_depth crc in
+  if d > 0 then Format.fprintf fmt " (depth %d)" d
+
+let pp_prover fmt p n =
+  if n > 1
+  then Format.fprintf fmt " (%s %d)" p n
+  else Format.fprintf fmt " (%s)" p
+
+let pp_provers fmt crc =
+  let m = ref M.empty in
+  provers m crc ; M.iter (pp_prover fmt) !m
+
+let pp_crc fmt (crc : Crc.crc) =
+  begin
+    pp_verdict fmt crc ;
+    pp_time fmt crc ;
+    pp_provers fmt crc ;
+    pp_depth fmt crc ;
+  end
+
+let get_proof source = function
+  | Docref.NoRef | Ref _ -> None
+  | Def(_,proof) when not source.reloaded -> proof
+  | Def(id,_) ->
+    let thy = Docref.Mstr.find_opt id.id_mod source.src.theories in
+    Docref.find_proof id.self thy
+
+let lenses _channel ~uri =
+  match Lspserver.to_file ~uri with
+  | None -> raise Not_found
+  | Some filename ->
+    let source = Hashtbl.find sources filename in
+    let pool = ref [] in
+    Rangemap.iter
+      begin fun rg (href : Docref.href) ->
+        match get_proof source href with
+        | None -> ()
+        | Some crc ->
+          let line = fst @@ fst rg in
+          let title = Format.asprintf "%a" pp_crc crc in
+          let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
+          pool := Lspserver.resolved ~line cmd :: !pool
+      end source.hrefs ;
+    !pool
+
+let () = Lspserver.on_codelens lenses
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Proof Watcher                                                     --- *)
+(* -------------------------------------------------------------------------- *)
+
+let watching = ref false
+
+let () = Lspserver.on_open
+    begin fun channel _doc ->
+      if not !watching then
+        begin
+          watching := true ;
+          ignore @@ Lspserver.watch channel ["**/proof.json"]
+        end
+    end
+
+let () = Lspserver.on_file_event
+    begin fun channel ~uri _evt ->
+      match Lspserver.to_file ~uri with
+      | None -> ()
+      | Some file ->
+        let suffix = "/proof.json" in
+        if String.ends_with ~suffix file then
+          let n = String.length suffix in
+          let base = String.sub file 0 (String.length file - n) in
+          let file = base ^ ".mlw" in
+          match Hashtbl.find_opt sources file with
+          | None -> ()
+          | Some source ->
+            Docref.reload_proofs source.src ;
+            source.reloaded <- true ;
+            Lspserver.refresh_codelens channel
+    end
+
 
 (* -------------------------------------------------------------------------- *)

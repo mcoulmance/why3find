@@ -80,6 +80,10 @@ let jmem fd = function
   | `Assoc fds -> List.mem_assoc fd fds
   | _ -> false
 
+let mfield fd = function
+  | `Assoc fds -> List.mem_assoc fd fds
+  | _ -> false
+
 let jfield fd = function
   | `Assoc fds -> (try List.assoc fd fds with Not_found -> `Null)
   | _ -> `Null
@@ -115,6 +119,6 @@ let list js = `List (List.filter is_nonnull js)
 let option_map f = function None -> `Null | Some a -> f a
 let list_map f xs = `List
     (List.filter_map
-       (fun x -> let v = f x in if is_nonnull v then None else Some v) xs)
+       (fun x -> let v = f x in if is_nonnull v then Some v else None) xs)
 
 (* -------------------------------------------------------------------------- *)

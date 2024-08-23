@@ -19,7 +19,9 @@
 (*                                                                        *)
 (**************************************************************************)
 
-let self = ()
+let register demons f = Queue.push f demons
+let notify demons a b = Queue.iter (fun fn -> fn a b) demons
+let notify_all demons a xs = Queue.iter (fun fn -> List.iter (fn a) xs) demons
 
 (* -------------------------------------------------------------------------- *)
 (* --- URI Utilities                                                      --- *)
@@ -41,6 +43,12 @@ let to_uri ~filename =
 (* --- LSP Initialize                                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
+let definitionProvider = ref false
+let typedefProvider = ref false
+let implementationProvider = ref false
+let hoverProvider = ref false
+let codeLensProvider = ref false
+
 let () = Lsp.register ~force:true "initialize"
     begin fun _channel _data ->
       `Assoc [
@@ -50,8 +58,11 @@ let () = Lsp.register ~force:true "initialize"
             "change", `Int 2 ;
             "save", `Bool true ;
           ] ;
-          "definitionProvider", `Bool true ;
-          "hoverProvider", `Bool true ;
+          "definitionProvider", `Bool !definitionProvider ;
+          "typeDefinitionProvider", `Bool !typedefProvider ;
+          "implementationProvider", `Bool !implementationProvider ;
+          "hoverProvider", `Bool !hoverProvider ;
+          "codeLensProvider", `Bool !codeLensProvider ;
         ];
         "serverInfo", `Assoc [
           "name", `String "why3find" ;
@@ -145,11 +156,10 @@ let backward_range (u: update) (r : range) =
 (* --- Document Synchronization                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-let dopen = ref []
-let dclose = ref []
-let dsave = ref []
-let dupdate = ref []
-let register demons f = demons := !demons @ [f]
+let dopen = Queue.create ()
+let dclose = Queue.create ()
+let dsave = Queue.create ()
+let dupdate = Queue.create ()
 
 let on_open = register dopen
 let on_close = register dclose
@@ -164,7 +174,7 @@ let () = Lsp.register "textDocument/didOpen"
       let text = Json.jfield "text" doc |> Json.jstring |> Ropes.of_string in
       let doc = Doc { uri ; lang ; text } in
       Hashtbl.replace documents uri doc ;
-      List.iter (fun f -> f channel doc) !dopen ;
+      notify dopen channel doc ;
       `Null
     end
 
@@ -176,7 +186,7 @@ let () = Lsp.register "textDocument/didClose"
         try
           let doc = Hashtbl.find documents uri in
           Hashtbl.remove documents uri ;
-          List.iter (fun f -> f channel doc) !dclose ;
+          notify dclose channel doc ;
         with Not_found -> ()
       end ; `Null
     end
@@ -196,11 +206,8 @@ let () = Lsp.register "textDocument/didChange"
         stack := upd :: !stack ; d' in
       let newDoc = List.fold_left push doc changes in
       Hashtbl.replace documents uri newDoc ;
-      begin
-        if !dupdate <> [] then
-          let updates = List.rev !stack in
-          List.iter (fun f -> List.iter (f channel ~uri) updates) !dupdate
-      end ;
+      let updates = List.rev !stack in
+      Queue.iter (fun f -> List.iter (f channel ~uri) updates) dupdate ;
       `Null
     end
 
@@ -211,7 +218,7 @@ let () = Lsp.register "textDocument/didSave"
       begin
         try
           let doc = Hashtbl.find documents uri in
-          List.iter (fun f -> f channel doc) !dsave ;
+          notify dsave channel doc ;
         with Not_found -> ()
       end ; `Null
     end
@@ -220,8 +227,17 @@ let () = Lsp.register "textDocument/didSave"
 (* ---  Goto Definition                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
-let on_definition fn =
-  Lsp.register "textDocument/definition"
+type defkind = [ `Def | `Typedef | `Implementation ]
+
+let on_definition ?(kind:defkind = `Def) fn =
+  let provider, meth =
+    match kind with
+    | `Def -> definitionProvider, "textDocument/definition"
+    | `Typedef -> typedefProvider, "textDocument/typeDefinition"
+    | `Implementation -> implementationProvider, "textDocument/implementation"
+  in
+  provider := true ;
+  Lsp.register meth
     begin fun channel data ->
       let doc = Json.jfield "textDocument" data in
       let uri = Json.jfield "uri" doc |> Json.jstring in
@@ -265,6 +281,7 @@ let code ?(lang="") lines =
 let hover ?range ?(kind=`Plaintext) value = Hover { range ; kind ; value }
 
 let on_hover fn =
+  hoverProvider := true ;
   Lsp.register "textDocument/hover"
     begin fun channel data ->
       let doc = Json.jfield "textDocument" data in
@@ -273,6 +290,71 @@ let on_hover fn =
       try whover @@ fn channel ~uri pos
       with Exit | Not_found -> `Null
     end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Commands                                                          --- *)
+(* -------------------------------------------------------------------------- *)
+
+type command = Cmd of {
+    title: string ;
+    command: string ;
+    args: Json.t list ;
+  }
+
+let wcommand = function Cmd { title ; command ; args } ->
+  Json.assoc [
+    "title", `String title ;
+    "command", `String command ;
+    "arguments", Json.list args ;
+  ]
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Code Lenses                                                       --- *)
+(* -------------------------------------------------------------------------- *)
+
+type codelens =
+  | Resolved of { line: int ; cmd: command }
+  | ToResolve of { line: int ; data: Json.t }
+
+let wline line =
+  let start = { line ; char = 0 } in wrange { start ; stop = start }
+
+let wcodelens = function
+  | Resolved { line ; cmd } ->
+    Json.assoc [ "range", wline line ; "command", wcommand cmd ]
+  | ToResolve { line ; data } ->
+    Json.assoc [ "range", wline line ; "data", data ]
+
+let codelens ~line data = ToResolve { line ; data }
+let resolved ~line cmd = Resolved { line ; cmd }
+
+let on_codelens ?resolve fn =
+  codeLensProvider := true ;
+  Lsp.register "textDocument/codeLens"
+    begin fun channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      let lenses = try fn channel ~uri with Exit | Not_found -> [] in
+      Json.list_map wcodelens lenses
+    end ;
+  Option.iter
+    begin fun fn ->
+      Lsp.register "codeLens/resolve"
+        begin fun _ param ->
+          let line =
+            Json.jfield "range" param |>
+            Json.jfield "start" |>
+            Json.jfield "line" |>
+            Json.jint in
+          let data = Json.jfield "data" param in
+          wcodelens @@
+          try Resolved { line ; cmd = fn ~line data }
+          with Exit | Not_found -> ToResolve { line ; data }
+        end
+    end resolve
+
+let refresh_codelens channel =
+  Lsp.send channel "workspace/codeLens/refresh" `Null
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Diagnostics                                                       --- *)
@@ -314,5 +396,69 @@ let publish_diagnostic channel ~uri (ds : diagnostic list) =
     "uri", `String uri ;
     "diagnostics", `List (List.map wdiagnostic ds) ;
   ]
+
+(* -------------------------------------------------------------------------- *)
+(* ---  File Watchers                                                     --- *)
+(* -------------------------------------------------------------------------- *)
+
+type event = [ `Created | `Changed | `Deleted ]
+type file_event = string * event
+
+let devents = Queue.create ()
+let on_file_event fn = register devents (fun ch (uri,evt) -> fn ch ~uri evt)
+
+let wevent (js : Json.t) : event =
+  match js with
+  | `Int 1 -> `Created
+  | `Int 2 -> `Changed
+  | `Int 3 -> `Deleted
+  | _ -> `Changed (* fallback *)
+
+let wchange (js : Json.t) : file_event option =
+  try
+    let uri = Json.jfield "uri" js |> Json.jstring in
+    let evt = Json.jfield "type" js |> wevent in
+    Some (uri,evt)
+  with Invalid_argument _ -> None
+
+let () = Lsp.register "workspace/didChangeWatchedFiles"
+    begin fun channel data ->
+      let changes =
+        Json.jfield "changes" data
+        |> Json.jlist
+        |> List.filter_map wchange
+      in notify_all devents channel changes ;
+      `Null
+    end
+
+let wevents (evts : event list) : Json.t =
+  let m = List.fold_left
+      (fun m evt ->
+         match evt with
+         | `Created -> m lor 1
+         | `Changed -> m lor 2
+         | `Deleted -> m lor 4
+      ) 0 evts
+  in `Int m
+
+let wpattern uri pattern =
+  match uri with
+  | None -> `String pattern
+  | Some base -> Json.assoc [
+      "baseUri", `String base;
+      "pattern",`String pattern;
+    ]
+
+let watcher events uri pattern = Json.assoc [
+    "globPattern", wpattern uri pattern ;
+    "kind", Json.option_map wevents events ;
+  ]
+
+let watchers events uri patterns : Json.t =
+  `Assoc [ "watchers" , Json.list_map (watcher events uri) patterns ]
+
+let watch channel ?events ?uri patterns =
+  Lsp.register_capability channel
+    "workspace/didChangeWatchedFiles" @@ watchers events uri patterns
 
 (* -------------------------------------------------------------------------- *)

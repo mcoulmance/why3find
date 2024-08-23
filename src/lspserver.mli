@@ -19,34 +19,19 @@
 (*                                                                        *)
 (**************************************************************************)
 
-val self : unit
+(** {2 Basic Structures} *)
 
 val to_file : uri:string -> string option
 val to_uri : filename:string -> string
 
 type position = { line: int ; char : int }
 type range = { start: position ; stop: position }
+
+(** {2 Document Synchronization} *)
+
 type change = Text of string | Update of range * string
-
 type document = Doc of { uri: string ; lang: string ; text: Ropes.t }
-type location = Loc of { uri: string ; range: range }
 type update = { before: Ropes.t ; change: change ; after: Ropes.t }
-
-type markup = [ `Plaintext | `Markdown ]
-type hover = Hover of {
-    range : range option ;
-    kind : markup ;
-    value : string list ;
-  }
-
-type severity = [ `Error | `Warning | `Information | `Hint ]
-type diagnostic = Diag of {
-    range : range ;
-    severity : severity ;
-    source : string option ;
-    message : string ;
-    data : Json.t ;
-  }
 
 val backward_position : update -> position -> position option
 val backward_range : update -> range -> range option
@@ -58,16 +43,16 @@ val on_open : (Lsp.channel -> document -> unit) -> unit
 val on_close : (Lsp.channel -> document -> unit) -> unit
 val on_update : (Lsp.channel -> uri:string -> update -> unit) -> unit
 
-val on_definition :
-  (Lsp.channel -> uri:string -> position -> location list) -> unit
+(** {2 Document Diagnostic} *)
 
-(** Markdown code block *)
-val code : ?lang:string -> string list -> string list
-
-(** Markdown hover. Default is `Plaintext *)
-val hover : ?range:range -> ?kind:markup -> string list -> hover
-
-val on_hover : (Lsp.channel -> uri:string -> position -> hover) -> unit
+type severity = [ `Error | `Warning | `Information | `Hint ]
+type diagnostic = Diag of {
+    range : range ;
+    severity : severity ;
+    source : string option ;
+    message : string ;
+    data : Json.t ;
+  }
 
 val diagnostic :
   range:range ->
@@ -78,3 +63,58 @@ val diagnostic :
   unit -> diagnostic
 
 val publish_diagnostic : Lsp.channel -> uri:string -> diagnostic list -> unit
+
+(** {2 Goto Definitions} *)
+
+type location = Loc of { uri: string ; range: range }
+type defkind = [ `Def | `Typedef | `Implementation ]
+
+val on_definition : ?kind:defkind ->
+  (Lsp.channel -> uri:string -> position -> location list) -> unit
+
+(** {2 Code Hovers} *)
+
+type markup = [ `Plaintext | `Markdown ]
+
+type hover = Hover of {
+    range : range option ;
+    kind : markup ;
+    value : string list ;
+  }
+
+(** Markdown code block *)
+val code : ?lang:string -> string list -> string list
+
+(** Markdown hover. Default is `Plaintext *)
+val hover : ?range:range -> ?kind:markup -> string list -> hover
+
+val on_hover : (Lsp.channel -> uri:string -> position -> hover) -> unit
+
+(** {2 Code Lenses} *)
+
+type command = Cmd of {
+    title : string ;
+    command : string ;
+    args : Json.t list ;
+  }
+
+type codelens
+
+val codelens : line:int -> Json.t -> codelens
+val resolved : line:int -> command -> codelens
+
+val on_codelens :
+  ?resolve:(line:int -> Json.t -> command) ->
+  (Lsp.channel -> uri:string -> codelens list) -> unit
+
+val refresh_codelens : Lsp.channel -> unit
+
+(** {2 Worspace File Watching} *)
+
+type event = [ `Created | `Changed | `Deleted ]
+
+val on_file_event : (Lsp.channel -> uri:string -> event -> unit) -> unit
+
+(** Starts watching for file events on the given global file patterns. *)
+val watch : Lsp.channel ->
+  ?events:event list -> ?uri:string -> string list -> Lsp.capability

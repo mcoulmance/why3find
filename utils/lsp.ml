@@ -23,10 +23,18 @@
 (* --- Socket Bytes Read & Write                                          --- *)
 (* -------------------------------------------------------------------------- *)
 
+type response = (Json.t,Json.t) result
+type callback = response -> unit
+
+type request =
+  | Notify of { meth: string; param: Json.t }
+  | Request of { meth: string; param: Json.t; callback: callback }
+
 type channel = {
   mutable shutdown : bool ; (* has been shutdown *)
   mutable processing : bool ; (* processing a request *)
-  mutable pending : (string * Json.t) list ; (* pending notifications *)
+  queue : request Queue.t ; (* pending notifications *)
+  callbacks : (string, callback) Hashtbl.t ;
   sock : Unix.file_descr ; (* Socket *)
   rcv : bytes ; (* RCV bytes buffer, re-used for transport *)
   snd : bytes ; (* SND bytes buffer, re-used for transport *)
@@ -133,12 +141,64 @@ let send_notification channel meth params =
     "params", params ;
   ]
 
+let rqid = ref 0
+let make_id () = incr rqid ; Printf.sprintf "#%d" !rqid
+
+let send_request channel meth params callback =
+  let id = make_id () in
+  Hashtbl.replace channel.callbacks id callback ;
+  push channel @@ Json.to_string @@ json_rpc [
+    "id", `String id ;
+    "method", `String meth ;
+    "params", params ;
+  ]
+
+let send ch = function
+  | Notify { meth = m ; param = p } ->
+    send_notification ch m p
+  | Request { meth = m ; param = p ; callback = fn } ->
+    send_request ch m p fn
+
 let flush channel =
-  let qs = List.rev channel.pending in
   channel.processing <- false ;
-  channel.pending <- [] ;
-  List.iter (fun (m,d) -> send_notification channel m d) qs ;
+  Queue.iter (send channel) channel.queue ;
+  Queue.clear channel.queue ;
   send_bytes channel
+
+let jresponse rq =
+  if Json.mfield "result" rq
+  then Ok (Json.jfield "result" rq)
+  else Error (Json.jfield "error" rq)
+
+let process_request channel ~id ~meth ~params =
+  begin
+    channel.processing <- true ;
+    match Hashtbl.find protocol meth channel params with
+    | result ->
+      send_response channel ~id ~result
+    | exception Not_found ->
+      Log.error "Unsupported method: %s" meth ;
+      send_error channel ~id ~code:(-32601) ~msg:meth
+    | exception Invalid_argument msg ->
+      Log.error "Invalid parameters (%s:%s)" meth msg ;
+      send_error channel ~id ~code:(-32602) ~msg
+    | exception Failure msg ->
+      Log.error "Internal error (%s:%s)" meth msg ;
+      send_error channel ~id ~code:(-32603) ~msg
+    | exception err ->
+      let msg = Printexc.to_string err in
+      Log.error "Internal error (%s:%s)" meth msg ;
+      send_error channel ~id ~code:(-32603) ~msg
+  end
+
+let process_response channel ~id ~result =
+  begin
+    channel.processing <- true ;
+    match Hashtbl.find channel.callbacks id with
+    | exception Not_found -> ()
+    | fn ->
+      Hashtbl.remove channel.callbacks id ; fn result
+  end
 
 let process channel =
   yield channel ;
@@ -148,27 +208,16 @@ let process channel =
     | Some data ->
       try
         let rq = Json.of_string data in
-        let id = Json.jfield "id" rq in
-        let meth = Json.jfield "method" rq |> Json.jstring in
-        let params = Json.jfield "params" rq in
         begin
-          channel.processing <- true ;
-          match Hashtbl.find protocol meth channel params with
-          | result ->
-            send_response channel ~id ~result
-          | exception Not_found ->
-            Log.error "Unsupported method: %s" meth ;
-            send_error channel ~id ~code:(-32601) ~msg:meth
-          | exception Invalid_argument msg ->
-            Log.error "Invalid parameters (%s:%s)" meth msg ;
-            send_error channel ~id ~code:(-32602) ~msg
-          | exception Failure msg ->
-            Log.error "Internal error (%s:%s)" meth msg ;
-            send_error channel ~id ~code:(-32603) ~msg
-          | exception err ->
-            let msg = Printexc.to_string err in
-            Log.error "Internal error (%s:%s)" meth msg ;
-            send_error channel ~id ~code:(-32603) ~msg
+          if Json.mfield "method" rq then
+            let id = Json.jfield "id" rq in
+            let meth = Json.jfield "method" rq |> Json.jstring in
+            let params = Json.jfield "params" rq in
+            process_request channel ~id ~meth ~params
+          else
+            let id = Json.jfield "id" rq |> Json.jstring in
+            let result = jresponse rq in
+            process_response channel ~id ~result
         end ;
         flush channel
       with Invalid_argument msg ->
@@ -188,10 +237,20 @@ let register ?(force=false) name fn =
 
 let ignore name = register name (fun _ _ -> `Null)
 
-let notify channel meth params =
+let notify channel meth param =
   if channel.processing then
-    channel.pending <- (meth,params) :: channel.pending
-  else send_notification channel meth params
+    Queue.push (Notify { meth ; param }) channel.queue
+  else
+    send_notification channel meth param
+
+let error meth = function Ok _ -> () | Error data ->
+  Format.eprintf "[%s] ERROR: %a@." meth Json.pretty data
+
+let send channel meth ?(callback = error meth) param =
+  if channel.processing then
+    Queue.push (Request { meth ; param ; callback }) channel.queue
+  else
+    send_request channel meth param callback
 
 (* -------------------------------------------------------------------------- *)
 (* --- Handling Transport I/O                                             --- *)
@@ -253,7 +312,8 @@ let establish transport =
           sock ;
           shutdown = false ;
           processing = false ;
-          pending = [] ;
+          queue = Queue.create () ;
+          callbacks = Hashtbl.create 0 ;
           snd = Bytes.create snd ;
           rcv = Bytes.create rcv ;
           bsnd = Buffer.create snd ;
@@ -286,6 +346,31 @@ let () = register "exit"
 
 let () = ignore "initialized"
 let () = ignore "$/setTrace"
+
+(* -------------------------------------------------------------------------- *)
+(* --- Capabilities                                                       --- *)
+(* -------------------------------------------------------------------------- *)
+
+type capability = Capability of { id: string ; meth: string }
+
+let jregistration id meth param : Json.t =
+  Json.assoc [
+    "id", `String id ;
+    "method", `String meth ;
+    "registerOptions", param ;
+  ]
+
+let register_capability channel meth param =
+  let id = make_id () in
+  send channel "client/registerCapability" @@ Json.assoc [
+    "registrations", `List [ jregistration id meth param ]
+  ] ;
+  Capability { id ; meth }
+
+let unregister_capability channel = function Capability { id ; meth } ->
+  send channel "client/unregisterCapability" @@ Json.assoc [
+    "unregisterations", `List [ jregistration id meth `Null ]
+  ]
 
 (* -------------------------------------------------------------------------- *)
 (* --- Launch Server                                                      --- *)

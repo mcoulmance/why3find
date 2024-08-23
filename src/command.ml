@@ -727,9 +727,6 @@ let () = register ~name:"extract" ~args:"[OPTIONS] MODULE..."
 (* --- LSP                                                                --- *)
 (* -------------------------------------------------------------------------- *)
 
-let () = Lspserver.self
-let () = Lspcc.self
-
 let () = register ~name:"lsp" ~args:"[OPTIONS]"
     begin fun argv ->
       let transport = ref None in
@@ -748,7 +745,7 @@ let () = register ~name:"lsp" ~args:"[OPTIONS]"
          OPTIONS:\n" ;
       match !transport with
       | None -> Log.error "No transport protocol specified." ; exit 1
-      | Some transport -> Lsp.run transport
+      | Some transport -> Lspcc.init () ; Lsp.run transport
     end
 
 (* -------------------------------------------------------------------------- *)

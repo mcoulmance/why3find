@@ -75,10 +75,11 @@ type theory = {
   depends: Thy.theory list ;
   signature: Axioms.signature ;
   clones: clone list ;
-  proofs: Crc.crc Mstr.t ;
+  mutable proofs: Crc.crc Mstr.t ;
 }
 
 type source = {
+  filename: string;
   lib: string list;
   loadpath: string option;
   urlbase: string;
@@ -225,15 +226,27 @@ let iter_theory cenv ~depend ~cloned thy =
 (* --- Proofs                                                             --- *)
 (* -------------------------------------------------------------------------- *)
 
-let zip_goals theory proofs =
-  let proofs = Mstr.find_def Mstr.empty (Session.thy_name theory) proofs in
+let get_proofs thy proofs =
+  Mstr.find_def Mstr.empty (Session.thy_name thy) proofs
+
+let get_proof a proofs = Mstr.find_def (Crc.stuck ()) a proofs
+
+let zip_goals thy proofs =
+  let proofs = get_proofs thy proofs in
   List.fold_left
     (fun cmap task ->
        let a = Session.task_name task in
-       Mstr.add a (Mstr.find_def (Crc.stuck ()) a proofs) cmap
-    )
+       Mstr.add a (get_proof a proofs) cmap)
     Mstr.empty
-    (Why3.Task.split_theory theory None None)
+    (Why3.Task.split_theory thy None None)
+
+let reload_proofs source =
+  let _, proofs = Proofs.load_proofs source.filename in
+  Mstr.iter
+    (fun _ (th : theory) ->
+       let proofs = get_proofs th.theory proofs in
+       th.proofs <- Mstr.mapi (fun a _ -> get_proof a proofs) th.proofs
+    ) source.theories
 
 (* -------------------------------------------------------------------------- *)
 (* --- Parsing                                                            --- *)
@@ -254,6 +267,7 @@ let derived src id =
   Printf.sprintf "%s.%s.html" (String.concat "." src.lib) id
 
 let empty () = {
+  filename = "" ;
   lib = [] ; urlbase = "" ; loadpath = None ;
   profile = Calibration.create () ;
   theories = Mstr.empty ;
@@ -288,7 +302,7 @@ let source ~wenv ~cenv ~henv ~lib ?loadpath ~filename inc =
          }
       ) thys
   in
-  { lib ; loadpath ; urlbase = path ; profile ; theories }
+  { filename ; lib ; loadpath ; urlbase = path ; profile ; theories }
 
 let parse ~wenv ~cenv ~henv file =
   if not @@ String.ends_with ~suffix:".mlw" file then
@@ -377,6 +391,14 @@ let find kind qid thy =
   with Not_found -> ns_find thy.Thy.th_export kind qid
 
 let find_theory kind qid { theory } = find kind qid theory
+
+let find_decl wenv (src:source) (id : Id.id) =
+  let thy =
+    if id.id_lib = src.lib then
+      (Mstr.find id.id_mod src.theories).theory
+    else
+      Why3.Env.read_theory wenv id.id_lib id.id_mod
+  in Id.find thy id.self
 
 let lookup ~scope ~theories kind m qid =
   match if m <> "" then Some m else scope with
