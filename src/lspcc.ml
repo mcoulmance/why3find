@@ -91,7 +91,7 @@ let library ~loadpath ~filename =
   else
     Docref.library_path @@ filename
 
-let preprocess filename text diagnostics =
+let preprocess filename diagnostics =
   try
     let warning (file,range) message =
       if file = filename then
@@ -117,9 +117,6 @@ let preprocess filename text diagnostics =
       | None -> Filename.dirname filename
       | Some(dir,_) -> dir
     in
-    let tmp,out = Filename.open_temp_file "lsp" ".mlw" in
-    Ropes.to_channel out text ;
-    close_out out ;
     Wenv.local ~loadpath () ;
     Hashtbl.remove sources filename ;
     let env = Wenv.init () in
@@ -128,8 +125,8 @@ let preprocess filename text diagnostics =
     let henv = Axioms.init env in
     let lib = library ~loadpath ~filename in
     let parser = Docref.source ~wenv ~cenv ~henv ~lib ~loadpath ~filename in
-    let src = Utils.input ~file:tmp parser in
-    let hrefs = Srcref.parse ~doc:false ~filename ~env ~src tmp in
+    let src = Utils.input ~file:filename parser in
+    let hrefs = Srcref.parse ~doc:false ~env ~src filename in
     set_source ~filename env src hrefs ;
   with
   | Why3.Loc.Located(loc,exn) ->
@@ -146,14 +143,14 @@ let preprocess filename text diagnostics =
     Format.printf "[Error] %s@." (Printexc.to_string exn)
 
 let compile channel doc =
-  let Lspserver.Doc { uri ; text } = doc in
+  let Lspserver.Doc { uri } = doc in
   match Lspserver.to_file ~uri with
   | None -> ()
   | Some filename ->
     if Filename.check_suffix filename ".mlw" then
       begin
         let diagnostics = ref [] in
-        preprocess filename text diagnostics ;
+        preprocess filename diagnostics ;
         Lspserver.publish_diagnostic channel ~uri !diagnostics
       end
 
