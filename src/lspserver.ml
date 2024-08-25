@@ -142,11 +142,32 @@ let backward_position (u : update) (p : position) =
     else
     if p.line > stop.line then
       let delta = Ropes.lines u.after - Ropes.lines u.before in
+      Some { line = p.line - delta ; char = p.char }
+    else
+      None
+
+let forward_position (p : position) (u : update) =
+  match u.change with
+  | Text _ -> None
+  | Update({ start ; stop },_) ->
+    if p.line < start.line then Some p else
+    if p.line = start.line then
+      if p.char <= start.char then Some p else None
+    else
+    if p.line > stop.line then
+      let delta = Ropes.lines u.after - Ropes.lines u.before in
       Some { line = p.line + delta ; char = p.char }
     else
       None
 
+
 let backward_range (u: update) (r : range) =
+  match
+    backward_position u r.start,
+    backward_position u r.stop
+  with Some start , Some stop -> Some { start ; stop } | _ -> None
+
+let forward_range (r : range) (u: update) =
   match
     backward_position u r.start,
     backward_position u r.stop

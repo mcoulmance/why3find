@@ -1,6 +1,5 @@
 {
     "comments": {
-        // symbols used for start and end a block comment. Remove this entry if your language does not support block comments
         "blockComment": [ "(*", "*)" ]
     },
     "brackets": [
@@ -11,20 +10,17 @@
         [ "try", "end" ],
         [ "scope", "end" ]
     ],
-    // symbols used as colorized brackets (automatically included in "brackets"))
     "colorizedBracketPairs": [
         [ "{", "}" ],
         [ "[", "]" ],
-        [ "(", ")" ],
+        [ "(", ")" ]
     ],
-    // symbols that are auto closed when typing
     "autoClosingPairs": [
         [ "{", "}" ],
         [ "[", "]" ],
         [ "(", ")" ],
         [ "\"", "\"" ]
     ],
-    // symbols that can be used to surround a selection
     "surroundingPairs": [
         [ "{", "}" ],
         [ "[", "]" ],
