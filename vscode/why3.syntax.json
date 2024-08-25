@@ -19,6 +19,10 @@
 					"match": "[=<>~+*!?$&|.:@^#/\\\\%-]'*"
 				},
 				{
+					"name": "keyword.star",
+					"match": "\\(\\*\\)"
+				},
+				{
 					"name": "storage.modifier",
 					"match": "\\b(any|abstract|alias|assert|by|check|diverges|exists|ensures|epsilon|forall|ghost|invariant|label|mutable|not|old|partial|private|pure|range|ref|rec|raises|reads|requires|returns|so|variant|writes)\\b"
 				},
