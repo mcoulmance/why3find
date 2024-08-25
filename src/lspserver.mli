@@ -36,6 +36,9 @@ type update = { before: Ropes.t ; change: change ; after: Ropes.t }
 val backward_position : update -> position -> position option
 val backward_range : update -> range -> range option
 
+val forward_position : position -> update -> position option
+val forward_range : range -> update -> range option
+
 val document : uri:string -> document
 
 val on_save : (Lsp.channel -> document -> unit) -> unit

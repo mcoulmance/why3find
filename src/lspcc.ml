@@ -170,18 +170,24 @@ let () = Lspserver.on_update update
 (* --- References                                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
-let rec rollback updates pos =
+let rec backward updates pos =
   match updates with
   | [] -> Some pos
   | upd::updates ->
-    Option.bind (Lspserver.backward_position upd pos) (rollback updates)
+    Option.bind (Lspserver.backward_position upd pos) (backward updates)
+
+let rec forward updates pos =
+  match updates with
+  | [] -> Some pos
+  | upd::updates ->
+    Option.bind (Lspserver.forward_position pos upd) (forward updates)
 
 let locate ~uri (pos : Lspserver.position) =
   match Lspserver.to_file ~uri with
   | None -> raise Not_found
   | Some filename ->
     let src = Hashtbl.find sources filename in
-    match rollback src.updates pos with
+    match backward src.updates pos with
     | Some pos ->
       let range,href = Rangemap.find (pos.line, pos.char) src.hrefs in
       filename, src, range, href
@@ -443,9 +449,12 @@ let lenses _channel ~uri =
         | None -> ()
         | Some crc ->
           let line = fst @@ fst rg in
-          let title = Format.asprintf "%a" pp_crc crc in
-          let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
-          pool := Lspserver.resolved ~line cmd :: !pool
+          match forward source.updates Lspserver.{ line ; char = 0} with
+          | None -> ()
+          | Some { line } ->
+            let title = Format.asprintf "%a" pp_crc crc in
+            let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
+            pool := Lspserver.resolved ~line cmd :: !pool
       end source.hrefs ;
     !pool
 
