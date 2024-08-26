@@ -34,7 +34,7 @@ type henv = {
   allprovers : Prover.prover Prover.Mdesc.t ;
   patterns : string list ;
   provers : Prover.prover list ;
-  tactics : string list ;
+  tactics : Tactic.tactic list ;
   minimize : bool ;
 }
 
@@ -139,13 +139,14 @@ let children tr = function
   | Tactic { id ; children } when id = tr -> children
   | Stuck | Prover _ | Tactic _ -> []
 
-let apply h tr cs : strategy = fun n ->
+let apply h tac cs : strategy = fun n ->
   if n.depth > h.maxdepth then stuck n else
-    match Session.apply h.env.Wenv.wenv tr n.goal with
+    let id = Tactic.name tac in
+    match Session.apply h.env.Wenv.wenv id n.goal with
     | None -> stuck n
     | Some gs ->
-      let hs = children tr cs in
-      Crc.tactic ~goal:n.goal tr @+ Fibers.all @@ subgoals n gs hs
+      let hs = children id cs in
+      Crc.tactic ~goal:n.goal id @+ Fibers.all @@ subgoals n gs hs
 
 (* -------------------------------------------------------------------------- *)
 (* --- Hammer Strategy                                                    --- *)
@@ -215,12 +216,17 @@ let process h : strategy = fun n ->
       else
         update h p t n
     | Tactic { id } as cs ->
-      if h.minimize then
-        reduce h id cs n
-      else if n.replay then
-        apply h id cs n
-      else
-        tactic h id cs n
+      begin
+        match Tactic.lookup h.env.wenv id with
+        | Some tac ->
+          if h.minimize then
+            reduce h tac cs n
+          else if n.replay then
+            apply h tac cs n
+          else
+            tactic h tac cs n
+        | None -> stuck n
+      end
   with exn ->
     Log.emit "Process Error (%s)" @@ Printexc.to_string exn ;
     stuck n
@@ -280,13 +286,12 @@ let config ~tactics ~provers ~time ~mem =
   let c_prover ~time fmt =
     List.iter
       (fun p ->
-         Format.fprintf fmt "c %s %d %d@\n"
-           (Prover.why3_desc p) time mem
+         Format.fprintf fmt "c %s %d %d@\n" (Prover.why3_desc p) time mem
       ) provers in
   let c_tactic ~goto fmt =
     List.iter
       (fun t ->
-         Format.fprintf fmt "t %s %s@\n" t goto
+         Format.fprintf fmt "t %s %s@\n" (Tactic.name t) goto
       ) tactics in
   let c_list pps fmt = List.iter (fun pp -> pp fmt) pps in
   let c_strategy fmt ~name ~descr ~shortcut pps =

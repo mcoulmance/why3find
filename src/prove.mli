@@ -34,7 +34,7 @@ val builtins : bool ref
 
 type outcome = {
   provers : Prover.prover list ;
-  tactics : string list ;
+  tactics : Tactic.tactic list ;
   time : int ;
   mem : int ;
   unfixed : string list ;

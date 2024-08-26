@@ -395,8 +395,10 @@ let add k a =
 let rec provers m (crc : Crc.crc) =
   match crc.state with
   | Stuck -> ()
-  | Prover (p, _) -> m := add (Prover.desc_name p) !m
-  | Tactic { id; children } -> m := add id !m ; List.iter (provers m) children
+  | Prover (p, _) ->
+    m := add (Prover.desc_name p) !m
+  | Tactic { id ; children } ->
+    m := add id !m ; List.iter (provers m) children
 
 let pp_verdict fmt crc =
   match Crc.verdict crc with
