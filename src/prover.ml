@@ -164,7 +164,7 @@ let load (env : Wenv.env) (config : Whyconf.config_prover) =
 
 let all env =
   let folder _ c m =
-    if c.Whyconf.prover.prover_altern = ""
+    if c.Whyconf.prover.prover_altern = "" && not c.Whyconf.interactive
     then let p = load env c in Mdesc.add p.desc p m
     else m in
   let configs = Whyconf.get_provers env.Wenv.wconfig in
