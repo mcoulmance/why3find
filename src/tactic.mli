@@ -1,4 +1,3 @@
-
 (**************************************************************************)
 (*                                                                        *)
 (*  This file is part of the why3find.                                    *)
@@ -19,6 +18,8 @@
 (*  See the enclosed LICENSE.md for details.                              *)
 (*                                                                        *)
 (**************************************************************************)
+
+(* Tactics are transformations without parameters *)
 
 type tactic = Tac of string [@@ocaml.unboxed]
 
