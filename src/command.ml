@@ -409,6 +409,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       let relax = ref false in
       let check = ref false in
       let retval = ref 0 in
+      let list_provers = ref false in
+      let list_tactics = ref false in
       parse_argv argv
         begin
           Wenv.options () @
@@ -418,8 +420,10 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
             "-v", Arg.Set velocity, "evaluate prover velocity (local)";
             "--quiet", Arg.Clear list, "do not list final configuration";
             "--reset", Arg.Set Wenv.reset, "configure from scratch";
-            "--default", Arg.Set default, "import local provers";
-            "--detect", Arg.Set detect, "detect and import local provers";
+            "--list-provers", Arg.Set list_provers, "list available provers";
+            "--list-tactics", Arg.Set list_tactics, "list available tactics";
+            "--default", Arg.Set default, "import available provers";
+            "--detect", Arg.Set detect, "detect and import available provers";
             "--strict", Arg.Set strict, "commit prover versions";
             "--relax", Arg.Set relax, "relax prover versions";
             "--check", Arg.Set check,
@@ -510,7 +514,28 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
         end ;
       let wmain = Why3.Whyconf.get_main env.wconfig in
       List.iter (check_custom_drivers wmain) provers;
-      (* --- Printing -------------- *)
+      (* --- List Provers -------------- *)
+      if !list_provers then
+        begin
+          Format.printf "Available Provers:@." ;
+          if Prover.Mdesc.is_empty allprovers then
+            Format.printf "  (none, use --detect)@." ;
+          Prover.Mdesc.iter (fun dp _ ->
+              Format.printf " - %a@." Prover.pp_desc dp
+            ) allprovers ;
+          if not @@ Wenv.is_modified () then list := false ;
+        end ;
+      if !list_tactics then
+        begin
+          Format.printf "Available Tactics:@." ;
+          Tactic.iter
+            (fun tac pp ->
+               Format.printf "@[<hov 3> - %s: %a@]@." tac
+                 Why3.Pp.formatted pp
+            ) ;
+          if not @@ Wenv.is_modified () then list := false ;
+        end ;
+      (* --- Printing Final Config -------------- *)
       if !list then
         begin
           let jobs = Runner.maxjobs env in

@@ -73,7 +73,7 @@ val fullname : prover -> string
 val infoname : prover -> string
 
 val pp_prover : Format.formatter -> prover -> unit
-(** Pretty print the given prover *)
+(** Prints prover fullname. *)
 
 (** {1 Patterns} *)
 

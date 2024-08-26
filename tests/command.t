@@ -207,8 +207,10 @@
     -v evaluate prover velocity (local)
     --quiet do not list final configuration
     --reset configure from scratch
-    --default import local provers
-    --detect detect and import local provers
+    --list-provers list available provers
+    --list-tactics list available tactics
+    --default import available provers
+    --detect detect and import available provers
     --strict commit prover versions
     --relax relax prover versions
     --check check that proof certificates conform to configuration

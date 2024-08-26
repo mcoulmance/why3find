@@ -27,3 +27,5 @@ val pretty : Format.formatter -> tactic -> unit
 
 val lookup : Why3.Env.env -> string -> tactic option
 val select : Why3.Env.env -> string list -> tactic list
+
+val iter : (string -> Why3.Pp.formatted -> unit) -> unit

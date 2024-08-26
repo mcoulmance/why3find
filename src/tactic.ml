@@ -19,19 +19,29 @@
 (*                                                                        *)
 (**************************************************************************)
 
+(* A tactic is an existing transformation without parameters *)
+
 type tactic = Tac of string [@@ ocaml.unboxed]
 let name = function Tac id -> id
 let pretty fmt = function Tac id -> Format.pp_print_string fmt id
 
-let lookup (env : Why3.Env.env) tactic =
+let is_tactic = function
+  | Why3.Trans.Trans_one _ | Trans_list _ -> true
+  | Trans_with_args _ | Trans_with_args_l _ -> false
+
+let lookup (env : Why3.Env.env) tr =
   try
-    match Why3.Trans.lookup_trans env tactic with
-    | Trans_one _ | Trans_list _ -> Some (Tac tactic)
-    | Trans_with_args _ | Trans_with_args_l _ ->
-      Log.warning "Transformation '%s' requires arguments (skipped)" tactic ;
-      None
-    with Why3.Trans.UnknownTrans tname ->
-      Log.warning "Unknown transformation '%s' (skipped)" tname ;
-      None
+    if is_tactic @@ Why3.Trans.lookup_trans env tr then
+      Some (Tac tr)
+    else
+      (Log.warning "Transformation %s requires arguments (skipped)" tr ; None)
+  with Why3.Trans.UnknownTrans tname ->
+    Log.warning "Unknown transformation %s (skipped)" tname ;
+    None
 
 let select env = List.filter_map @@ lookup env
+
+let iter fn =
+  let iterd = List.iter (fun (t,d) -> fn t d) in
+  iterd @@ Why3.Trans.list_transforms () ;
+  iterd @@ Why3.Trans.list_transforms_l ()

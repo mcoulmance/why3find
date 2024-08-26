@@ -183,6 +183,11 @@ versions of provers `alt-ergo`, `z3`, `cvc4` and `cvc5` from why3 configuration.
 `--detect` will first update why3 configuration by running `why3 config detect`.
 Why3find is known to work well with those provers.
 
+You can also gets the list of available provers and tactics:
+
+    why3find config --list-provers
+    why3find config --list-tactics
+
 ## Package Proving
 
 The `why3find prove` command is used to prove why3 lemmas and other proof
