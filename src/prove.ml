@@ -309,7 +309,7 @@ let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess file =
 
 type outcome = {
   provers : Prover.prover list ;
-  tactics : string list ;
+  tactics : Tactic.tactic list ;
   time : int ;
   mem : int ;
   unfixed : string list ;
@@ -319,8 +319,8 @@ let prove_files ~env ~mode ~session ~log ~axioms ~files =
   begin
     let time = Wenv.time () in
     let maxdepth = Wenv.depth () in
+    let tactics = Tactic.select env.Wenv.wenv @@ Wenv.tactics () in
     let patterns = Wenv.provers () in
-    let tactics = Wenv.tactics () in
     let allprovers = Prover.all env in
     let provers = Prover.select ~patterns allprovers in
     let unsuccess = ref [] in

@@ -38,14 +38,14 @@ type henv = {
   allprovers : Prover.prover Prover.Mdesc.t ;
   patterns : string list ;
   provers : Prover.prover list ;
-  tactics : string list ;
+  tactics : Tactic.tactic list ;
   minimize : bool ;
 }
 
 val run : henv -> unit
 
 val config :
-  tactics:string list ->
+  tactics:Tactic.tactic list ->
   provers:Prover.prover list ->
   time:int ->
   mem:int ->
