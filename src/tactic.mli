@@ -21,7 +21,7 @@
 
 (* Tactics are transformations without parameters *)
 
-type tactic = Tac of string [@@ocaml.unboxed]
+type tactic
 
 val name : tactic -> string
 val pretty : Format.formatter -> tactic -> unit
