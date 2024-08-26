@@ -141,10 +141,10 @@ let children tr = function
 
 let apply h tac cs : strategy = fun n ->
   if n.depth > h.maxdepth then stuck n else
-    match Session.apply h.env.Wenv.wenv (Tactic.name tac) n.goal with
+    let id = Tactic.name tac in
+    match Session.apply h.env.Wenv.wenv id n.goal with
     | None -> stuck n
     | Some gs ->
-      let id = Tactic.name tac in
       let hs = children id cs in
       Crc.tactic ~goal:n.goal id @+ Fibers.all @@ subgoals n gs hs
 
