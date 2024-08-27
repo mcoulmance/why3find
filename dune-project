@@ -1,4 +1,4 @@
-(lang dune 3.5)
+(lang dune 3.7)
 (generate_opam_files true)
 (using dune_site 0.1)
 
@@ -23,7 +23,7 @@
      packages for why3 developpers and associated \
      OCaml extracted code.")
   (depends
-     (dune-site (>= 3.5))
+     (dune-site (>= 3.7))
      (why3 (>= 1.7.0))
      (ocaml (>= 4.13.0))
      (yojson (>= 1.7.0))
