@@ -29,6 +29,10 @@ val copy : src:string -> tgt:string -> unit
 val locate : string -> (string * string) option
 val chdir : string -> unit
 val absolute : string -> string
+val path : ?root:string -> string -> string
+(** Leave absolute path unchaned.
+    For relative paths, concat to `~root` is provided, otherwize, leave
+    unchanged. *)
 
 val load : file:string -> Buffer.t -> unit
 val readfile : file:string -> string

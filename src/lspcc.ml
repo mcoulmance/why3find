@@ -83,9 +83,9 @@ let range_of_pos ((p,q) : lexpos) : string * Lspserver.range =
     stop = { line = q.pos_lnum ; char = q.pos_cnum - q.pos_cnum } ;
   }
 
-let library ~loadpath ~filename =
-  if String.starts_with ~prefix:loadpath filename then
-    let p = String.length loadpath in
+let library ~root ~filename =
+  if String.starts_with ~prefix:root filename then
+    let p = String.length root in
     let n = String.length filename in
     Docref.library_path @@ String.sub filename p (n-p)
   else
@@ -112,19 +112,19 @@ let preprocess filename diagnostics =
       begin fun input message ->
         warning (range_of_pos @@ Token.position input) message
       end ;
-    let loadpath =
+    let root =
       match config_for ~filename with
       | None -> Filename.dirname filename
       | Some(dir,_) -> dir
     in
-    Wenv.local ~loadpath () ;
+    Wenv.local ~root () ;
     Hashtbl.remove sources filename ;
-    let env = Wenv.init () in
+    let env = Wenv.init ~root () in
     let cenv = Docref.init () in
     let wenv = env.wenv in
     let henv = Axioms.init env in
-    let lib = library ~loadpath ~filename in
-    let parser = Docref.source ~wenv ~cenv ~henv ~lib ~loadpath ~filename in
+    let lib = library ~root ~filename in
+    let parser = Docref.source ~wenv ~cenv ~henv ~lib ~root ~filename in
     let src = Utils.input ~file:filename parser in
     let hrefs = Srcref.parse ~doc:false ~env ~src filename in
     set_source ~filename env src hrefs ;

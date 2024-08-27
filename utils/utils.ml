@@ -171,10 +171,16 @@ let chdir dir =
           Format.printf "Leaving directory '%s'@." newdir
         end
     end
-
 let absolute file =
   if Filename.is_relative file
   then Filename.concat (Sys.getcwd ()) file
+  else file
+
+let path ?root file =
+  if Filename.is_relative file then
+    match root with
+    | None -> file
+    | Some d -> Filename.concat d file
   else file
 
 let load ~file buffer =

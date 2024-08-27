@@ -25,7 +25,6 @@
 
 let config = "why3find.json"
 let prefix = ref ""
-let sources = ref "."
 let sections = Hashtbl.create 0
 let loaded = ref false
 let reset = ref false
@@ -36,7 +35,6 @@ let load () =
   if not !loaded then
     begin
       loaded := true ;
-      sources := "." ;
       Hashtbl.clear sections ;
       if !chdir <> "" then
         Utils.chdir !chdir
@@ -50,14 +48,13 @@ let load () =
         Json.of_file config |> Json.jiter (Hashtbl.add sections)
     end
 
-let local ?(loadpath=".") () =
+let local ?root () =
   begin
     reset := true ;
     loaded := true ;
     modified := false ;
-    sources := loadpath ;
     Hashtbl.clear sections ;
-    let cfg = Filename.concat loadpath config in
+    let cfg = Utils.path ?root config in
     if Sys.file_exists cfg then
       Json.of_file cfg |> Json.jiter (Hashtbl.add sections) ;
   end
@@ -313,7 +310,7 @@ let set_modified () = modified := true
 let save () =
   if !modified then
     begin
-      let root = match !sources with "." -> Sys.getcwd () | s -> s in
+      let root = Sys.getcwd () in
       let path = Filename.concat root config in
       let sections =
         List.sort (fun a b -> String.compare (fst a) (fst b)) @@
@@ -342,7 +339,7 @@ let disable_warning s =
 
 let plugins = ref false
 
-let init () =
+let init ?root () =
   begin
     let pkgs = Meta.find_all @@ packages () in
     let pkg_path = List.map (fun m -> m.Meta.path) pkgs in
@@ -350,7 +347,8 @@ let init () =
     let wconfig = Why3.Whyconf.init_config ~extra_config None in
     let wmain = Why3.Whyconf.get_main wconfig in
     let wpath = Why3.Whyconf.loadpath wmain in
-    let wenv = Why3.Env.create_env (!sources :: pkg_path @ wpath) in
+    let loadpath = match root with None -> "." | Some dir -> dir in
+    let wenv = Why3.Env.create_env (loadpath :: pkg_path @ wpath) in
     if not @@ !plugins then
       begin
         Why3.Whyconf.load_plugins wmain;
