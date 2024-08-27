@@ -51,9 +51,9 @@ type theory = {
 }
 
 type source = {
+  root: string option;
   filename: string;
   lib: string list;
-  loadpath: string option;
   urlbase: string;
   profile: Calibration.profile;
   theories: theory Mstr.t;
@@ -74,7 +74,7 @@ val parse : wenv:Why3.Env.env -> cenv:cenv -> henv:Axioms.henv ->
   string -> source
 
 val source : wenv:Why3.Env.env -> cenv:cenv -> henv:Axioms.henv ->
-  lib:string list -> ?loadpath:string -> filename:string ->
+  lib:string list -> ?root:string -> filename:string ->
   in_channel -> source
 
 val empty : unit -> source

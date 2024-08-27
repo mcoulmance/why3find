@@ -69,7 +69,7 @@ val exts : unit -> string list
 
 val load : unit -> unit
 val save : unit -> unit
-val local : ?loadpath:string -> unit -> unit
+val local : ?root:string -> unit -> unit
 
 type env = {
   wconfig : Why3.Whyconf.config ;
@@ -77,4 +77,4 @@ type env = {
   pkgs : Meta.pkg list ;
 }
 
-val init : unit -> env
+val init : ?root:string -> unit -> env
