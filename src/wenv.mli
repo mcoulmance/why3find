@@ -37,8 +37,6 @@ val argv : string list -> string list
 val argfiles : ?exts:string list -> string list -> string list
 val allfiles : ?exts:string list -> (string -> unit) -> string -> unit
 
-val exts : unit -> string list
-
 val default : Config.config
 
 val load_raw_config : unit -> Json.t
