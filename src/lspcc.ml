@@ -118,7 +118,7 @@ let preprocess filename diagnostics =
       | Some(dir,_) -> dir
     in
     Hashtbl.remove sources filename ;
-    let config = Config.config_of_json @@ Config.load_raw_config root in
+    let config = Config.load_config root in
     let env = Wenv.init ~root config in
     let cenv = Docref.init () in
     let wenv = env.wenv in
