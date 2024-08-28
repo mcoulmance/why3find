@@ -357,6 +357,7 @@ let pp_decl fmt (d : Id.decl) =
         | RKpred -> Format.fprintf fmt " predicate"
         | RKlemma -> Format.fprintf fmt " lemma"
       end ;
+      Format.fprintf fmt " %a" pp_infix r.rs_name ;
       let args = r.rs_cty.cty_args in
       List.iter (Format.fprintf fmt "@ %a" pp_varg) args ;
       Format.fprintf fmt "@ : %a" pp_ity r.rs_cty.cty_result
