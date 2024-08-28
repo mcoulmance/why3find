@@ -7,7 +7,7 @@ set -eu
 ret=0
 
 echo "Check indent"
-SOURCES_MI=$(find src utils -name "*.ml" -or -name "*.mli")
+SOURCES_MI=$(find src lib utils -name "*.ml" -or -name "*.mli")
 for f in $SOURCES_MI
 do
     ocp-indent $f -o $f.lint
@@ -23,7 +23,7 @@ done
 # Check headers
 
 echo "Check headers"
-SOURCES_ML=$(find src utils -name "*.ml*")
+SOURCES_ML=$(find src lib utils -name "*.ml*")
 SOURCES_TS=$(find vscode/src -name "*.ts*")
 for f in $SOURCES_ML $SOURCES_TS
 do

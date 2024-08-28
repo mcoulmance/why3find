@@ -22,8 +22,8 @@ uninstall:
 # --- Linter
 # --------------------------------------------------------------------------
 
-SOURCES_MI=$(shell find src utils -name "*.ml" -or -name "*.mli")
-SOURCES_ML=$(shell find src utils -name "*.ml*")
+SOURCES_MI=$(shell find src lib utils -name "*.ml" -or -name "*.mli")
+SOURCES_ML=$(shell find src lib utils -name "*.ml*")
 SOURCES_TS=$(shell find vscode/src -name "*.ts*")
 
 lint:
