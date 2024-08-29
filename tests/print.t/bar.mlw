@@ -1,0 +1,28 @@
+module A
+  type a
+end
+
+module B
+  type b
+end
+
+module C
+  clone A
+  clone export A
+  clone A as B
+  scope S
+    clone export A
+  end
+  scope R
+    clone A
+    clone export B
+  end
+  type r = (a,A.a, B.a,S.a,R.A.a)
+
+  function p1 (v : r) : a     = let x,_,_,_,_ = v in x
+  function p2 (v : r) : A.a   = let _,x,_,_,_ = v in x
+  function p3 (v : r) : B.a   = let _,_,x,_,_ = v in x
+  function p4 (v : r) : S.a   = let _,_,_,x,_ = v in x
+  function p5 (v : r) : R.A.a = let _,_,_,_,x = v in x
+
+end
