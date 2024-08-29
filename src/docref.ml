@@ -417,7 +417,7 @@ let select ~name ids =
 
 (* Global reference resolution *)
 
-let reference ~wenv ~src ~scope r =
+let reference ~wenv ~src ~current r =
   let kind,name =
     let n = String.length r in
     if n >= 2 && r.[1] = ':'
@@ -432,7 +432,7 @@ let reference ~wenv ~src ~scope r =
         else split (p::rp) ps
     in split [] (String.split_on_char '.' name) in
   if lp = [] then
-    select ~name @@ lookup ~scope ~theories:src.theories kind m qid
+    select ~name @@ lookup ~scope:current ~theories:src.theories kind m qid
   else
     let thy =
       try Why3.Env.read_theory wenv lp m

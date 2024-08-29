@@ -100,7 +100,7 @@ val resolve :
 
 val reference :
   wenv:Why3.Env.env ->
-  src:source -> scope:string option ->
+  src:source -> current:string option ->
   string -> string * ident
 
 val find_decl : Why3.Env.env -> source -> Id.id -> Id.decl

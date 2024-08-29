@@ -58,7 +58,7 @@ val to_infix : string -> string
 val pp_local : Format.formatter -> id -> unit
 val pp_title : Format.formatter -> id -> unit
 val pp_aname : Format.formatter -> id -> unit
-val pp_ahref : scope:string option -> package_url:string option
+val pp_ahref : current:string option -> package_url:string option
   -> Format.formatter -> id -> unit
 val pp_proof_aname : Format.formatter -> id -> unit
 val pp_proof_ahref : Format.formatter -> id -> unit

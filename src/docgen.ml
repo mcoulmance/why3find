@@ -98,7 +98,7 @@ type env = {
   mutable clone_inst : bool ; (* clone instance found *)
   mutable clone_with : clone_with ; (* clone substitution *)
   mutable declared : Sid.t ; (* locally declared *)
-  mutable scope : string option ; (* current module name *)
+  mutable current : string option ; (* current module name *)
   mutable theory : Docref.theory option ; (* current module theory *)
   mutable space : bool ; (* leading space in Par mode *)
   mutable indent : indent ; (* leading space in Pre mode *)
@@ -106,7 +106,8 @@ type env = {
   mutable mode : mode ; (* current output mode *)
   mutable file : mode ; (* current file mode *)
   mutable stack : mode list ; (* currently opened modes *)
-  mutable opened : int ; (* number of pending 'end' *)
+  mutable opened : string list ; (* opening keywords *)
+  mutable scopes : string list ; (* opened scopes *)
   mutable section : int ; (* code foldable section depth *)
 }
 
@@ -290,7 +291,7 @@ let process_certif env id crc =
     "<pre class=\"src\">@\n  %a <a id=\"%a\" href=\"%a\">%a</a>%a%t</pre>"
     Pdoc.pp_keyword "goal"
     Id.pp_proof_aname id
-    (Id.pp_ahref ~scope:None ~package_url:env.package_url) id
+    (Id.pp_ahref ~current:None ~package_url:env.package_url) id
     Id.pp_local id
     pp_verdict (Crc.verdict crc)
     begin fun fmt -> match crc.Crc.state with
@@ -371,7 +372,7 @@ let process_hypothesis env (s : Soundness.soundness) (p : Axioms.parameter) =
       "@\n  %a <a id=\"%a\" href=\"%a\">%a</a>%t"
       Pdoc.pp_keyword key
       Id.pp_proof_aname id
-      (Id.pp_ahref ~scope:None ~package_url:env.package_url) id
+      (Id.pp_ahref ~current:None ~package_url:env.package_url) id
       Id.pp_local id qualif
   with Not_found -> ()
 
@@ -502,8 +503,8 @@ let process_clone_target env id n next =
       | Some c ->
         let tgt = Id.resolve ~lib:env.src.lib c.id_target in
         let title = Format.asprintf "%a" Id.pp_title tgt in
-        let href fmt =
-          Id.pp_ahref ~scope:env.scope ~package_url:env.package_url fmt tgt in
+        let { current ; package_url } = env in
+        let href fmt = Id.pp_ahref ~current ~package_url fmt tgt in
         Pdoc.ppt env.out (pp_mark ~href ~title ~cla:icon_parameter)
   end ;
   process_clone_spaces env n next
@@ -559,9 +560,10 @@ let process_href env (href : Docref.href) s =
       end
     else
       process_clone_token env (`id id.self) ;
+    let { current ; package_url } = env in
     Pdoc.printf env.out " title=\"%a\" href=\"%a\">%a</a>"
       Id.pp_title id
-      (Id.pp_ahref ~scope:env.scope ~package_url:env.package_url) id
+      (Id.pp_ahref ~current ~package_url) id
       Pdoc.pp_html s
 
   | Docref.NoRef ->
@@ -585,7 +587,7 @@ let pp_ident ~env ?anchor ?attr fmt id =
     Option.iter (Format.fprintf fmt " class=\"%s\"") attr ;
     Format.fprintf fmt " title=\"%a\" href=\"%a\">%a</a>"
       Id.pp_title id
-      (Id.pp_ahref ~scope:None ~package_url:env.package_url) id
+      (Id.pp_ahref ~current:None ~package_url:env.package_url) id
       Id.pp_local id
   | exception Not_found ->
     (* builtin *)
@@ -822,7 +824,7 @@ let process_close_section env title =
 
 let process_open_module env key =
   begin
-    if not (env.mode = Body && env.opened = 0) then
+    if not (env.mode = Body && env.opened = []) then
       Token.error env.input "unexpected %s" key ;
     let forking = env.block in
     let prelude = Pdoc.buffered env.out in
@@ -866,7 +868,7 @@ let process_open_module env key =
     env.file <- Pre ;
     bsync env ;
     text env ;
-    env.scope <- Some id ;
+    env.current <- Some id ;
     env.theory <- theory ;
     env.declared <- Sid.empty ;
     Pdoc.pp env.out Pdoc.pp_keyword key ;
@@ -886,13 +888,29 @@ let process_close_module env key =
     env.mode <- Body ;
     env.block <- Raw ;
     env.file <- Body ;
-    env.scope <- None ;
+    env.current <- None ;
     env.theory <- None ;
   end
 
 (* -------------------------------------------------------------------------- *)
 (* --- Identifiers                                                        --- *)
 (* -------------------------------------------------------------------------- *)
+let process_opening s env =
+  begin
+    env.opened <- s :: env.opened ;
+    if s = "scope" then
+      let id = Token.fetch_id ~kind:s env.input in
+      env.scopes <- id :: env.scopes
+  end
+
+let process_closing s env =
+  match env.opened with
+  | k0::ks ->
+    if k0 = "scope" then env.scopes <- List.tl env.scopes ;
+    env.opened <- ks
+  | [] ->
+    Token.error env.input "No matching opening keyword for '%s" s
+
 
 let process_ident env s =
   if Docref.is_keyword s then
@@ -900,12 +918,12 @@ let process_ident env s =
       process_clone_token env (`kwd s) ;
       match s with
       | "module" | "theory" -> process_open_module env s
-      | "end" when env.opened = 0 -> process_close_module env s
+      | "end" when env.opened = [] -> process_close_module env s
       | "assume" ->
         Pdoc.pp env.out Pdoc.pp_admitted s
       | _ ->
-        if Docref.is_opening s then env.opened <- succ env.opened ;
-        if Docref.is_closing s then env.opened <- pred env.opened ;
+        if Docref.is_opening s then process_opening s env ;
+        if Docref.is_closing s then process_closing s env ;
         if s = "clone" then env.clone_decl <- Token.indent env.input ;
         text env ;
         Pdoc.pp env.out Pdoc.pp_keyword s
@@ -1006,14 +1024,14 @@ let process_newline env =
 
 let process_reference ~wenv ~env r =
   try
-    let src = env.src in
-    let scope = env.scope in
-    let name, id = Docref.reference ~wenv ~src ~scope r in
+    let { src ; current ; package_url } = env in
+    let name, id = Docref.reference ~wenv ~src ~current r in
     let r = Id.resolve ~lib:src.lib id in
     text env ;
     Pdoc.printf env.out
       "<code class=\"src\"><a title=\"%a\" href=\"%a\">%s</a></code>"
-      Id.pp_title r (Id.pp_ahref ~scope:None ~package_url:env.package_url) r name
+      (* markdown reference might be emitted from any file *)
+      Id.pp_title r (Id.pp_ahref ~current:None ~package_url) r name
   with
   | Not_found -> Token.error env.input "unknown reference"
   | Failure msg -> Token.error env.input "%s" msg
@@ -1148,13 +1166,14 @@ let process_markdown ~wenv ~cenv ~henv ~senv ~out:dir ~title ~package_url file =
       dir ; src ; package_url; input ; out ; crc ; wenv ; cenv ; henv ; senv ;
       space = false ;  indent = Code ;
       block = Raw; mode = Body ; file = Body ; stack = [] ;
-      scope = None ; theory = None ;
+      current = None ; theory = None ;
       clone_decl = 0 ;
       clone_inst = false ;
       clone_with = NotCloning ;
       proof_href = 0 ;
       declared = Sid.empty ;
-      opened = 0 ; section = 0 ;
+      opened = [] ; scopes = [] ;
+      section = 0 ;
     } in
     chapter ~href ~title () ;
     Pdoc.printf env.out
@@ -1185,13 +1204,13 @@ let process_source ~wenv ~cenv ~henv ~senv ~out:dir ~package_url file
     dir ; src ; package_url; input ; out ; crc ; wenv ; henv ; cenv ; senv ;
     space = false ; indent = Code ;
     block = Raw ; mode = Body ; file = Body ; stack = [] ;
-    scope = None ; theory = None ;
+    current = None ; theory = None ;
     clone_decl = 0 ;
     clone_inst = false ;
     clone_with = NotCloning ;
     proof_href = 0 ;
     declared = Sid.empty ;
-    opened = 0 ; section = 0 ;
+    opened = [] ; scopes = [] ; section = 0 ;
   } in
   begin
     chapter ~src ~href ~title () ;

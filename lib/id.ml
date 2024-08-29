@@ -193,10 +193,10 @@ let pp_htmlfile fmt r =
 
 let pp_aname fmt r = pp_anchor fmt r.id_qid
 
-let pp_ahref ~scope ~package_url fmt r =
+let pp_ahref ~current ~package_url fmt r =
   match r.id_pkg with
   | `Local ->
-    let local = match scope with
+    let local = match current with
       | Some m when m = r.id_mod -> true
       | _ -> false
     in
