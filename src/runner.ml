@@ -244,7 +244,7 @@ let pp_goals fmt =
 
 let is_modified () = !jobs > 0
 
-let save_config (env : Wenv.env) =
+let save_config (env : Why3find.Config.env) =
   let j = !jobs in
   if j > 0 then
     let open Why3 in
@@ -257,29 +257,28 @@ let save_config (env : Wenv.env) =
       Whyconf.save_config config ;
       Format.printf "Why3 config saved to %s@." file
 
-let maxjobs (env : Wenv.env) =
+let maxjobs wmain =
   if !jobs > 0 then !jobs else
-    let main = Whyconf.get_main env.wconfig in
-    Whyconf.running_provers_max main
+    Whyconf.running_provers_max wmain
 
-let update_client env =
-  let njobs = maxjobs env in
+let update_client wmain =
+  let njobs = maxjobs wmain in
   if njobs <> !clients then
     begin
       clients := njobs ;
       Why3.Prove_client.set_max_running_provers njobs ;
     end
 
-let memlimit env = Whyconf.memlimit (Whyconf.get_main env.Wenv.wconfig)
+let memlimit wmain = Whyconf.memlimit wmain
 
-let limit env t =
+let limit wmain t =
   Call_provers.{
     limit_time = t +. 0.5 ;
-    limit_mem = memlimit env ;
+    limit_mem = memlimit wmain ;
     limit_steps = (-1) ;
   }
 
-let notify env prover result cb =
+let notify wmain prover result cb =
   let fire cb p l r = cb p.Prover.config.prover l r in
   let pr ~s ?(t = 0.0) ans =
     Why3.Call_provers.{
@@ -291,33 +290,33 @@ let notify env prover result cb =
       pr_models = [] ;
     }
   in
+  let limit = limit wmain in
   match result with
   | NoResult -> ()
-  | Valid t -> fire cb prover (limit env t) (pr ~s:0 ~t Valid)
-  | Timeout t -> fire cb prover (limit env t) (pr ~s:1 ~t Timeout)
-  | Unknown t -> fire cb prover (limit env t) (pr ~s:1 ~t (Unknown "why3find"))
-  | Failed -> fire cb prover (limit env 1.0) (pr ~s:2 (Failure "why3find"))
+  | Valid t -> fire cb prover (limit t) (pr ~s:0 ~t Valid)
+  | Timeout t -> fire cb prover (limit t) (pr ~s:1 ~t Timeout)
+  | Unknown t -> fire cb prover (limit t) (pr ~s:1 ~t (Unknown "why3find"))
+  | Failed -> fire cb prover (limit 1.0) (pr ~s:2 (Failure "why3find"))
 
 let notify_pr prv limit pr cb =
   cb prv.Prover.config.prover limit pr
 
 type prepared_task = Prooftask of prooftask | Buffered of Buffer.t
 
-let call_prover (env : Wenv.env)
+let call_prover (config : Why3.Whyconf.main)
     ?(name : string option)
     ?(cancel : unit Fibers.signal option)
     ?(callback : callback option)
     ~(prepared : prepared_task)
     ~(prover : Prover.prover)
     ~(timeout : float) () =
-  let limit = limit env timeout in
+  let limit = limit config timeout in
   let clockwall = ref 0.0 in
   let started = ref false in
   let killed = ref false in
   let canceled = ref false in
   let timedout = ref false in
-  let config = Whyconf.get_main env.wconfig in
-  update_client env ;
+  update_client config ;
   schedule () ;
   let call =
     match prepared with
@@ -392,7 +391,7 @@ let call_prover (env : Wenv.env)
           if precise then
             notify_pr prover limit pr cb
           else
-            notify env prover result cb
+            notify config prover result cb
         | None -> ()
       end ;
       Some result
@@ -419,27 +418,27 @@ let definitive ~timeout result =
   | Timeout t -> timeout <= t
   | Failed | Unknown _ | Valid _ -> true
 
-let prove_prepared env ?name ?cancel ?callback prover task timeout =
-  call_prover env ?name ?cancel ?callback
+let prove_prepared config ?name ?cancel ?callback prover task timeout =
+  call_prover config ?name ?cancel ?callback
     ~prepared:(Prooftask task) ~prover ~timeout ()
 
 let prepare prover task =
   Prepared (Driver.prepare_task prover.Prover.driver task)
 
-let prove env ?name ?cancel ?callback prover task timeout =
+let prove config ?name ?cancel ?callback prover task timeout =
   let entry = task,prover in
   let cached = Cache.get entry in
   let task = prepare prover task in
   match crop ~timeout cached with
   | Some cached ->
     incr hits ;
-    Option.iter (notify env prover cached) callback ;
+    Option.iter (notify config prover cached) callback ;
     Fibers.return cached
   | None ->
     incr miss ;
     Fibers.map
       (fun result -> Cache.set entry result ; result)
-      (prove_prepared env ?name ?cancel ?callback
+      (prove_prepared config ?name ?cancel ?callback
          prover task timeout)
 
 let prepare prover goal =
@@ -456,8 +455,8 @@ let prove_cached prover goal timeout =
   incr (if cropped = None then miss else hits);
   cropped
 
-let prove_buffer env ?cancel prover buffer timeout =
-  call_prover env ?cancel ~prepared:(Buffered buffer) ~prover ~timeout ()
+let prove_buffer config ?cancel prover buffer timeout =
+  call_prover config ?cancel ~prepared:(Buffered buffer) ~prover ~timeout ()
 
 (* -------------------------------------------------------------------------- *)
 (* --- Options                                                            --- *)

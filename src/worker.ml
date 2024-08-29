@@ -34,7 +34,7 @@ type goal = { prover : Prover.prover_desc ; digest : string }
 (* -------------------------------------------------------------------------- *)
 
 type worker = {
-  env : Wenv.env ;
+  wmain : Why3.Whyconf.main ;
   context : Zmq.Context.t ;
   timeout : int ;
   address : string ;
@@ -120,7 +120,7 @@ let send_result worker goal (alpha,result) =
 let do_prove worker goal timeout data =
   do_kill worker goal ;
   try
-    let env = worker.env in
+    let wmain = worker.wmain in
     let cancel = Fibers.signal () in
     let prover = Prover.Mdesc.find goal.prover worker.provers in
     let buffer = Buffer.create (String.length data) in
@@ -131,9 +131,9 @@ let do_prove worker goal timeout data =
     Fibers.background ~callback:(send_result worker goal)
       begin
         let open Fibers.Monad in
-        let* alpha = Calibration.velocity env worker.profile prover in
+        let* alpha = Calibration.velocity wmain worker.profile prover in
         let timeout = alpha *. timeout in
-        let* result = Runner.prove_buffer env ~cancel prover buffer timeout in
+        let* result = Runner.prove_buffer wmain ~cancel prover buffer timeout in
         Hashtbl.remove worker.pending goal ;
         Fibers.return (alpha,result)
       end
@@ -207,9 +207,11 @@ let flush worker handler =
 (* -------------------------------------------------------------------------- *)
 
 let connect ~server ~polling =
-  let env = Wenv.init () in
-  let prvs = Prover.all env in
-  let jobs = Runner.maxjobs env in
+  let wconfig = Why3.Whyconf.init_config None in
+  let wmain = Why3.Whyconf.get_main wconfig in
+  let wenv = Why3.Env.create_env @@ Why3.Whyconf.loadpath wmain in
+  let prvs = Prover.all wconfig wenv in
+  let jobs = Runner.maxjobs wmain in
   Utils.flush () ;
   Prover.(Mdesc.iter (fun _ -> Format.printf "Prover %a@." pp_prover) prvs) ;
   Format.printf "Server %s@." server ;
@@ -218,7 +220,7 @@ let connect ~server ~polling =
   let socket,polling = connect context server in
   let profile = Calibration.create () in
   let worker = {
-    env ;
+    wmain ;
     context ;
     timeout ;
     address = server ;

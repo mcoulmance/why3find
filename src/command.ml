@@ -400,9 +400,11 @@ let check_custom_drivers main p =
 
 let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
     begin fun argv ->
+      let open Fibers.Monad in
       let list = ref true in
       let calibrate = ref false in
       let velocity = ref false in
+      let reset = ref false in
       let default = ref false in
       let detect = ref false in
       let strict = ref false in
@@ -419,15 +421,15 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
             "-m", Arg.Set calibrate, "calibrate provers (master)";
             "-v", Arg.Set velocity, "evaluate prover velocity (local)";
             "--quiet", Arg.Clear list, "do not list final configuration";
-            "--reset", Arg.Set Wenv.reset, "configure from scratch";
-            "--list-provers", Arg.Set list_provers, "list available provers";
-            "--list-tactics", Arg.Set list_tactics, "list available tactics";
+            "--reset", Arg.Set reset, "configure from scratch";
             "--default", Arg.Set default, "import available provers";
             "--detect", Arg.Set detect, "detect and import available provers";
+            "--list-provers", Arg.Set list_provers, "list available provers";
+            "--list-tactics", Arg.Set list_tactics, "list available tactics";
             "--strict", Arg.Set strict, "commit prover versions";
             "--relax", Arg.Set relax, "relax prover versions";
             "--check", Arg.Set check,
-            "check that proof certificates conform to configuration"
+            "check that proof certificates conform to configuration" ;
           ]
         end
         noargv
@@ -440,25 +442,30 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
          OPTIONS:\n" ;
       (* --- Why3 Config --- *)
       if !detect then ignore @@ Sys.command "why3 config detect" ;
-      let env = Wenv.init () in
-      Wenv.load () ;
+      let rawconfig = Wenv.load_raw_config () in
+      let config =
+        if !reset
+        then Config.default
+        else Config.config_of_json rawconfig in
+      let config = Wenv.add_options config in
+      let env = Wenv.init config in
       (* --- Extra Configs ---- *)
-      let cfgs = Wenv.configs () in
+      let cfgs = config.configs in
       if !list && cfgs <> [] then
         begin
           Format.printf "Extra Why3 Configuration:@." ;
           List.iter (Format.printf " - %s@.") cfgs ;
         end ;
       (* --- Packages ---- *)
-      let pkgs = Wenv.packages () in
+      let pkgs = config.packages in
       if !list && pkgs <> [] then
         begin
           Format.printf "Package Dependencies:@." ;
           List.iter (Format.printf " - %s@.") pkgs ;
         end ;
       (* --- Provers ----- *)
-      let time = Wenv.time () in
-      let allprovers = Prover.all env in
+      let time = config.time in
+      let allprovers = Prover.all env.wconfig env.wenv in
       let patterns, provers =
         if !default || !detect then
           let provers = Prover.default env in
@@ -466,10 +473,9 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
             if !strict then List.map Prover.fullname provers else
               List.map Prover.name provers
           in
-          Wenv.set_modified () ;
           patterns, provers
         else
-          let config = Wenv.provers () in
+          let config = config.provers in
           let patterns =
             if !relax then List.map Prover.pattern_name config else config in
           let provers = Prover.select ~patterns allprovers in
@@ -477,25 +483,27 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
             if !strict then List.map Prover.fullname provers else
             if !relax then List.map Prover.name provers else
               config in
-          if config <> patterns then
-            Wenv.set_modified () ;
           patterns, provers
       in
       if !strict && !relax then
         Log.warning "--relax ignored because of --strict" ;
       let pnames = configuration patterns provers in
-      if !calibrate then
-        Calibration.calibrate_provers ~saved:true env provers
-      else
-      if !velocity then
+      let profile =
+        if !calibrate then
+          Fibers.await @@ begin
+            let+ p = Calibration.calibrate_provers ~saved:true env provers in
+            Some (Calibration.to_json p)
+          end
+        else None in
+      if not !calibrate && !velocity then
         Calibration.velocity_provers env provers ;
       (* --- Transformations ----- *)
-      let depth = Wenv.depth () in
-      let tactics = Wenv.tactics () in
+      let depth = config.depth in
+      let tactics = config.tactics in
       (* --- Drivers ----- *)
-      let drivers = Wenv.drivers () in
+      let drivers = config.drivers in
       (* --- Disabled warnings ----- *)
-      let warnoff = Wenv.warnoff () in
+      let warnoff = config.warnoff in
       (* --- Check ----- *)
       if !check then
         begin
@@ -513,7 +521,21 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           Wenv.allfiles check "."
         end ;
       let wmain = Why3.Whyconf.get_main env.wconfig in
-      List.iter (check_custom_drivers wmain) provers;
+      List.iter (check_custom_drivers wmain) provers ;
+      (* --- New Configuration --------- *)
+      let newprofile = match profile with None -> config.profile | _ -> profile in
+      let newconfig = Config.{
+          time ;
+          depth ;
+          configs = cfgs ;
+          packages = pkgs ;
+          provers = patterns ;
+          profile = newprofile ;
+          tactics ;
+          drivers ;
+          warnoff ;
+        } in
+      let modified = Config.config_to_json newconfig <> rawconfig in
       (* --- List Provers -------------- *)
       if !list_provers then
         begin
@@ -523,7 +545,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           Prover.Mdesc.iter (fun dp _ ->
               Format.printf " - %a@." Prover.pp_desc dp
             ) allprovers ;
-          if not @@ Wenv.is_modified () then list := false ;
+          if not @@ modified then list := false ;
         end ;
       if !list_tactics then
         begin
@@ -533,13 +555,12 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
                Format.printf "@[<hov 3> - %s: %a@]@." tac
                  Why3.Pp.formatted pp
             ) ;
-          if not @@ Wenv.is_modified () then list := false ;
+          if not @@ modified then list := false ;
         end ;
       (* --- Printing Final Config -------------- *)
       if !list then
         begin
-          let jobs = Runner.maxjobs env in
-          let time = Wenv.time () in
+          let jobs = Runner.maxjobs wmain in
           Format.printf "Configuration:@." ;
           Format.printf " - runner: %d jobs, %a@."
             jobs Utils.pp_time time ;
@@ -548,24 +569,14 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
         end ;
       if !list && tactics <> [] then
         Format.printf " - @[<hov 2>tactics: %a@ (depth %d)@]@."
-          pp_list tactics (Wenv.depth ());
+          pp_list tactics depth;
       if !list && drivers <> [] then
         Format.printf " - @[<hov 2>drivers: %a@]@." pp_list drivers ;
       (* --- Updating -------------- *)
       if Runner.is_modified () then
         Runner.save_config env ;
-      if Wenv.is_modified () then
-        begin
-          Wenv.set_time time ;
-          Wenv.set_depth depth ;
-          Wenv.set_configs cfgs ;
-          Wenv.set_packages pkgs ;
-          Wenv.set_provers patterns ;
-          Wenv.set_tactics tactics ;
-          Wenv.set_drivers drivers ;
-          Wenv.set_warnoff warnoff;
-        end ;
-      Wenv.save () ;
+      if !reset || modified then
+        Wenv.save newconfig;
       exit (!retval)
     end
 
@@ -617,7 +628,8 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
          \n  Prove all why3 files and directories accessible from PATH.\n\n\
          OPTIONS:\n" ;
       let session = !session || !ide in
-      let env = Wenv.init () in
+      let config = Wenv.load_config () in
+      let env = Wenv.init config in
       let files = if !files = [] then ["."] else !files in
       let files = Wenv.argfiles @@ List.rev files in
       let result = Prove.prove_files
@@ -628,7 +640,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
           Log.error "%d unproved file%a" n Utils.pp_s n ;
           if not !ide then exit 1 ;
           let file = List.hd result.unfixed in
-          let pkgs = Wenv.packages () in
+          let pkgs = env.config.packages in
           let Prove.{ provers ; time ; mem ; tactics } = result in
           let cfg = Hammer.config ~tactics ~provers ~time ~mem in
           Format.printf "Fixing %s@." file ;
@@ -672,7 +684,9 @@ let () = register ~name:"doc" ~args:"[OPTIONS] PATH..."
       let files = if !files = [] then ["."] else !files in
       let files = Wenv.argfiles ~exts:[".md";".mlw"] @@ List.rev files in
       let out = if !out = "" then "html" else Wenv.arg1 !out in
-      Docgen.generate ~out ~title ~files ~url:!url ~package_url:!package_url
+      let config = Wenv.load_config () in
+      let env = Wenv.init config in
+      Docgen.generate ~env ~out ~title ~files ~url:!url ~package_url:!package_url
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -718,9 +732,10 @@ let () = register ~name:"extract" ~args:"[OPTIONS] MODULE..."
          \n\n\
          OPTIONS:\n" ;
       if !pkg = "" then failwith "Nothing to extract" ;
-      let pkgs = Wenv.packages () in
-      let configs = Wenv.configs () in
-      let drivers = Wenv.drivers () in
+      let config = Wenv.load_config () in
+      let pkgs = config.packages in
+      let configs = config.configs in
+      let drivers = config.drivers in
       let libraries =
         List.rev !libraries @
         List.filter (fun pkg -> (Meta.find pkg).extracted) pkgs in
@@ -919,7 +934,9 @@ let () = register ~name:"install" ~args:"PKG PATH..."
           if Sys.file_exists proofs then
             install ~kind:"(proof)" proofs ;
         end in
-      ignore (Wenv.init ()); (* So that all extensions get loaded *)
+      let config = Wenv.load_config () in
+      ignore (Wenv.init config); (* So that all extensions get loaded *)
+      let drivers = ref [] in
       List.iter
         begin fun src ->
           if not @@ Sys.file_exists src then
@@ -929,14 +946,14 @@ let () = register ~name:"install" ~args:"PKG PATH..."
           else
             match Filename.extension src with
             | ".cfg" -> Log.warning "won't install configuration file %S" src
-            | ".drv" -> Wenv.add_driver src
+            | ".drv" -> drivers := src :: !drivers
             | ext when List.mem ext (Wenv.exts ())  -> install_src src
             | _ ->
               Utils.failwith "don't know what to do with %S" src
         end paths ;
-      let depends = Wenv.packages () in
-      let drivers = Wenv.drivers () in
-      let configs = Wenv.configs () in
+      let depends = config.packages in
+      let drivers = !drivers @ config.drivers in
+      let configs = config.configs in
       if !allsrc then Wenv.allfiles (install_src ~check:false) pkg ;
       List.iter (Log.warning "won't install configuration file %S") configs ;
       List.iter (install ~kind:"(driver)") drivers ;

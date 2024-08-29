@@ -7,13 +7,13 @@
   Why3find config saved to $TESTCASE_ROOT/why3find.json
   $ cat why3find.json
   {
-    "configs": [],
+    "time": 1,
     "depth": 2,
-    "drivers": [],
+    "configs": [],
     "packages": [],
     "provers": [ "alt-ergo" ],
     "tactics": [ "split_vc", "inline_goal" ],
-    "time": 1,
+    "drivers": [],
     "warnoff": []
   }
 

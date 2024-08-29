@@ -41,11 +41,10 @@ let jproofs proofs : Json.t =
 let proofs_file file =
   Filename.concat (Filename.chop_extension file) "proof.json"
 
-let load_proofs ?(local=false) file : profile * theories =
+let load_proofs ?local file : profile * theories =
   let file = proofs_file file in
   let js = if Sys.file_exists file then Json.of_file file else `Null in
-  let default = if local then Some (Calibration.default ()) else None in
-  let profile = Calibration.of_json ?default @@ Json.jfield "profile" js in
+  let profile = Calibration.of_json ?default:local @@ Json.jfield "profile" js in
   let strategy = jmap (jmap Crc.of_json) @@ Json.jfield "proofs" js in
   profile , strategy
 

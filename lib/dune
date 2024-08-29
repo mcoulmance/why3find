@@ -6,7 +6,7 @@
  (instrumentation (backend bisect_ppx)))
 
 (rule
-  (target config.ml)
+  (target version.ml)
   (action
     (write-file %{target}
       "let version = \"%{version:why3find}\"")))

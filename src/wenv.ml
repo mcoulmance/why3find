@@ -23,49 +23,18 @@
 (* --- Why3Find Environment                                               --- *)
 (* -------------------------------------------------------------------------- *)
 
-let config = "why3find.json"
 let prefix = ref ""
-let sections = Hashtbl.create 0
-let loaded = ref false
-let reset = ref false
-let modified = ref false
 let chdir = ref ""
 
-let load () =
-  if not !loaded then
+let move_to_root () =
+  if !chdir <> "" then
+    Utils.chdir !chdir
+  else
     begin
-      loaded := true ;
-      Hashtbl.clear sections ;
-      if !chdir <> "" then
-        Utils.chdir !chdir
-      else
-        begin
-          match Utils.locate config with
-          | Some(dir,path) -> Utils.chdir dir ; prefix := path
-          | None -> ()
-        end ;
-      if not !reset && Sys.file_exists config then
-        Json.of_file config |> Json.jiter (Hashtbl.add sections)
+      match Utils.locate Config.conf_file with
+      | Some(dir,path) -> Utils.chdir dir ; prefix := path
+      | None -> ()
     end
-
-let local ?root () =
-  begin
-    reset := true ;
-    loaded := true ;
-    modified := false ;
-    Hashtbl.clear sections ;
-    let cfg = Utils.path ?root config in
-    if Sys.file_exists cfg then
-      Json.of_file cfg |> Json.jiter (Hashtbl.add sections) ;
-  end
-
-let get fd ~of_json =
-  load () ; of_json @@ Hashtbl.find sections fd
-
-let set fd ~to_json value =
-  load () ;
-  Hashtbl.replace sections fd (to_json value) ;
-  modified := true
 
 (* -------------------------------------------------------------------------- *)
 (* --- Command Line Options                                               --- *)
@@ -153,7 +122,6 @@ let move ~at a ps =
 let rec process config mode = function
   | [] -> config
   | arg :: args ->
-    modified := true ;
     let m, a = parse_arg ~mode arg in
     if a = "none" then
       match m with
@@ -174,31 +142,18 @@ let process_args config args =
 (* -------------------------------------------------------------------------- *)
 
 let setv r v =
-  modified := true ;
   r := Some v
 
-let getv fd ~of_json ~default r =
-  load () ;
+let getv fd r =
   match !r with
   | Some v -> v
-  | None ->
-    load () ;
-    try get fd ~of_json
-    with Not_found -> default
+  | None -> fd
 
 let add r a =
-  modified := true ;
   r := a :: !r
 
-let gets fd ?(default=[]) ropt =
-  load () ;
-  let config =
-    try get fd ~of_json:(Json.(jmap jstring))
-    with Not_found -> default
-  in List.fold_left process_args config !ropt
-
-let sets fd xs =
-  set fd ~to_json:Fun.id (`List (List.map (fun x -> `String x) xs))
+let gets fd ropt =
+  List.fold_left process_args fd !ropt
 
 type opt = [
   | `All
@@ -243,27 +198,14 @@ let options ?(packages=false) ?(provers=false) ?(drivers=false) () =
        else None
     ) alloptions
 
-let add_config = add cfgs
-let add_driver = add drvs
-
-let time () = getv "time" ~of_json:Json.jfloat ~default:1.0 time
-let depth () = getv "depth" ~of_json:Json.jint ~default:4 depth
-let configs () = gets "configs" cfgs
-let packages () = gets "packages" pkgs
-let provers () = gets "provers" prvs
-let tactics () = gets "tactics" ~default:["split_vc"] tacs
-let drivers () = gets "drivers" drvs
-let warnoff () = gets "warnoff" warn
-let has_prover_spec () = !prvs <> []
-
-let set_time = set "time" ~to_json:(fun v -> `Float v)
-let set_depth = set "depth" ~to_json:(fun n -> `Int n)
-let set_configs = sets "configs"
-let set_packages = sets "packages"
-let set_provers = sets "provers"
-let set_tactics = sets "tactics"
-let set_drivers = sets "drivers"
-let set_warnoff = sets "warnoff"
+let time config = getv config.Config.time time
+let depth config = getv config.Config.depth depth
+let configs config = gets config.Config.configs cfgs
+let packages config = gets config.Config.packages pkgs
+let provers config = gets config.Config.provers prvs
+let tactics config = gets config.Config.tactics tacs
+let drivers config = gets config.Config.drivers drvs
+let warnoff config = gets config.Config.warnoff warn
 
 let exts () =
   let formats = Why3.Env.list_formats Why3.Env.base_language in
@@ -273,8 +215,8 @@ let exts () =
 let arg0 file =
   if Filename.is_relative file then Filename.concat !prefix file else file
 
-let arg1 file = load () ; arg0 file
-let argv files = load () ; List.map arg1 files
+let arg1 file = move_to_root () ; arg0 file
+let argv files = move_to_root () ; List.map arg1 files
 
 let filter ~exts p = List.mem (Filename.extension p) exts
 
@@ -293,7 +235,7 @@ let allfiles ?(exts=exts ()) f path =
     ~ignored:(fun p -> ignored p && p <> path)
     path
 
-let argfiles ?exts files = load () ;
+let argfiles ?exts files = move_to_root () ;
   let paths = ref [] in
   List.iter
     (fun f -> allfiles ?exts (fun p -> paths := p :: !paths) (arg1 f))
@@ -304,29 +246,40 @@ let argfiles ?exts files = load () ;
 (* --- Saving Project Config                                              --- *)
 (* -------------------------------------------------------------------------- *)
 
-let is_modified () = !modified
-let set_modified () = modified := true
-
-let save () =
-  if !modified then
-    begin
-      let root = Sys.getcwd () in
-      let path = Filename.concat root config in
-      let sections =
-        List.sort (fun a b -> String.compare (fst a) (fst b)) @@
-        Hashtbl.fold
-          (fun fd js fds -> (fd,js) :: fds)
-          sections []
-      in Json.to_file config (`Assoc sections) ;
-      Format.printf "Why3find config saved to %s@." path ;
-      modified := false ;
-    end
+let save conf =
+  let path = Sys.getcwd () in
+  Config.save_config path conf ;
+  Format.printf "Why3find config saved to %s@."
+    (Filename.concat path Config.conf_file)
 
 (* -------------------------------------------------------------------------- *)
 (* --- Why3 Environment                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
-type env = {
+let default = Config.default
+
+let load_raw_config () =
+  move_to_root ();
+  Config.load_raw_config "."
+
+let add_options config =
+  Config.{
+    time = time config ;
+    depth = depth config ;
+    configs = configs config ;
+    packages = packages config ;
+    provers = provers config  ;
+    tactics = tactics config ;
+    drivers = drivers config ;
+    warnoff = warnoff config ;
+    profile = config.profile ;
+  }
+
+let load_config () =
+  add_options @@ Config.config_of_json @@ load_raw_config ()
+
+type env = Config.env = private {
+  config : Config.config ;
   wconfig : Why3.Whyconf.config ;
   wenv : Why3.Env.env ;
   pkgs : Meta.pkg list ;
@@ -337,26 +290,13 @@ let disable_warning s =
   Why3.Loc.disable_warning @@
   Why3.Loc.register_warning s Why3.Pp.empty_formatted
 
-let plugins = ref false
-
-let init ?root () =
+let init ?root config =
   begin
-    let pkgs = Meta.find_all @@ packages () in
-    let pkg_path = List.map (fun m -> m.Meta.path) pkgs in
-    let extra_config = configs () in
-    let wconfig = Why3.Whyconf.init_config ~extra_config None in
-    let wmain = Why3.Whyconf.get_main wconfig in
-    let wpath = Why3.Whyconf.loadpath wmain in
-    let loadpath = match root with None -> "." | Some dir -> dir in
-    let wenv = Why3.Env.create_env (loadpath :: pkg_path @ wpath) in
-    if not @@ !plugins then
-      begin
-        Why3.Whyconf.load_plugins wmain;
-        plugins := true ;
-      end ;
+    let wenv = Config.create_env ?root ~config () in
+    Why3.Whyconf.load_plugins @@ Why3.Whyconf.get_main wenv.wconfig;
     Debug.init_why3_debug ();
-    List.iter disable_warning @@ warnoff () ;
-    { wconfig ; wenv ; pkgs }
+    List.iter disable_warning config.warnoff;
+    wenv
   end
 
 (* -------------------------------------------------------------------------- *)

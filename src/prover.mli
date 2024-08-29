@@ -92,7 +92,7 @@ val pmatch : pattern:string -> prover_desc -> bool
 
 (** {1 Retrieving available provers} *)
 
-val all : Wenv.env -> prover Mdesc.t
+val all : Why3.Whyconf.config -> Why3.Env.env -> prover Mdesc.t
 (** Returns the set of all available provers from the Why3 environment. *)
 
 val select : patterns:string list -> prover Mdesc.t -> prover list
@@ -103,7 +103,7 @@ val select : patterns:string list -> prover Mdesc.t -> prover list
     return list, either the one specified or the latest available version in
     case of a version-less pattern. *)
 
-val default : Wenv.env -> prover list
+val default : Config.env -> prover list
 (** Returns the set of available "default" provers *)
 
 val check_and_get_prover : patterns:string list -> prover Mdesc.t

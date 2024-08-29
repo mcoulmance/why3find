@@ -23,7 +23,7 @@
 (* --- Why3 Runner                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
-open Wenv
+(*open Why3find.Wenv*)
 
 type result =
   | NoResult | Failed | Unknown of float | Timeout of float | Valid of float
@@ -44,7 +44,7 @@ type callback =
   Why3.Call_provers.prover_result ->
   unit
 
-val prove : env ->
+val prove : Why3.Whyconf.main ->
   ?name:string ->
   ?cancel:unit Fibers.signal ->
   ?callback:callback ->
@@ -61,30 +61,30 @@ val prove_cached : Prover.prover -> Session.goal -> float -> result option
 
 val prepare : Prover.prover -> Session.goal -> prooftask
 
-val prove_prepared : env ->
+val prove_prepared : Why3.Whyconf.main ->
   ?name:string ->
   ?cancel:unit Fibers.signal ->
   ?callback:callback ->
   Prover.prover -> prooftask -> float -> result Fibers.t
 (** Do not read nor update cache *)
 
-val prove_buffer : env ->
+val prove_buffer : Why3.Whyconf.main ->
   ?cancel:unit Fibers.signal ->
   Prover.prover -> Buffer.t -> float -> result Fibers.t
 (** Do not read nor update cache *)
 
-val notify : env -> Prover.prover -> result -> callback -> unit
+val notify : Why3.Whyconf.main -> Prover.prover -> result -> callback -> unit
 val update : Prover.prover -> Session.goal -> result -> unit
 
 val options : (string * Arg.spec * string) list
 val pending : unit -> int
 val running : unit -> int
-val maxjobs : Wenv.env -> int
+val maxjobs : Why3.Whyconf.main -> int
 val pp_goals : Format.formatter -> unit
 
 val is_modified : unit -> bool
-val memlimit : env -> int
-val save_config : env -> unit
+val memlimit : Why3.Whyconf.main -> int
+val save_config : Config.env -> unit
 val print_stats : unit -> unit
 
 (* -------------------------------------------------------------------------- *)

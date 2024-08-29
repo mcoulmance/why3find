@@ -31,7 +31,7 @@ open Fibers.Monad
 (* --- Theories                                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-let load_theories (env : Wenv.env) file =
+let load_theories (env : Config.env) file =
   let byloc a b =
     match a.Th.th_name.id_loc , b.Th.th_name.id_loc with
     | None,None -> 0
@@ -265,11 +265,17 @@ let rec normalize = function
   | _::".."::path -> normalize path
   | p :: path -> p :: normalize path
 
+(* Depends on loaded plugins *)
+let exts () =
+  let formats = Why3.Env.list_formats Why3.Env.base_language in
+  let exts = List.concat_map (fun (_, exts, _) -> exts) formats in
+  List.map (fun ext -> "." ^ ext) exts
+
 let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess file =
   Fibers.background @@
   begin
     if not @@
-      List.exists (fun suffix -> String.ends_with ~suffix file) (Wenv.exts ())
+      List.exists (fun suffix -> String.ends_with ~suffix file) (exts ())
     then
       begin
         Log.error "invalid file name: %S" file ;
@@ -281,7 +287,8 @@ let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess file =
       if Filename.is_relative file then dir else Filename.basename dir in
     let theories, format = load_theories env file in
     let session = Session.create ~session ~dir ~file ~format theories in
-    let profile, strategy = Proofs.load_proofs ~local:true file in
+    let profile, strategy =
+      Proofs.load_proofs ~local:(Calibration.default env) file in
     let dumper = match mode with
       | `Force | `Update | `Minimize -> Some (Proofs.create file profile)
       | `Replay -> None in
@@ -315,13 +322,13 @@ type outcome = {
   unfixed : string list ;
 }
 
-let prove_files ~env ~mode ~session ~log ~axioms ~files =
+let prove_files ~(env:Config.env) ~mode ~session ~log ~axioms ~files =
   begin
-    let time = Wenv.time () in
-    let maxdepth = Wenv.depth () in
-    let tactics = Tactic.select env.Wenv.wenv @@ Wenv.tactics () in
-    let patterns = Wenv.provers () in
-    let allprovers = Prover.all env in
+    let time = env.config.time in
+    let maxdepth = env.config.depth in
+    let patterns = env.config.provers in
+    let tactics = Tactic.select env.wenv env.config.tactics in
+    let allprovers = Prover.all env.wconfig env.wenv in
     let provers = Prover.select ~patterns allprovers in
     let unsuccess = ref [] in
     let minimize = (mode = `Minimize) in
@@ -344,7 +351,7 @@ let prove_files ~env ~mode ~session ~log ~axioms ~files =
     {
       provers ; tactics ;
       time = max 1 (int_of_float (0.5 +. time)) ;
-      mem = Runner.memlimit env ;
+      mem = Runner.memlimit (Why3.Whyconf.get_main env.wconfig) ;
       unfixed = List.rev !unsuccess ;
     }
   end

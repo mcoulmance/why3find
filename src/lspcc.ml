@@ -117,9 +117,9 @@ let preprocess filename diagnostics =
       | None -> Filename.dirname filename
       | Some(dir,_) -> dir
     in
-    Wenv.local ~root () ;
     Hashtbl.remove sources filename ;
-    let env = Wenv.init ~root () in
+    let config = Config.load_config root in
+    let env = Wenv.init ~root config in
     let cenv = Docref.init () in
     let wenv = env.wenv in
     let henv = Axioms.init env in

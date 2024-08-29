@@ -26,7 +26,7 @@
 type profile
 
 val create : unit -> profile
-val default : unit -> profile
+val default : Config.env -> profile
 val of_json : ?default:profile -> Json.t -> profile
 val to_json : profile -> Json.t
 
@@ -41,12 +41,14 @@ val lock : profile -> Prover.prover_desc -> bool
 val observed : profile -> Prover.prover -> float
 
 (** Local Time / Profile Time *)
-val velocity : Wenv.env -> profile -> Prover.prover -> float Fibers.t
+val velocity : Why3.Whyconf.main -> profile -> Prover.prover -> float Fibers.t
 
-val profile : Wenv.env -> profile -> Prover.prover -> (int * float) Fibers.t
+val profile : Why3.Whyconf.main -> profile -> Prover.prover
+  -> (int * float) Fibers.t
 
-val calibrate_provers : saved:bool -> Wenv.env -> Prover.prover list -> unit
-val velocity_provers : Wenv.env -> Prover.prover list -> unit
+val calibrate_provers : saved:bool -> Config.env -> Prover.prover list
+  -> profile Fibers.t
+val velocity_provers : Config.env -> Prover.prover list -> unit
 
 val options : (string * Arg.spec * string) list
 

@@ -51,7 +51,7 @@ type task = {
 }
 
 type client = {
-  env : Wenv.env ;
+  wmain : Why3.Whyconf.main ;
   context : Zmq.Context.t ;
   socket : [`Dealer] Zmq.Socket.t ;
   profile : Calibration.profile ;
@@ -68,16 +68,17 @@ let resolve () =
   if !host <> "" then Some (Printf.sprintf "tcp://%s:%d" !host !port) else
     None
 
-let connect env =
+let connect (env : Config.env) =
   Option.map
     begin fun address ->
+      let wmain = Why3.Whyconf.get_main env.wconfig in
       let context = Zmq.Context.create () in
       let socket = Zmq.Socket.(create context dealer) in
       let profile = Calibration.create () in
       let pending = Hashtbl.create 0 in
       Zmq.Socket.connect socket address ;
       Log.emit "Server %s" address ;
-      { env ; context ; socket ; profile ; pending ; terminated = false }
+      { wmain ; context ; socket ; profile ; pending ; terminated = false }
     end @@ resolve ()
 
 (* -------------------------------------------------------------------------- *)
@@ -132,24 +133,24 @@ let get_task client prv tsk =
 
 let request client profile prover task timeout =
   let open Fibers.Monad in
-  let env = client.env in
+  let wmain = client.wmain in
   let task = get_task client prover task in
   Fibers.background
     begin
       (* project profile *)
-      let* project = Calibration.profile env profile prover in
+      let* project = Calibration.profile wmain profile prover in
       if Calibration.lock client.profile prover.desc then
         send_profile client prover project ;
       (* server profile *)
-      let* server = Calibration.profile env client.profile prover in
+      let* server = Calibration.profile wmain client.profile prover in
       (* t-project / t-server *)
       let* gamma =
         let (np,tp) = project in
         let (ns,ts) = server in
         if np = ns then Fibers.return @@ tp /. ts else
           (* vp = tp / tr ; vs = tr / ts *)
-          let+ vp = Calibration.velocity env profile prover
-          and* vs = Calibration.velocity env client.profile prover
+          let+ vp = Calibration.velocity wmain profile prover
+          and* vs = Calibration.velocity wmain client.profile prover
           in vs /. vp in
       (* server timeout *)
       let time = timeout /. gamma in
@@ -189,7 +190,7 @@ let do_result client goal status time =
         Runner.update task.prv task.tsk @@
         Runner.map (fun t -> t *. alpha) result
       )*)
-    (Calibration.velocity client.env client.profile task.prv) ;
+    (Calibration.velocity client.wmain client.profile task.prv) ;
   if Runner.definitive ~timeout:task.timeout result then
     Hashtbl.remove client.pending task.goal ;
   Fibers.emit task.channel result

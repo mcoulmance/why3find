@@ -26,7 +26,7 @@
 type client
 
 val options : (string * Arg.spec * string) list
-val connect : Wenv.env -> client option
+val connect : Config.env -> client option
 val request : client ->
   Calibration.profile -> Prover.prover -> Runner.prooftask -> float ->
   Runner.result Fibers.signal

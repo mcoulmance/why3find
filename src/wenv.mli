@@ -24,7 +24,7 @@
 (* -------------------------------------------------------------------------- *)
 
 (* Reset configuration *)
-val reset : bool ref
+(* val reset : bool ref *)
 
 val options :
   ?packages:bool ->
@@ -32,49 +32,28 @@ val options :
   ?drivers:bool ->
   unit -> (string * Arg.spec * string) list
 
-val get : string -> of_json:(Json.t -> 'a) -> 'a
-val set : string -> to_json:('a -> Json.t) -> 'a -> unit
 val arg1 : string -> string
 val argv : string list -> string list
 val argfiles : ?exts:string list -> string list -> string list
 val allfiles : ?exts:string list -> (string -> unit) -> string -> unit
 
-val set_modified : unit -> unit
-val is_modified : unit -> bool
-
-val add_config : string -> unit
-val add_driver : string -> unit
-
-val time : unit -> float
-val depth : unit -> int
-val configs : unit -> string list
-val packages : unit -> string list
-val provers : unit -> string list
-val tactics : unit -> string list
-val drivers : unit -> string list
-val warnoff : unit -> string list
-
-val has_prover_spec : unit -> bool
-
-val set_time : float -> unit
-val set_depth : int -> unit
-val set_configs : string list -> unit
-val set_packages : string list -> unit
-val set_provers : string list -> unit
-val set_tactics : string list -> unit
-val set_drivers : string list -> unit
-val set_warnoff : string list -> unit
-
 val exts : unit -> string list
 
-val load : unit -> unit
-val save : unit -> unit
-val local : ?root:string -> unit -> unit
+val default : Config.config
 
-type env = {
+val load_raw_config : unit -> Json.t
+
+val add_options : Config.config -> Config.config
+
+val load_config : unit -> Config.config
+
+val save : Config.config -> unit
+
+type env = Config.env = private {
+  config : Config.config ;
   wconfig : Why3.Whyconf.config ;
   wenv : Why3.Env.env ;
   pkgs : Meta.pkg list ;
 }
 
-val init : ?root:string -> unit -> env
+val init : ?root:string -> Config.config -> Config.env

@@ -80,7 +80,7 @@ let ocaml64 =
   Filename.concat "extraction_drivers" @@
   "ocaml64.drv"
 
-let drivers (pkg : Meta.pkg) =
+let pkg_drivers (pkg : Meta.pkg) =
   List.map (Filename.concat pkg.path) pkg.drivers
 
 let add_builtins bmap p =
@@ -93,11 +93,11 @@ let add_builtins bmap p =
        | Some xs, Some (m,_) -> Some ((p,m) :: xs)
     ) bmap @@ Driver.syntax_map p.Prover.driver
 
-let init (wenv : Wenv.env) =
-  let allprovers = Prover.all wenv in
-  let provers = Prover.select ~patterns:(Wenv.provers ()) allprovers in
+let init (wenv : Why3find.Config.env) =
+  let allprovers = Prover.all wenv.wconfig wenv.wenv in
+  let provers = Prover.select ~patterns:wenv.config.provers allprovers in
   let builtins = List.fold_left add_builtins Mid.empty provers in
-  let drivers = List.concat_map drivers wenv.pkgs @ Wenv.drivers () in
+  let drivers = List.concat_map pkg_drivers wenv.pkgs @ wenv.config.drivers in
   let main = Whyconf.get_main wenv.wconfig in
   let pdriver = Pdriver.load_driver main wenv.wenv ocaml64 drivers in
   let externals = Mid.map fst pdriver.drv_syntax in
