@@ -49,3 +49,15 @@ test-coverage:
 	@echo "Report: file://$(PWD)/_coverage/index.html"
 
 # --------------------------------------------------------------------------
+# --- VS Code Integration
+# --------------------------------------------------------------------------
+
+.PHONY: install-vscode
+
+install-vscode:
+	make
+	make install
+	make -C vscode
+	make -C vscode install
+
+# --------------------------------------------------------------------------

@@ -54,12 +54,18 @@ and new ideas.
 ## VSCode Integration
 
 Why3find features a Language Server Protocol (LSP) and a Visual Studio Code
-client for the Why3 language. The LSP is still at early stage and
-only provides syntax highlighting, goto-definition and typing information.
+client for the Why3 language. The LSP is still at early stage and only provides
+syntax highlighting, goto-definition, typing information, proof results, etc.
 Save your files to keep information in sync.
 
 You must have `why3find` installed and available from your `PATH` to use the
-VSCode client.
+VSCode client. See [vscode/README.md] for details.
+
+An easy way to install everything for VSCode from the source distribution is:
+
+    $ make install-vscode
+
+This will compile and install both the `why3find` command and the VSCode plugin.
 
 ## Packages
 
