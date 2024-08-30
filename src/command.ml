@@ -88,6 +88,21 @@ let contains ~pattern ~text =
 let parse_argv argv opts arg umsg =
   Arg.parse_argv argv (opts @ Debug.options) arg umsg
 
+let print_timings = Debug.create_flag "print-timings"
+
+let () =
+  let tstart = Unix.gettimeofday () in
+  let handler () =
+    let times = Unix.times () in
+    let tend = Unix.gettimeofday () in
+    Utils.flush ();
+    Debug.debug ~flag:print_timings "@[<v>%a@,CPU time: %f@,Real time: %f@]"
+      Timer.print_timings ()
+      (times.tms_utime +. times.tms_stime)
+      (tend -. tstart);
+  in
+  at_exit (fun () -> try handler () with _ -> ())
+
 (* -------------------------------------------------------------------------- *)
 (* --- Wrapper Command                                                    --- *)
 (* -------------------------------------------------------------------------- *)

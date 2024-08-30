@@ -91,6 +91,8 @@ let to_json (r : result) : Json.t =
 
 let digest task = Why3.Termcode.(task_checksum task |> string_of_checksum)
 
+let digest = Timer.timed ~name:"Task checksum" digest
+
 module Cache : sig
   val cache : bool ref
   val get : Task.task * Prover.prover -> result
@@ -303,6 +305,8 @@ let notify_pr prv limit pr cb =
 
 type prepared_task = Prooftask of prooftask | Buffered of Buffer.t
 
+let launch_proof_timer = Timer.create_global "Launch proof"
+
 let call_prover (config : Why3.Whyconf.main)
     ?(name : string option)
     ?(cancel : unit Fibers.signal option)
@@ -318,6 +322,7 @@ let call_prover (config : Why3.Whyconf.main)
   let timedout = ref false in
   update_client config ;
   schedule () ;
+  Timer.start launch_proof_timer;
   let call =
     match prepared with
     | Prooftask (Prepared task) ->
@@ -329,6 +334,7 @@ let call_prover (config : Why3.Whyconf.main)
         ~command:(Whyconf.get_complete_command prover.config ~with_steps:false)
         ~config ~limit prover.driver buffer
   in
+  Timer.stop launch_proof_timer;
   let kill () =
     if not !killed then
       begin
@@ -424,6 +430,8 @@ let prove_prepared config ?name ?cancel ?callback prover task timeout =
 
 let prepare prover task =
   Prepared (Driver.prepare_task prover.Prover.driver task)
+
+let prepare = Timer.timed2 ~name:"Task preparation" prepare
 
 let prove config ?name ?cancel ?callback prover task timeout =
   let entry = task,prover in

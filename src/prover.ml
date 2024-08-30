@@ -149,12 +149,17 @@ let desc_of_config config = {
   version = config.Whyconf.prover.prover_version ;
 }
 
+let digest_config = Timer.timed2 ~name:"Digest prover" digest_config
+
+let load_driver_for_prover =
+  Timer.timed3 ~name:"Load driver" Driver.load_driver_for_prover
+
 let load wconfig wenv (pconfig : Whyconf.config_prover) =
   try
     let main = Whyconf.get_main wconfig in {
       desc = desc_of_config pconfig ;
       config = pconfig ;
-      driver = Driver.load_driver_for_prover main wenv pconfig ;
+      driver = load_driver_for_prover main wenv pconfig ;
       digest = digest_config main pconfig;
     }
   with _ ->

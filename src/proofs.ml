@@ -62,6 +62,8 @@ let save_proofs { file; profile; proofs } =
     "proofs", jproofs proofs ;
   ]
 
+let save_proofs = Timer.timed ~name:"Proofs dump" save_proofs
+
 let create file profile =
   { file; profile; proofs = M.empty; }
 
