@@ -451,13 +451,13 @@ let lenses _channel ~uri =
         match get_proof source href with
         | None -> ()
         | Some crc ->
-          let line = fst @@ fst rg in
-          match forward source.updates Lspserver.{ line ; char = 0} with
+          let (line,char) = fst rg in
+          match forward source.updates Lspserver.{ line ; char } with
           | None -> ()
-          | Some { line } ->
+          | Some pos ->
             let title = Format.asprintf "%a" pp_crc crc in
             let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
-            pool := Lspserver.resolved ~line cmd :: !pool
+            pool := Lspserver.resolved pos cmd :: !pool
       end source.hrefs ;
     !pool
 

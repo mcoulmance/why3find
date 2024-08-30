@@ -103,11 +103,11 @@ type command = Cmd of {
 
 type codelens
 
-val codelens : line:int -> Json.t -> codelens
-val resolved : line:int -> command -> codelens
+val codelens : position -> Json.t -> codelens
+val resolved : position -> command -> codelens
 
 val on_codelens :
-  ?resolve:(line:int -> Json.t -> command) ->
+  ?resolve:(position -> Json.t -> command) ->
   (Lsp.channel -> uri:string -> codelens list) -> unit
 
 val refresh_codelens : Lsp.channel -> unit
