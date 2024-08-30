@@ -690,6 +690,47 @@ let () = register ~name:"doc" ~args:"[OPTIONS] PATH..."
     end
 
 (* -------------------------------------------------------------------------- *)
+(* --- PRINT                                                              --- *)
+(* -------------------------------------------------------------------------- *)
+
+let () = register ~name:"print" ~args:"[OPTIONS] PATH..."
+    begin fun argv ->
+      let files = ref [] in
+      parse_argv argv
+        (Wenv.options ~packages:true ())
+        (fun f -> files := f :: !files)
+        "USAGE:\n\
+         \n  why3find print [OPTIONS] PATH...\n\n\
+         DESCRIPTION:\n\
+         \n  Print Why3 theories and modules internal representation.\
+         \n\
+         OPTIONS:\n" ;
+      let files = if !files = [] then ["."] else !files in
+      let files = Wenv.argfiles ~exts:[".md";".mlw"] @@ List.rev files in
+      let config = Wenv.load_config () in
+      let Wenv.{ wenv = env } = Wenv.init config in
+      List.iter
+        begin fun file ->
+          let lib = snd @@ Wutil.filepath file in
+          Wutil.load_theories env file |> fst |>
+          List.iter
+            begin fun (thy : Why3.Theory.theory) ->
+              let fullpath = lib @ [thy.th_name.id_string] in
+              Format.printf
+                "(* -------------------------------------------- *)@\n\
+                 (* --- %-36s --- *)@\n\
+                 (* -------------------------------------------- *)@\n@."
+                (String.concat "." fullpath) ;
+              match Why3.Pmodule.restore_module thy with
+              | pm ->
+                Format.printf "%a@\n@." Wutil.pp_module pm
+              | exception Not_found ->
+                Format.printf "%a@\n@." Wutil.pp_theory thy
+            end
+        end files
+    end
+
+(* -------------------------------------------------------------------------- *)
 (* --- EXTRACT                                                            --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -937,6 +978,7 @@ let () = register ~name:"install" ~args:"PKG PATH..."
       let config = Wenv.load_config () in
       ignore (Wenv.init config); (* So that all extensions get loaded *)
       let drivers = ref [] in
+      let exts = Wutil.exts () in
       List.iter
         begin fun src ->
           if not @@ Sys.file_exists src then
@@ -947,9 +989,8 @@ let () = register ~name:"install" ~args:"PKG PATH..."
             match Filename.extension src with
             | ".cfg" -> Log.warning "won't install configuration file %S" src
             | ".drv" -> drivers := src :: !drivers
-            | ext when List.mem ext (Wenv.exts ())  -> install_src src
-            | _ ->
-              Utils.failwith "don't know what to do with %S" src
+            | ext when List.mem ext exts  -> install_src src
+            | _ -> Utils.failwith "don't know what to do with %S" src
         end paths ;
       let depends = config.packages in
       let drivers = !drivers @ config.drivers in

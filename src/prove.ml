@@ -28,25 +28,6 @@ module Th = Why3.Theory
 open Fibers.Monad
 
 (* -------------------------------------------------------------------------- *)
-(* --- Theories                                                           --- *)
-(* -------------------------------------------------------------------------- *)
-
-let load_theories (env : Config.env) file =
-  let byloc a b =
-    match a.Th.th_name.id_loc , b.Th.th_name.id_loc with
-    | None,None -> 0
-    | Some _,None -> (-1)
-    | None,Some _ -> (+1)
-    | Some la, Some lb -> Why3.Loc.compare la lb
-  in
-  try
-    let tmap,format = Why3.Env.(read_file base_language env.wenv file) in
-    M.bindings tmap |> List.map snd |> List.sort byloc , format
-  with error ->
-    Log.emit "%s" (Printexc.to_string error) ;
-    exit 2
-
-(* -------------------------------------------------------------------------- *)
 (* --- Proof Driver                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -259,33 +240,18 @@ let report_results (log : results) henv ~lib proofs =
 type mode = [ `Force | `Update | `Minimize | `Replay ]
 type log = [ `Default | `Context of int | results ]
 
-let rec normalize = function
-  | [] -> []
-  | "."::path -> normalize path
-  | _::".."::path -> normalize path
-  | p :: path -> p :: normalize path
-
-(* Depends on loaded plugins *)
-let exts () =
-  let formats = Why3.Env.list_formats Why3.Env.base_language in
-  let exts = List.concat_map (fun (_, exts, _) -> exts) formats in
-  List.map (fun ext -> "." ^ ext) exts
-
 let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess file =
   Fibers.background @@
   begin
-    if not @@
-      List.exists (fun suffix -> String.ends_with ~suffix file) (exts ())
+    let exts = Wutil.exts () in
+    if not @@ List.exists (fun suffix -> String.ends_with ~suffix file) exts
     then
       begin
         Log.error "invalid file name: %S" file ;
         exit 2
       end ;
-    let dir = Filename.chop_extension file in
-    let lib =
-      normalize @@ String.split_on_char '/' @@
-      if Filename.is_relative file then dir else Filename.basename dir in
-    let theories, format = load_theories env file in
+    let dir, lib = Wutil.filepath file in
+    let theories, format = Wutil.load_theories env.Wenv.wenv file in
     let session = Session.create ~session ~dir ~file ~format theories in
     let profile, strategy =
       Proofs.load_proofs ~local:(Calibration.default env) file in

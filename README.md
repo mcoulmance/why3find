@@ -19,6 +19,7 @@ package and install libraries or setup a distributed solver cloud.
 - [Package Documentation](#package-documentation)
 - [Package Soundness](#package-soundness)
 - [OCaml Code Extraction](#ocaml-code-extraction)
+- [Why3 Development Utilities](#why3-development-utilities)
 
 ## Quick Setup
 
@@ -513,6 +514,18 @@ All modules shall belong to the same package. Options can be passed to
 The extracted modules are not intended to be directly used from OCaml client
 code.  As a rule of thumb you shall write some safe OCaml layer upon the
 extracted one, as a separated `dune` library.
+
+## Why3 Development Utilities
+
+For Why3 and Why3 plug-ins developers, Why3find also provides an utility
+to print the internal representations of theories and modules:
+
+    why3find prove [FILES...]  # pretty print modules and theories
+
+The printer provide the following information:
+ - structure of declarations and scopes
+ - identifiers with their unique hash-consing tags
+ - cloning instance tables
 
 ## References
 

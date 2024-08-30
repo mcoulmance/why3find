@@ -207,11 +207,6 @@ let tactics config = gets config.Config.tactics tacs
 let drivers config = gets config.Config.drivers drvs
 let warnoff config = gets config.Config.warnoff warn
 
-let exts () =
-  let formats = Why3.Env.list_formats Why3.Env.base_language in
-  let exts = List.concat_map (fun (_, exts, _) -> exts) formats in
-  List.map (fun ext -> "." ^ ext) exts
-
 let arg0 file =
   if Filename.is_relative file then Filename.concat !prefix file else file
 
@@ -225,7 +220,8 @@ let ignored p =
   | 'a'..'z' | 'A'..'Z' | '0'..'9' -> false
   | _ -> true
 
-let allfiles ?(exts=exts ()) f path =
+let allfiles ?exts f path =
+  let exts = match exts with Some es -> es | None -> Wutil.exts () in
   if not (Sys.file_exists path) then
     Utils.failwith "Unknown file or directory %S" path ;
   if not (filter ~exts path || Sys.is_directory path) then

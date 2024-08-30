@@ -1,0 +1,2 @@
+#!/bin/sh
+dune exec --root=$(dirname $0)/.. --no-build --no-print-directory -- why3find "$@"
