@@ -151,7 +151,8 @@ let compile channel doc =
       begin
         let diagnostics = ref [] in
         preprocess filename diagnostics ;
-        Lspserver.publish_diagnostic channel ~uri !diagnostics
+        Lspserver.publish_diagnostic channel ~uri !diagnostics ;
+        Lspserver.refresh_codelens channel ;
       end
 
 let update _channel ~uri update =
