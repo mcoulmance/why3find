@@ -35,7 +35,7 @@ let init env src input = {
 type lexpos = Lexing.position * Lexing.position
 
 let lexpos (pos : Lexing.position) : Range.pos =
-  pos.pos_lnum - 1, pos.pos_cnum - pos.pos_bol - 1
+  pos.pos_lnum - 1, pos.pos_cnum - pos.pos_bol
 
 let lexrange ((p,q) : lexpos) : Range.range = lexpos p, lexpos q
 

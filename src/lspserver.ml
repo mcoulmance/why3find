@@ -340,7 +340,7 @@ let wrangepos p = wrange { start = p ; stop = p }
 
 let wcodelens = function
   | Resolved(p,cmd) ->
-     Json.assoc [ "range", wrangepos p ; "command", wcommand cmd ]
+    Json.assoc [ "range", wrangepos p ; "command", wcommand cmd ]
   | ToResolve(p,data) ->
     Json.assoc [ "range", wrangepos p ; "data", data ]
 
