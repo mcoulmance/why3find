@@ -152,7 +152,6 @@ type cenv = {
 let init () =
   begin
     (* Parser config *)
-    Why3.Debug.set_flag Why3.Glob.flag ;
     List.iter (fun k -> Hashtbl.add keywords k ()) Why3.Keywords.keywords ;
     (* Cloning env *)
     { cloning = Hid.create 0 ; path = "" ; order = 0 }
@@ -275,8 +274,10 @@ let empty () = {
 }
 
 let source ~wenv ~cenv ~henv ~lib ?root ~filename inc =
-  let path = String.concat "." lib in
+  Why3.Glob.clear filename ;
+  Why3.Debug.set_flag Why3.Glob.flag ;
   let thys = Why3.Env.read_channel Why3.Env.base_language wenv filename inc in
+  let path = String.concat "." lib in
   let profile, proofs = Proofs.load_proofs filename in
   let theories =
     Mstr.mapi
