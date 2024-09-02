@@ -38,7 +38,10 @@ val pp_html : string fmt
 (** Sanitize to HTML. *)
 val to_html : string -> string
 
-(** Keyword (sanitized) class. *)
+(** Scope class. *)
+val pp_scope : string fmt
+
+(** Keyword class. *)
 val pp_keyword : string fmt
 
 (** Admitting keyword (assumes, inner val) *)
