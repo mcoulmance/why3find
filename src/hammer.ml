@@ -55,6 +55,7 @@ type node = {
 let q1 : node Queue.t = Queue.create ()
 let q2 : node Queue.t = Queue.create ()
 
+(* idename should be the goal name as in Why3 IDE *)
 let schedule profile ~replay ~depth ~idename goal hint =
   let result = Fibers.var () in
   Queue.push
