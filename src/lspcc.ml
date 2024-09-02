@@ -118,13 +118,13 @@ let preprocess filename diagnostics =
       | Some(dir,_) -> dir
     in
     Hashtbl.remove sources filename ;
+    Docref.init () ;
     let config = Config.load_config root in
     let env = Wenv.init ~root config in
-    let cenv = Docref.init () in
     let wenv = env.wenv in
     let henv = Axioms.init env in
     let lib = library ~root ~filename in
-    let parser = Docref.source ~wenv ~cenv ~henv ~lib ~root ~filename in
+    let parser = Docref.source ~wenv ~henv ~lib ~root ~filename in
     let src = Utils.input ~file:filename parser in
     let hrefs = Srcref.parse ~doc:false ~env ~src filename in
     set_source ~filename env src hrefs ;

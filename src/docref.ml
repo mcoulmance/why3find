@@ -50,6 +50,13 @@ let is_uppercased s =
   String.length s > 0 &&
   let c = s.[0] in 'A' <= c && c <= 'Z'
 
+let init () =
+  begin
+    (* Parser config *)
+    Why3.Debug.set_flag Why3.Glob.flag ;
+    List.iter (fun k -> Hashtbl.add keywords k ()) Why3.Keywords.keywords ;
+  end
+
 (* -------------------------------------------------------------------------- *)
 (* --- Global References                                                  --- *)
 (* -------------------------------------------------------------------------- *)
@@ -57,24 +64,27 @@ let is_uppercased s =
 type ident = Id.t
 type position = Lexing.position * Lexing.position
 
-type instance = {
-  inst_path : string ; (* container of the clone instance *)
-  inst_order : int ; (* clone declaration offset *)
-  inst_cloned : Thy.theory ; (* cloned theory *)
-}
-
 type clone = {
-  id_instance : instance ;
   id_source : ident ; (* from cloned theory *)
   id_target : ident ; (* to clone instance *)
 }
+
+type instance = {
+  inst_from : string ; (* container module (or theory) *)
+  inst_order : int ; (* clone rank in the module *)
+  inst_scope : string list ; (* reversed scope of the clone *)
+  inst_cloned : Thy.theory ; (* cloned theory *)
+  inst_clones : clone list ; (* clone substitution *)
+}
+
+type instances = instance Mstr.t Hid.t
 
 type theory = {
   path: string;
   theory: Thy.theory ;
   depends: Thy.theory list ;
   signature: Axioms.signature ;
-  clones: clone list ;
+  instances: instances ;
   mutable proofs: Crc.crc Mstr.t ;
 }
 
@@ -140,87 +150,93 @@ let resolve ~src ~theory ~infix pos =
   with Not_found -> NoRef
 
 (* -------------------------------------------------------------------------- *)
-(* --- Environment                                                        --- *)
+(* --- Clone Environment                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
 type cenv = {
-  cloning : int Hid.t ; (* number of clones per theory/module *)
-  mutable path : string ; (* container name *)
-  mutable order : int ; (* clone section order during parsing *)
+  from : string ; (* container module or theory *)
+  mutable order : int ;
+  mutable used : Thy.theory list ;
+  cloned : instances ;
 }
-
-let init () =
-  begin
-    (* Parser config *)
-    Why3.Debug.set_flag Why3.Glob.flag ;
-    List.iter (fun k -> Hashtbl.add keywords k ()) Why3.Keywords.keywords ;
-    (* Cloning env *)
-    { cloning = Hid.create 0 ; path = "" ; order = 0 }
-  end
-
-let set_container cenv ~path ~id =
-  cenv.order <- 0 ; cenv.path <- Printf.sprintf "%s.%s" path id
-
-let set_instance cenv id =
-  let order = succ cenv.order + Hid.find_def cenv.cloning 0 id in
-  cenv.order <- order ; order
-
-let current_instance cenv s =
-  s.inst_path = cenv.path && s.inst_order = cenv.order
 
 let is_ident a = function
   | None -> true
   | Some b -> Why3.Ident.id_equal a b
 
-let is_clone cenv ?source ?target c =
-  is_ident c.id_source source &&
-  is_ident c.id_target target &&
-  current_instance cenv c.id_instance
+let is_clone ?source ?target c =
+  is_ident c.id_source source && is_ident c.id_target target
 
-let find_clone cenv ?source ?target thy =
-  List.find_opt (is_clone cenv ?source ?target) thy.clones
+let find_clone ?instance ?source ?target () =
+  match instance with
+  | None -> None
+  | Some inst -> List.find_opt (is_clone ?source ?target) inst.inst_clones
 
 (* -------------------------------------------------------------------------- *)
 (* --- Theory Iterators                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
-let instance cenv th =
-  cenv.order <- succ cenv.order ;
-  {
-    inst_path = cenv.path ;
-    inst_order = cenv.order ;
-    inst_cloned = th ;
-  }
+let skey scope = String.concat "<" scope
 
-let iter_module cenv ~depend ~cloned
-    (m : Why3.Pmodule.pmodule) =
+let add_instance cenv scope thy clones =
+  cenv.order <- succ cenv.order ;
+  let inst = {
+    inst_from = cenv.from ;
+    inst_order = cenv.order ;
+    inst_scope = scope ;
+    inst_cloned = thy ;
+    inst_clones = clones ;
+  } in
+  let m = Hid.find_def cenv.cloned Mstr.empty thy.th_name in
+  let m = Mstr.add (skey scope) inst m in
+  Hid.replace cenv.cloned thy.th_name m
+
+let add_used cenv thy = cenv.used <- thy :: cenv.used
+
+let add_clone clones a b =
+  clones := { id_source = a ; id_target = b } :: !clones
+
+let find_instance index ~scope id =
+  Mstr.find_opt (skey scope) @@ Hid.find index id
+
+let iter_instances fn index =
+  Hid.iter (fun _id m -> Mstr.iter (fun _s inst -> fn inst) m) index
+
+let iter_module cenv (m : Why3.Pmodule.pmodule) =
   let open Why3.Pmodule in
-  let rec walk = function
-    | Uscope(_,mus) -> List.iter walk mus
+  let rec walk scope = function
+    | Uscope(a,mus) -> List.iter (walk @@ a::scope) mus
     | Uclone mi ->
       let thy = mi.mi_mod.mod_theory in
-      depend thy ;
-      let s = instance cenv thy in
+      add_used cenv thy ;
+      let clones = ref [] in
       Wutil.iter_mi (fun a b ->
-          if Sid.mem b m.mod_local && not @@ Id.lemma b then cloned s a b
-        ) mi
-    | Uuse m -> depend m.mod_theory
-    | _ -> ()
-  in List.iter walk m.mod_units
+          if Sid.mem b m.mod_local && not @@ Id.lemma b then
+            add_clone clones a b
+        ) mi ;
+      add_instance cenv scope thy !clones
+    | Uuse m -> add_used cenv m.mod_theory
+    | Udecl _ | Umeta _ -> ()
+  in List.iter (walk []) m.mod_units
 
-let iter_theory cenv ~depend ~cloned thy =
+let iter_theory cenv thy =
   try
-    let m = Why3.Pmodule.restore_module thy in
-    iter_module cenv ~depend ~cloned m
+    iter_module cenv @@ Why3.Pmodule.restore_module thy
   with Not_found ->
     List.iter
       (fun d ->
          match d.Thy.td_node with
+         | Use th ->
+           add_used cenv th
          | Clone(th,sm) ->
-           let s = instance cenv th in
-           Wutil.iter_sm
-             (fun a b -> if Sid.mem b thy.th_local then cloned s a b) sm
-         | _ -> ()
+           add_used cenv th ;
+           let clones = ref [] in
+           Wutil.iter_sm (fun a b ->
+               if Sid.mem b thy.th_local then
+                 add_clone clones a b
+             ) sm ;
+           add_instance cenv [] th !clones
+         | Thy.Decl _ | Thy.Meta _ -> ()
       ) thy.th_decls
 
 (* -------------------------------------------------------------------------- *)
@@ -274,38 +290,30 @@ let empty () = {
   theories = Mstr.empty ;
 }
 
-let source ~wenv ~cenv ~henv ~lib ?root ~filename inc =
+let source ~wenv ~henv ~lib ?root ~filename inc =
   let path = String.concat "." lib in
   let thys = Why3.Env.read_channel Why3.Env.base_language wenv filename inc in
   let profile, proofs = Proofs.load_proofs filename in
   let theories =
     Mstr.mapi
-      (fun id (theory : Thy.theory) ->
-         set_container cenv ~path ~id ;
-         let depends = ref [] in
-         let depend th = depends := th :: !depends in
-         let clones = ref [] in
-         let cloned s a b =
-           clones := {
-             id_instance = s ;
-             id_source = a ;
-             id_target = b ;
-           } :: !clones in
-         iter_theory cenv ~depend ~cloned theory ;
-         Hid.add cenv.cloning theory.th_name cenv.order ;
+      (fun name (theory : Thy.theory) ->
+         let from = Printf.sprintf "%s.%s" path name in
+         let cloned = Hid.create 0 in
+         let cenv = { from ; order = 0 ; used = [] ; cloned } in
+         iter_theory cenv theory ;
          let proofs = zip_goals theory proofs in
          let signature = Axioms.signature henv theory in
          let path = Id.fullname ~lib theory.th_name in
          {
            path ; theory ; signature ; proofs ;
-           depends = List.rev !depends ;
-           clones = List.rev !clones ;
+           depends = List.rev cenv.used ;
+           instances = cenv.cloned ;
          }
       ) thys
   in
   { filename ; lib ; root ; urlbase = path ; profile ; theories }
 
-let parse ~wenv ~cenv ~henv file =
+let parse ~wenv ~henv file =
   if not @@ String.ends_with ~suffix:".mlw" file then
     begin
       Log.error "invalid file name: %S" file ;
@@ -314,7 +322,7 @@ let parse ~wenv ~cenv ~henv file =
   let lib = library_path file in
   try
     let inc = open_in file in
-    let src = source ~wenv ~cenv ~henv ~lib ~filename:file inc in
+    let src = source ~wenv ~henv ~lib ~filename:file inc in
     close_in inc ; src
   with exn ->
     Log.error "%s" (Printexc.to_string exn) ;

@@ -23,30 +23,38 @@
 (* --- Global References                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
+val init : unit -> unit
+
 module Thy = Why3.Theory
 module Pmod = Why3.Pmodule
 module Mstr = Why3.Wstdlib.Mstr
 
 type ident = Why3.Ident.ident
 
-type instance = {
-  inst_path : string ; (** container of the clone instance *)
-  inst_order : int ; (** clone declaration offset *)
-  inst_cloned : Thy.theory ; (** cloned theory *)
+type clone = {
+  id_source : ident ; (* from cloned theory *)
+  id_target : ident ; (* to clone instance *)
 }
 
-type clone = {
-  id_instance : instance ;
-  id_source : ident ; (** from cloned theory *)
-  id_target : ident ; (** to clone instance *)
+type instance = {
+  inst_from : string ; (* container theory or module *)
+  inst_order : int ; (* clone declaration offset *)
+  inst_scope : string list ; (* scope of the clone instance *)
+  inst_cloned : Thy.theory ; (* cloned theory *)
+  inst_clones : clone list ; (* clone substitution *)
 }
+
+type instances
+val find_clone : ?instance:instance -> ?source:Id.t -> ?target:Id.t -> unit -> clone option
+val find_instance : instances -> scope:string list -> Id.t -> instance option
+val iter_instances : (instance -> unit) -> instances -> unit
 
 type theory = {
   path: string ;
   theory: Thy.theory ;
   depends: Thy.theory list ;
   signature: Axioms.signature ;
-  clones: clone list ;
+  instances: instances ;
   mutable proofs: Crc.crc Mstr.t ;
 }
 
@@ -59,21 +67,11 @@ type source = {
   theories: theory Mstr.t;
 }
 
-type cenv
-val init : unit -> cenv
-val set_container : cenv -> path:string -> id:string -> unit
-val set_instance : cenv -> ident -> int
-val current_instance : cenv -> instance -> bool
-val find_clone : cenv ->
-  ?source:ident -> ?target:ident ->
-  theory -> clone option
-
 val library_path : string -> string list
 
-val parse : wenv:Why3.Env.env -> cenv:cenv -> henv:Axioms.henv ->
-  string -> source
+val parse : wenv:Why3.Env.env -> henv:Axioms.henv -> string -> source
 
-val source : wenv:Why3.Env.env -> cenv:cenv -> henv:Axioms.henv ->
+val source : wenv:Why3.Env.env -> henv:Axioms.henv ->
   lib:string list -> ?root:string -> filename:string ->
   in_channel -> source
 
