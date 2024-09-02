@@ -25,6 +25,8 @@
 
 type t = Yojson.Basic.t
 
+val equal : t -> t -> bool
+
 val of_file : string -> t
 val to_file : string -> t -> unit
 val of_string : string -> t

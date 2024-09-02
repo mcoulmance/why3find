@@ -50,6 +50,8 @@ let to_string js =
 let pretty fmt js =
   Format.pp_print_string fmt @@ to_string js
 
+let equal a b = String.equal (to_string a) (to_string b)
+
 let jbool = function
   | `Bool b -> b
   | _ -> false
