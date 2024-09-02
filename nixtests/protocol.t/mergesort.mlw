@@ -1,0 +1,56 @@
+module Mergesort
+
+  use int.Int
+  use list.List
+  use list.Mem
+  use list.Length
+  use list.Permut
+  use list.Append
+  use list.SortedInt
+
+  lemma sorted0 :
+    forall x xs. sorted (Cons x xs) -> forall y. mem y xs -> x <= y
+
+  lemma sorted1 : forall x xs.
+      sorted xs -> (forall y. mem y xs -> x <= y) -> sorted (Cons x xs)
+
+  let rec merge (xs ys : list int) : list int
+    requires { sorted xs /\ sorted ys }
+    variant { xs, ys }
+    ensures { sorted result }
+    ensures { permut (xs ++ ys) result }
+  =
+    match xs, ys with
+    | Nil, _ -> ys
+    | _, Nil -> xs
+    | Cons x xs', Cons y ys' ->
+      if x <= y
+      then Cons x (merge xs' ys)
+      else Cons y (merge xs ys')
+    end
+
+  let rec split (xs : list int) : (ys : list int, zs : list int)
+    variant { xs }
+    ensures { 0 <= length ys - length zs <= 1 }
+    ensures { permut (ys ++ zs) xs }
+  =
+    match xs with
+    | Nil | Cons _ Nil -> (xs, Nil)
+    | Cons x xs ->
+      let (ys, zs) = split xs in
+      (Cons x zs, ys)
+    end
+
+  let rec mergesort (xs : list int) : list int
+    variant { length xs }
+    ensures { sorted result }
+    ensures { permut result xs }
+  =
+    match xs with
+    | Nil | Cons _ Nil -> xs
+    | _ ->
+      let (ys, zs) = split xs in
+      merge (mergesort ys) (mergesort zs)
+    end
+
+end
