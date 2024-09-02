@@ -3,4 +3,5 @@
   (package why3find)
   (flags (:standard "-w" "-9"))
   (libraries unix str yojson terminal_size)
-  (instrumentation (backend bisect_ppx)))
+  (instrumentation (backend bisect_ppx))
+  (instrumentation (backend landmarks)))

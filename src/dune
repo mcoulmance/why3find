@@ -4,6 +4,7 @@
   (public_name why3find)
   (flags (:standard "-w" "-9-69" "-open" "Why3find" "-open" "Why3findUtils"))
   (libraries why3find Why3findUtils why3 str zmq)
-  (instrumentation (backend bisect_ppx)))
+  (instrumentation (backend bisect_ppx))
+  (instrumentation (backend landmarks)))
 
 (ocamllex lexer)

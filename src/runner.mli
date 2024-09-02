@@ -46,6 +46,7 @@ type callback =
 
 val prove : Why3.Whyconf.main ->
   ?name:string ->
+  ?idename:string ->
   ?cancel:unit Fibers.signal ->
   ?callback:callback ->
   Prover.prover -> Why3.Task.task -> float -> result Fibers.t
@@ -63,6 +64,7 @@ val prepare : Prover.prover -> Session.goal -> prooftask
 
 val prove_prepared : Why3.Whyconf.main ->
   ?name:string ->
+  ?idename:string ->
   ?cancel:unit Fibers.signal ->
   ?callback:callback ->
   Prover.prover -> prooftask -> float -> result Fibers.t

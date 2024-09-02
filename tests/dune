@@ -1,6 +1,10 @@
 (cram
   (deps why3.conf %{bin:why3find} (package why3find)))
 
+(cram
+ (applies_to prover_runs_json)
+ (enabled_if %{bin-available:jq}))
+
 (rule
  (action
   (write-file why3.conf

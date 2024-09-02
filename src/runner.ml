@@ -23,7 +23,10 @@
 (* --- Why3 Runner                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
-open Why3
+module Task = Why3.Task
+module Driver = Why3.Driver
+module Whyconf = Why3.Whyconf
+module Call_provers = Why3.Call_provers
 
 type callback =
   Why3.Whyconf.prover ->
@@ -64,6 +67,13 @@ let pp_result fmt = function
   | Timeout t -> Format.fprintf fmt "Timeout (%a)" Utils.pp_time t
   | Valid t -> Format.fprintf fmt "Valid (%a)" Utils.pp_time t
 
+let pp_verdict fmt = function
+  | NoResult -> Format.pp_print_string fmt "No Result"
+  | Failed -> Format.pp_print_string fmt "Failed"
+  | Unknown _ -> Format.pp_print_string fmt "Unknown"
+  | Timeout _ -> Format.pp_print_string fmt "Timeout"
+  | Valid _ -> Format.pp_print_string fmt "Valid"
+
 let of_json (js : Json.t) =
   let open Json in
   let status = jfield "status" js |> jstring in
@@ -90,6 +100,8 @@ let to_json (r : result) : Json.t =
 (* -------------------------------------------------------------------------- *)
 
 let digest task = Why3.Termcode.(task_checksum task |> string_of_checksum)
+
+let digest = Timer.timed ~name:"Task checksum" digest
 
 module Cache : sig
   val cache : bool ref
@@ -272,7 +284,7 @@ let update_client wmain =
 let memlimit wmain = Whyconf.memlimit wmain
 
 let limit wmain t =
-  Call_provers.{
+  Why3.Call_provers.{
     limit_time = t +. 0.5 ;
     limit_mem = memlimit wmain ;
     limit_steps = (-1) ;
@@ -303,14 +315,27 @@ let notify_pr prv limit pr cb =
 
 type prepared_task = Prooftask of prooftask | Buffered of Buffer.t
 
+let launch_proof_timer = Timer.create_global "Launch proof"
+
+let logchannel = ref None
+
+let set_logfile = function
+  | "-" -> logchannel := Some stdout
+  | s ->
+    let oc = open_out s in
+    at_exit (fun () -> close_out_noerr oc);
+    logchannel := Some oc
+
 let call_prover (config : Why3.Whyconf.main)
     ?(name : string option)
+    ?(idename : string option)
     ?(cancel : unit Fibers.signal option)
     ?(callback : callback option)
     ~(prepared : prepared_task)
     ~(prover : Prover.prover)
     ~(timeout : float) () =
   let limit = limit config timeout in
+  let timer = Timer.create () in
   let clockwall = ref 0.0 in
   let started = ref false in
   let killed = ref false in
@@ -318,6 +343,7 @@ let call_prover (config : Why3.Whyconf.main)
   let timedout = ref false in
   update_client config ;
   schedule () ;
+  Timer.start launch_proof_timer;
   let call =
     match prepared with
     | Prooftask (Prepared task) ->
@@ -329,6 +355,7 @@ let call_prover (config : Why3.Whyconf.main)
         ~command:(Whyconf.get_complete_command prover.config ~with_steps:false)
         ~config ~limit prover.driver buffer
   in
+  Timer.stop launch_proof_timer;
   let kill () =
     if not !killed then
       begin
@@ -362,6 +389,7 @@ let call_prover (config : Why3.Whyconf.main)
       if not !started then
         begin
           start ?name () ;
+          Timer.start timer;
           clockwall := Unix.gettimeofday () +. timeout *. 1.5 ;
           started := true ;
         end ;
@@ -385,7 +413,18 @@ let call_prover (config : Why3.Whyconf.main)
            if !timedout then Timeout timeout else
              Failed), false
       in
-      if !started then stop ?name () else unschedule () ;
+      if !started then (Timer.stop timer; stop ?name ()) else unschedule () ;
+      Option.iter (fun log ->
+          Printf.fprintf log "%a\n" (Yojson.pretty_to_channel ~std:false)
+            (`Assoc [
+                ("goal", `String (match idename with None -> "<none>" | Some s -> s));
+                ("prover", `String (Prover.fullname prover));
+                ("timeout", `Float timeout);
+                ("time", `Float pr.pr_time);
+                ("why3find time", `Float (Timer.total_time timer));
+                ("result", `String (Format.asprintf "%a" pp_verdict result));
+              ])
+        ) !logchannel;
       begin match callback with
         | Some cb ->
           if precise then
@@ -418,14 +457,16 @@ let definitive ~timeout result =
   | Timeout t -> timeout <= t
   | Failed | Unknown _ | Valid _ -> true
 
-let prove_prepared config ?name ?cancel ?callback prover task timeout =
-  call_prover config ?name ?cancel ?callback
+let prove_prepared config ?name ?idename ?cancel ?callback prover task timeout =
+  call_prover config ?name ?idename ?cancel ?callback
     ~prepared:(Prooftask task) ~prover ~timeout ()
 
 let prepare prover task =
   Prepared (Driver.prepare_task prover.Prover.driver task)
 
-let prove config ?name ?cancel ?callback prover task timeout =
+let prepare = Timer.timed2 ~name:"Task preparation" prepare
+
+let prove config ?name ?idename ?cancel ?callback prover task timeout =
   let entry = task,prover in
   let cached = Cache.get entry in
   let task = prepare prover task in
@@ -438,7 +479,7 @@ let prove config ?name ?cancel ?callback prover task timeout =
     incr miss ;
     Fibers.map
       (fun result -> Cache.set entry result ; result)
-      (prove_prepared config ?name ?cancel ?callback
+      (prove_prepared config ?name ?idename ?cancel ?callback
          prover task timeout)
 
 let prepare prover goal =
@@ -463,8 +504,10 @@ let prove_buffer config ?cancel prover buffer timeout =
 (* -------------------------------------------------------------------------- *)
 
 let options = [
-  "-c", Arg.Clear Cache.cache, "force cache update";
-  "-j", Arg.Set_int jobs, "JOBS max parallel provers";
+  ("-c", Arg.Clear Cache.cache, "force cache update");
+  ("-j", Arg.Set_int jobs, "JOBS max parallel provers");
+  ("--log-prover-results", Arg.String set_logfile,
+   "FILE log the prover results in the given file");
 ]
 
 let print_stats () =

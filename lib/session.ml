@@ -74,6 +74,8 @@ let split = function
   | Thy th -> tasks @@ T.split_theory th None None
   | Sth(s,th) -> nodes s @@ S.theory_goals th
 
+let split = Timer.timed ~name:"Split theories" split
+
 let proof_name =
   let names = ref Mid.empty in
   fun id ->
@@ -127,5 +129,7 @@ let apply env tactic = function
         Some (nodes s ns)
       with _ -> None
     end
+
+let apply = Timer.timed3 ~name:"Transformation" apply
 
 (* -------------------------------------------------------------------------- *)

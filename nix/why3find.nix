@@ -14,7 +14,8 @@
   zmq,
   zeromq,
   yojson,
-  terminal_size }:
+  terminal_size,
+  jq }:
 
 buildDunePackage {
   pname = "why3find";
@@ -48,7 +49,7 @@ buildDunePackage {
 
   doCheck = true;
 
-  nativeCheckInputs = [ headache ocp-indent alt-ergo bisect_ppx ] ;
+  nativeCheckInputs = [ headache ocp-indent alt-ergo bisect_ppx jq ] ;
 
   checkPhase = ''
     BISECT_FILE=$(pwd)/bisect \
