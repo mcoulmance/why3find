@@ -20,7 +20,7 @@
   <body>
   <header><a href="index.html">index</a> — <code>library <a href="unsound.index.html">unsound</a></code> — <code>module Dummy</code></header>
   <pre class="src">
-  <span class="keyword">module</span> Dummy<a href="unsound.proof.html#Dummy" title="2 unsafe definitions" class="icon small failed icofont-warning"></a><a href="unsound.proof.html#Dummy" title="Failed (no proof)" class="icon failed icofont-error"></a>
+  <span class="keyword">module</span> <span class="scope">Dummy</span><a href="unsound.proof.html#Dummy" title="2 unsafe definitions" class="icon small failed icofont-warning"></a><a href="unsound.proof.html#Dummy" title="Failed (no proof)" class="icon failed icofont-error"></a>
     <span class="keyword">use</span> int.<a title="int.Int" href="https://www.why3.org/stdlib/int.html#Int_">Int</a>
   
     <span class="keyword">let</span> <a id="admit1">admit1</a><span title="Unsound Definition" class="icon small failed icofont-warning"></span><a href="unsound.proof.html#Dummy.admit1" title="Failed (no proof)" class="icon failed icofont-error"></a> () : unit

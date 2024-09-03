@@ -102,6 +102,7 @@ type env = {
   mutable current : string option ; (* current module name *)
   mutable theory : Docref.theory option ; (* current module theory *)
   mutable instance : Docref.instance option ; (* current module instance *)
+  mutable cloned : int ; (* last instance order declared *)
   mutable space : bool ; (* leading space in Par mode *)
   mutable indent : indent ; (* leading space in Pre mode *)
   mutable block: block ; (* required block for text *)
@@ -147,10 +148,13 @@ let bsync ?wanted env =
 let clear env =
   env.space <- false
 
+let pp_space env =
+  Pdoc.pp_print_char env.out ' '
+
 let space env =
   if env.space then
     begin
-      Pdoc.pp_print_char env.out ' ' ;
+      pp_space env ;
       clear env ;
     end
 
@@ -378,9 +382,9 @@ let process_hypothesis env (s : Soundness.soundness) (p : Axioms.parameter) =
       Id.pp_local id qualif
   with Not_found -> ()
 
-let process_instance env ~ok (s : Docref.instance) =
+let process_instance env ~ok (Docref.Instance s) =
   Pdoc.printf env.crc "@\n  %a <a href=\"%s.html#clone-%d\">%s</a>"
-    Pdoc.pp_keyword "instance" s.inst_from s.inst_order s.inst_from ;
+    Pdoc.pp_keyword "instance" s.container s.order s.container ;
   let title = (if ok then "sound" else "incomplete") ^ " instance" in
   let cla = if ok then icon_complete else icon_hypothesis in
   Pdoc.ppt env.crc @@ pp_mark ~title ~cla
@@ -480,30 +484,30 @@ let process_axioms_summary env id ~crc = function
 (* --- Printing Declarations                                              --- *)
 (* -------------------------------------------------------------------------- *)
 
-let pp_ident ~env ?anchor ?attr fmt id =
+let pp_ident ~env ~local ?anchor ?attr fmt id =
   match Id.resolve ~lib:env.src.lib id with
   | id ->
-    Format.fprintf fmt "<a" ;
+    Format.fprintf fmt "%a<a" (Id.pp_qpath ~local) id ;
     Option.iter (Format.fprintf fmt " id=\"%s\"") anchor ;
     Option.iter (Format.fprintf fmt " class=\"%s\"") attr ;
     Format.fprintf fmt " title=\"%a\" href=\"%a\">%a</a>"
       Id.pp_title id
       (Id.pp_ahref ~current:None ~package_url:env.package_url) id
-      Id.pp_local id
+      Id.pp_qname id
   | exception Not_found ->
     (* builtin *)
     Format.pp_print_string fmt id.id_string
 
-let rec pp_type ~env ~arg fmt (ty : Why3.Ty.ty) =
+let rec pp_type ~env ~local ~arg fmt (ty : Why3.Ty.ty) =
   if arg then Format.pp_print_char fmt ' ' ;
   match ty.ty_node with
   | Tyvar tv -> Format.pp_print_string fmt tv.tv_name.id_string
-  | Tyapp(ts,[]) -> pp_ident ~env fmt ts.ts_name
+  | Tyapp(ts,[]) -> pp_ident ~env ~local fmt ts.ts_name
   | Tyapp(ts,args) ->
     begin
       if arg then Format.pp_print_char fmt '(' ;
-      pp_ident ~env fmt ts.ts_name ;
-      List.iter (pp_type ~env ~arg:true fmt) args ;
+      pp_ident ~env ~local fmt ts.ts_name ;
+      List.iter (pp_type ~env ~local ~arg:true fmt) args ;
       if arg then Format.pp_print_char fmt ')' ;
     end
 
@@ -519,114 +523,132 @@ let defkind = function
   | { Why3.Expr.c_node = Cany } -> "val"
   | _ -> "let"
 
-let declare env n kwd ?(attr=[]) ?(valid=false) ?def ?(more=false) id =
+let declare env n kwd ?(attr=[]) ?(valid=false)
+    ~local ~source ~target ?(more=false) () =
   begin
-    let r = Id.resolve ~lib:env.src.lib id in
-    Pdoc.printf env.out "%a%a " Pdoc.pp_spaces n Pdoc.pp_keyword kwd ;
+    let { package_url ; current ; src = { lib } } = env in
+    let tgt = Id.resolve ~lib target in
+    let src = Id.resolve ~lib source in
+    let pp_href = Id.pp_ahref ~package_url ~current in    Pdoc.printf env.out "%a%a " Pdoc.pp_spaces n Pdoc.pp_keyword kwd ;
     List.iter (Pdoc.printf env.out "%a " Pdoc.pp_attribute) attr ;
-    Pdoc.ppt env.out
-      begin fun fmt ->
-        let anchor = Format.asprintf "%a" Id.pp_aname r in
-        match def with
-        | Some rdef -> pp_ident ~env ~anchor fmt rdef
-        | None ->
-          Format.fprintf fmt "<a id=\"%s\">%a</a>" anchor Id.pp_local r
-      end ;
-    process_axioms env r ;
-    process_proof env r ~valid @@ Docref.find_proof r.self env.theory ;
+    Pdoc.printf env.out
+      "%a<a id=\"%a\" href=\"%a\" title=\"%a  (cloned from %a)\">%a</a>"
+      (Id.pp_qpath ~local) tgt
+      Id.pp_aname tgt pp_href src
+      Id.pp_title tgt Id.pp_title src
+      Id.pp_qname tgt ;
+    process_axioms env tgt ;
+    process_proof env tgt ~valid @@ Docref.find_proof tgt.self env.theory ;
     if not more then Pdoc.printf env.out "@\n" ;
   end
 
-let symbol env n ?attr (ls : Why3.Term.lsymbol) ~def =
+let symbol env n ?attr ~local ~source (ls : Why3.Term.lsymbol) =
+  let target = ls.ls_name in
   match ls.ls_value with
   | None ->
-    declare env n "predicate" ?attr ls.ls_name ~def ~more:true ;
-    List.iter (Pdoc.pp env.out @@ pp_type ~env ~arg:true) ls.ls_args ;
+    declare env n "predicate" ?attr ~local ~source ~target ~more:true () ;
+    List.iter (Pdoc.pp env.out @@ pp_type ~env ~local ~arg:true) ls.ls_args ;
     Pdoc.printf env.out "@\n"
   | Some r ->
-    declare env n "function" ?attr ls.ls_name ~def ~more:true ;
-    List.iter (Pdoc.pp env.out @@ pp_type ~env ~arg:true) ls.ls_args ;
-    Pdoc.printf env.out " : %a@\n" (pp_type ~env ~arg:false) r
+    declare env n "function" ?attr ~local ~source ~target ~more:true () ;
+    List.iter (Pdoc.pp env.out @@ pp_type ~env ~local ~arg:true) ls.ls_args ;
+    Pdoc.printf env.out " : %a@\n" (pp_type ~env ~local ~arg:false) r
 
-let decl env n id (d : Why3.Decl.decl) def =
-  ignore def ;
+let decl env n ~local ~source (d : Why3.Decl.decl) ~target =
   match d.d_node with
-  | Dtype { ts_def = NoDef } -> declare env n "type" id ~def
-  | Dtype _ | Ddata _ -> declare env n "type" id ~def
-  | Dparam ls -> symbol env n ls ~def
+  | Dtype { ts_def = NoDef } -> declare env n "type" ~local ~source ~target ()
+  | Dtype _ | Ddata _ -> declare env n "type" ~local ~source ~target ()
+  | Dparam ls -> symbol env n ~local ~source ls
   | Dlogic ds ->
     List.iter
       (fun (ls,_) ->
-         if ls.Why3.Term.ls_name = id then symbol env n ls ~def
+         if ls.Why3.Term.ls_name = target then symbol env n ~local ls ~source
       ) ds
-  | Dind _ -> declare env n "inductive" ~def id
-  | Dprop(Plemma,_,_) -> declare env n "lemma" ~valid:true id ~def
-  | Dprop(Paxiom,_,_) -> declare env n "axiom" id ~def
+  | Dind _ -> declare env n "inductive" ~local ~source ~target ()
+  | Dprop(Plemma,_,_) ->
+    declare env n "lemma" ~local ~valid:true ~source ~target ()
+  | Dprop(Paxiom,_,_) ->
+    declare env n "axiom" ~local ~valid:false ~source ~target ()
   | Dprop(Pgoal,_,_) -> ()
 
-let signature env n (rs : Why3.Expr.rsymbol) ~def df =
+let signature env n ~local ~source (rs : Why3.Expr.rsymbol) df =
   begin
     let kwd = defkind df in
-    declare env n kwd ~attr:(attributes rs) rs.rs_name ~def ~more:true ;
+    let attr = attributes rs in
+    declare env n kwd ~attr ~local ~source ~target:rs.rs_name ~more:true () ;
     List.iter
       (fun x ->
-         Pdoc.pp env.out (pp_type ~env ~arg:true) Why3.Ity.(ty_of_ity x.pv_ity)
+         Pdoc.pp env.out (pp_type ~env ~local ~arg:true) Why3.Ity.(ty_of_ity x.pv_ity)
       ) rs.rs_cty.cty_args ;
     Pdoc.printf env.out " : %a@\n"
-      (pp_type ~env ~arg:false)
+      (pp_type ~env ~local ~arg:false)
       Why3.Ity.(ty_of_ity rs.rs_cty.cty_result) ;
   end
 
-let mdecl env n id (pd: Why3.Pdecl.pdecl) def =
+let mdecl env n ~local ~source ~target (pd: Why3.Pdecl.pdecl) =
   match pd.pd_node with
-  | PDpure -> List.iter (fun d -> decl env n id d def) pd.pd_pure
-  | PDtype _ -> declare env n "type" id ~def
-  | PDexn _ -> declare env n "exception" id ~def
+  | PDpure -> List.iter (decl env n ~local ~source ~target) pd.pd_pure
+  | PDtype _ -> declare env n "type" ~local ~source ~target ()
+  | PDexn _ -> declare env n "exception" ~local ~source ~target ()
   | PDlet dlet ->
     begin
       match dlet with
       | LDvar(pv,_) ->
-        declare env n "let" id ~def ~more:true ;
+        declare env n "let" ~local ~source ~target ~more:true () ;
         Pdoc.printf env.out " : %a"
-          (pp_type ~env ~arg:false) pv.pv_vs.vs_ty ;
+          (pp_type ~env ~local ~arg:false) pv.pv_vs.vs_ty ;
         Pdoc.printf env.out "@\n"
-      | LDsym(rs,df) -> signature env n rs ~def df
+      | LDsym(rs,df) -> signature env n ~local ~source rs df
       | LDrec defs ->
         List.iter
           (fun (d : Why3.Expr.rec_defn) ->
              let rs = d.rec_sym in
-             if Why3.Ident.id_equal id rs.rs_name then
-               signature env n rs ~def d.rec_fun
+             if Why3.Ident.id_equal target rs.rs_name then
+               signature env n ~local ~source rs d.rec_fun
           ) defs
     end
 
 (* Declare 'id' from cloned definition 'def' in theory 'th' *)
-let declaration env n id (th : Why3.Theory.theory) def =
+let declaration env n ~local ~source ~container ~target =
   try
-    env.declared <- Sid.add id env.declared ;
-    let m = Why3.Pmodule.restore_module th in
-    let pd = Why3.Ident.Mid.find id m.mod_known in
-    mdecl env n id pd def
+    env.declared <- Sid.add target env.declared ;
+    let m = Why3.Pmodule.restore_module container in
+    let pd = Why3.Ident.Mid.find target m.mod_known in
+    mdecl env n ~local ~source pd ~target
   with Not_found ->
-  try decl env n id (Why3.Ident.Mid.find id th.th_known) def
-  with Not_found ->
-    assert false
+    let td = Why3.Ident.Mid.find target container.th_known in
+    try decl env n ~local ~source td ~target
+    with Not_found ->
+      assert false
+
+(* Declare 'id' to be cloned as instance 'order' *)
+let instance env n order (cloned : Why3.Theory.theory) =
+  begin
+    env.cloned <- max order env.cloned ;
+    let r = Id.resolve ~lib:env.src.lib cloned.th_name in
+    let title = Format.asprintf "%a" Id.pp_title r in
+    let { current ; package_url } = env in
+    let pp_href = Id.pp_ahref ~current ~package_url in
+    Pdoc.printf env.out
+      "%a<span class=\"comment\">\
+       (* cloned <a name=\"clone-%d\" href=\"%a\">%s</a> *)\
+       </span>@\n"
+      Pdoc.pp_spaces n order pp_href r title
+  end
 
 (* -------------------------------------------------------------------------- *)
 (* --- Flushing Declarations                                              --- *)
 (* -------------------------------------------------------------------------- *)
 
-let by_line a b =
-  let la = Id.line a.Docref.id_source in
-  let lb = Id.line b.Docref.id_source in
-  Int.compare la lb
-
 let process_clone_proofs env clones =
   let stuck,proved = List.fold_left
       (fun (s,p) clone ->
-         match Docref.find_proof clone.Docref.id_target env.theory with
-         | None -> (s,p)
-         | Some c -> s + Crc.get_stuck c, p + Crc.get_proved c
+         match clone with
+         | Docref.Inst _ -> s,p
+         | Clone { target } ->
+           match Docref.find_proof target env.theory with
+           | None -> (s,p)
+           | Some c -> s + Crc.get_stuck c, p + Crc.get_proved c
       ) (0,0) clones
   in
   if stuck + proved <> 0 then
@@ -639,49 +661,53 @@ let process_clone_axioms env clones =
     let signature = theory.signature in
     let hs = List.fold_left
         (fun hs (clone : Docref.clone) ->
-           match Axioms.parameter signature clone.id_target with
-           | None -> hs
-           | Some p -> add_axiom hs p
+           match clone with
+           | Inst _ -> hs
+           | Clone { target } ->
+             match Axioms.parameter signature target with
+             | None -> hs
+             | Some p -> add_axiom hs p
         ) free clones in
     Pdoc.pp env.out pp_axioms hs
 
-let process_clone_section env ~indent (instance : Docref.instance) =
-  let cloned = instance.inst_cloned in
-  let clones = List.sort by_line instance.inst_clones in
-  if clones <> [] then
-    begin
-      text env ;
-      process_clone_axioms env clones ;
-      process_clone_proofs env clones ;
-      Pdoc.printf env.out
-        "<span class=\"section\">\
-         {<span class=\"section-toggle\">…</span>\
-         <span class=\"section-text\">@\n\
-         %a<span class=\"comment section-toggle\">begin</span>@\n"
-        Pdoc.pp_spaces (indent+2) ;
-      List.iter
-        (fun (link : Docref.clone) ->
-           declaration env (indent+4) link.id_target cloned link.id_source
-        ) clones ;
-      Pdoc.printf env.out
-        "%a<span class=\"comment section-toggle\">end</span>@\n\
-         %a</span>}</span>"
-        Pdoc.pp_spaces (indent+2) Pdoc.pp_spaces indent ;
-    end
+let process_clone_section env ~local ~indent ~container clones =
+  (*if clones <> [] then*)
+  begin
+    text env ;
+    process_clone_axioms env clones ;
+    process_clone_proofs env clones ;
+    Pdoc.printf env.out
+      "<span class=\"section\">\
+       {<span class=\"section-toggle\">…</span>\
+       <span class=\"section-text\">@\n\
+       %a<span class=\"comment section-toggle\">begin</span>@\n"
+      Pdoc.pp_spaces (indent+2) ;
+    List.iter
+      (function
+        | Docref.Inst { order ; cloned } ->
+          instance env (indent+4) order cloned
+        | Docref.Clone { target ; source } ->
+          declaration env (indent+4) ~local ~source ~container ~target
+      ) clones ;
+    Pdoc.printf env.out
+      "%a<span class=\"comment section-toggle\">end</span>@\n\
+       %a</span>}</span> "
+      Pdoc.pp_spaces (indent+2) Pdoc.pp_spaces indent ;
+  end
 
 (* -------------------------------------------------------------------------- *)
 (* --- Clone Instance Parsing                                             --- *)
 (* -------------------------------------------------------------------------- *)
 
 type clone_token = [
-  | `id of Docref.ident
+  | `id of Id.t
   | `kwd of string
+  | `name of string
   | `equal
   | `coma
   | `dot
   | `comment
   | `newline
-  | `builtin
 ]
 
 let process_clone_spaces env n next =
@@ -691,9 +717,9 @@ let process_clone_spaces env n next =
 let process_clone_target env id n next =
   begin
     match Docref.find_clone ?instance:env.instance ~source:id () with
-    | None -> ()
-    | Some c ->
-      let tgt = Id.resolve ~lib:env.src.lib c.id_target in
+    | None | Some (Inst _) -> ()
+    | Some (Clone c) ->
+      let tgt = Id.resolve ~lib:env.src.lib c.target in
       let title = Format.asprintf "%a" Id.pp_title tgt in
       let { current ; package_url } = env in
       let href fmt = Id.pp_ahref ~current ~package_url fmt tgt in
@@ -701,36 +727,47 @@ let process_clone_target env id n next =
   end ;
   process_clone_spaces env n next
 
-let process_clone_alias env k id =
-  let asId = Token.fetch_id ~kind:"scope" env.input in
-  Pdoc.printf env.out " %a" Pdoc.pp_scope asId ;
-  env.cloning <- C_inst(k,Aliased asId,id)
-
 let process_clone env ~indent ~export id next =
   begin
-    let scope =
-      match export with
-      | Cloned -> [ id.Why3.Ident.id_string ]
-      | Exported -> []
-      | Aliased a -> [ a ]
-    in
-    let instance =
-      match env.theory with None -> None | Some thy ->
-        Docref.find_instance thy.instances ~scope id
-    in
-    Option.iter (process_clone_section env ~indent) instance ;
-    env.instance <- instance ;
     env.cloning <- next ;
+    env.instance <- None ;
+    match env.theory with
+    | None -> ()
+    | Some thy ->
+      let scope =
+        match export with
+        | Cloned -> [ id.Why3.Ident.id_string ]
+        | Exported -> []
+        | Aliased a -> [ a ]
+      in
+      match Docref.find_instance thy.instances ~scope id with
+      | None -> ()
+      | Some (Instance s) as inst ->
+        env.instance <- inst ;
+        let filter = List.filter @@ function
+          | Docref.Clone { target } -> not @@ Sid.mem target env.declared
+          | Inst { order } -> env.cloned < order && order <= s.order in
+        let clones =
+          List.merge Docref.by_line (filter thy.iclones) (filter s.clones) in
+        let local = List.rev scope in
+        let container = thy.theory in
+        process_clone_section env ~local ~indent ~container clones
   end
+
 let process_clone_token env (tok : clone_token) =
   match env.cloning , tok with
-  | NotCloning , `kwd "clone" -> env.cloning <- C_clone (Token.indent env.input)
+  | _ , `kwd "clone" -> env.cloning <- C_clone (Token.indent env.input)
   | C_clone k, `kwd "export" -> env.cloning <- C_export k
   | C_clone k, `id a -> env.cloning <- C_inst(k,Cloned,a)
   | C_export k, `id a -> env.cloning <- C_inst(k,Exported,a)
-  | C_inst(k,_,id) , `kwd "as" -> process_clone_alias env k id
-  | C_inst(k,e,id) , `kwd "with" -> process_clone env ~indent:k ~export:e id C_with
-  | C_inst(k,e,id) , `kwd _ -> process_clone env ~indent:k ~export:e id NotCloning
+  | C_inst(k,_,id) , `kwd "as" ->
+    pp_space env ; env.cloning <- C_inst(k,Aliased "?",id)
+  | C_inst(k,_,id) , `name a ->
+    pp_space env ; env.cloning <- C_inst(k,Aliased a,id)
+  | C_inst(k,e,id) , `kwd "with" ->
+    process_clone env ~indent:k ~export:e id C_with
+  | C_inst(k,e,id) , (`comment | `newline | `kwd _) ->
+    process_clone env ~indent:k ~export:e id NotCloning
   | C_with , `kwd "axiom" -> env.cloning <- C_axiom
   | C_with , `kwd _ -> env.cloning <- C_decl
   | C_axiom , `id _ -> env.cloning <- C_def
@@ -743,7 +780,7 @@ let process_clone_token env (tok : clone_token) =
   | C_src(id,n) , `comment -> process_clone_target env id n NotCloning
   | C_src(id,_) , `newline -> process_clone_target env id 0 NotCloning
   | C_seq , `dot -> ()
-  | C_seq , (`id _ | `builtin) -> env.cloning <- C_def
+  | C_seq , (`id _ | `name _) -> env.cloning <- C_def
   | C_def , `coma -> env.cloning <- C_with
   | _ -> ()
 
@@ -782,7 +819,7 @@ let process_href env (href : Docref.href) s =
       match s with
       | "=" -> process_clone_token env `equal
       | "." -> process_clone_token env `dot
-      | _ -> process_clone_token env `builtin
+      | _ -> process_clone_token env (`name s)
     end ;
     Pdoc.pp_html_s env.out s
 
@@ -867,6 +904,7 @@ let process_open_module env key =
     env.current <- Some id ;
     env.theory <- theory ;
     env.instance <- None ;
+    env.cloned <- 0 ;
     env.declared <- Sid.empty ;
     Pdoc.pp env.out Pdoc.pp_keyword key ;
     Pdoc.printf env.out " %a" Pdoc.pp_scope id ;
@@ -919,11 +957,11 @@ let process_ident env s =
       | "assume" ->
         Pdoc.pp env.out Pdoc.pp_admitted s
       | _ ->
+        process_clone_token env (`kwd s) ;
         if Docref.is_closing s then process_closing s env ;
         text env ;
         Pdoc.pp env.out Pdoc.pp_keyword s ;
         if Docref.is_opening s then process_opening s env ;
-        process_clone_token env (`kwd s) ;
     end
   else
     begin
@@ -991,8 +1029,9 @@ let process_space env =
     | Code ->
       bsync env ;
       match env.cloning with
+      | C_inst _ -> ()
       | C_src(id,n) -> env.cloning <- C_src(id,succ n)
-      | _ -> Pdoc.pp_print_char env.out ' '
+      | _ -> pp_space env
 
 let process_newline env =
   match env.mode with
@@ -1044,16 +1083,16 @@ let parse env =
     match Token.token env.input with
     | Eof -> close env ; bsync env
     | Char ',' ->
-      text env ;
       process_clone_token env `coma ;
+      text env ;
       Pdoc.pp_print_char out ','
     | Char c -> text env ; Pdoc.pp_html_c out c
     | Text s -> text env ; Pdoc.pp_html_s out s
     | Comment s ->
       if env.mode = Pre then
         begin
-          text env ;
           process_clone_token env `comment ;
+          text env ;
           Pdoc.pp_html_s out ~className:"comment" s ;
         end
     | Verb s ->
@@ -1162,7 +1201,7 @@ let process_markdown ~wenv ~henv ~senv ~out:dir ~title ~package_url file =
       space = false ;  indent = Code ;
       block = Raw; mode = Body ; file = Body ; stack = [] ;
       current = None ; theory = None ; instance = None ;
-      cloning = NotCloning ;
+      cloning = NotCloning ; cloned = 0 ;
       proof_href = 0 ;
       declared = Sid.empty ;
       opened = [] ; scopes = [] ;
@@ -1198,7 +1237,7 @@ let process_source ~wenv ~henv ~senv ~out:dir ~package_url file
     space = false ; indent = Code ;
     block = Raw ; mode = Body ; file = Body ; stack = [] ;
     current = None ; theory = None ; instance = None ;
-    cloning = NotCloning ;
+    cloning = NotCloning ; cloned = 0 ;
     proof_href = 0 ;
     declared = Sid.empty ;
     opened = [] ; scopes = [] ; section = 0 ;

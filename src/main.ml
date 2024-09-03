@@ -70,7 +70,8 @@ let main () =
     Format.eprintf "why3find: assertion failure (%s:%d:%d)@." f a b ;
     exit 2
   | exn ->
-    Format.eprintf "Uncaught Exception@\n%s@." (Printexc.to_string exn) ;
+    Printexc.print_backtrace stderr ;
+    Format.eprintf "Uncaught Exception (%s)@." (Printexc.to_string exn) ;
     exit 2
 
 let () = main ()

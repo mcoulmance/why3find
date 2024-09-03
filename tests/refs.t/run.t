@@ -87,7 +87,7 @@
   <body>
   <header><a href="index.html">index</a> — <code>library <a href="a.index.html">a</a></code> — <code>module A</code></header>
   <pre class="src">
-  <span class="keyword">theory</span> A<a href="a.proof.html#A" title="2 logic parameters" class="icon small remark icofont-question-circle"></a><a href="a.proof.html#A" title="Valid (no goals)" class="icon remark icofont-check"></a>
+  <span class="keyword">theory</span> <span class="scope">A</span><a href="a.proof.html#A" title="2 logic parameters" class="icon small remark icofont-question-circle"></a><a href="a.proof.html#A" title="Valid (no goals)" class="icon remark icofont-check"></a>
     <span class="keyword">type</span> <a id="t">t</a><span title="Parameter" class="icon small remark icofont-question-circle"></span>
     <span class="keyword">function</span> <a id="op">op</a><span title="Parameter" class="icon small remark icofont-question-circle"></span> <a title="a.A.t" href="#t">t</a> <a title="a.A.t" href="#t">t</a> : <a title="a.A.t" href="#t">t</a>
   <span class="keyword">end</span>
@@ -109,7 +109,7 @@
   <body>
   <header><a href="index.html">index</a> — <code>library <a href="a.index.html">a</a></code> — <code>module B</code></header>
   <pre class="src">
-  <span class="keyword">module</span> B<a href="a.proof.html#B" title="2 logic parameters" class="icon small remark icofont-question-circle"></a><a href="a.proof.html#B" title="Valid (no goals)" class="icon remark icofont-check"></a>
+  <span class="keyword">module</span> <span class="scope">B</span><a href="a.proof.html#B" title="2 logic parameters" class="icon small remark icofont-question-circle"></a><a href="a.proof.html#B" title="Valid (no goals)" class="icon remark icofont-check"></a>
     <span class="keyword">type</span> <a id="t">t</a><span title="Parameter" class="icon small remark icofont-question-circle"></span>
     <span class="keyword">val</span> <a id="binop">binop</a><span title="Parameter" class="icon small remark icofont-question-circle"></span> <a title="a.B.t" href="#t">t</a> <a title="a.B.t" href="#t">t</a> : <a title="a.B.t" href="#t">t</a>
   </pre>
@@ -137,7 +137,7 @@
   <body>
   <header><a href="index.html">index</a> — <code>library <a href="a.index.html">a</a></code> — <code>module C</code></header>
   <pre class="src">
-  <span class="keyword">module</span> C<a href="a.proof.html#C" title="2 logic parameters" class="icon small remark icofont-question-circle"></a><a href="a.proof.html#C" title="Valid (no goals)" class="icon remark icofont-check"></a>
+  <span class="keyword">module</span> <span class="scope">C</span><a href="a.proof.html#C" title="2 logic parameters" class="icon small remark icofont-question-circle"></a><a href="a.proof.html#C" title="Valid (no goals)" class="icon remark icofont-check"></a>
     <span class="keyword">use</span> int.<a title="int.Int" href="https://www.why3.org/stdlib/int.html#Int_">Int</a>
     <span class="keyword">type</span> <a id="t">t</a><span title="Parameter" class="icon small remark icofont-question-circle"></span>
     <span class="keyword">function</span> <a id="value">value</a><span title="Parameter" class="icon small remark icofont-question-circle"></span> <a title="a.C.t" href="#t">t</a> : int

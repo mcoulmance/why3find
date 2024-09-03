@@ -61,21 +61,27 @@ let init () =
 (* --- Global References                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
-type ident = Id.t
 type position = Lexing.position * Lexing.position
 
-type clone = {
-  id_source : ident ; (* from cloned theory *)
-  id_target : ident ; (* to clone instance *)
-}
+type clone =
+  | Inst of {
+      line : int ; (* line of last declaration *)
+      order : int ; (* instance order *)
+      cloned : Thy.theory ;
+    }
+  | Clone of {
+      source : Id.t ; (* from cloned theory *)
+      target : Id.t ; (* to clone instance *)
+    }
 
-type instance = {
-  inst_from : string ; (* container module (or theory) *)
-  inst_order : int ; (* clone rank in the module *)
-  inst_scope : string list ; (* reversed scope of the clone *)
-  inst_cloned : Thy.theory ; (* cloned theory *)
-  inst_clones : clone list ; (* clone substitution *)
-}
+type instance = Instance of {
+    line : int ; (* line of last declaration *)
+    order : int ; (* clone rank in the module *)
+    container : string ; (* container module (or theory) *)
+    scope : string list ; (* inside container module clone *)
+    cloned : Thy.theory ; (* cloned theory *)
+    clones : clone list ; (* clone substitution *)
+  }
 
 type instances = instance Mstr.t Hid.t
 
@@ -85,6 +91,7 @@ type theory = {
   depends: Thy.theory list ;
   signature: Axioms.signature ;
   instances: instances ;
+  iclones: clone list ; (* cloned instances (only [Inst ]) *)
   mutable proofs: Crc.crc Mstr.t ;
 }
 
@@ -109,11 +116,11 @@ type href =
   | Ref of Id.id
   | Def of Id.id * Crc.crc option
 
-let find_proof (id : ident) = function
+let find_proof id = function
   | None -> None
   | Some { proofs } -> Mstr.find_opt (Session.proof_name id) proofs
 
-let strip_lemma (id : ident) = function
+let strip_lemma id = function
   | None -> id
   | Some { theory } ->
     if not @@ Id.lemma id then id else
@@ -155,8 +162,10 @@ let resolve ~src ~theory ~infix pos =
 
 type cenv = {
   from : string ; (* container module or theory *)
+  mutable line : int ;
   mutable order : int ;
   mutable used : Thy.theory list ;
+  mutable clones : clone list ; (* i-clones *)
   cloned : instances ;
 }
 
@@ -164,45 +173,47 @@ let is_ident a = function
   | None -> true
   | Some b -> Why3.Ident.id_equal a b
 
-let is_clone ?source ?target c =
-  is_ident c.id_source source && is_ident c.id_target target
+let is_clone ?source ?target = function
+  | Inst _ -> false
+  | Clone c -> is_ident c.source source && is_ident c.target target
 
 let find_clone ?instance ?source ?target () =
   match instance with
   | None -> None
-  | Some inst -> List.find_opt (is_clone ?source ?target) inst.inst_clones
+  | Some (Instance ci) -> List.find_opt (is_clone ?source ?target) ci.clones
 
 (* -------------------------------------------------------------------------- *)
 (* --- Theory Iterators                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
 let skey scope = String.concat "<" scope
+let line = function Inst { line } -> line | Clone { source} -> Id.line source
+let by_line a b = line a - line b
+let add_id cenv (id : Id.t) = cenv.line <- max cenv.line (Id.line id)
 
-let add_instance cenv scope thy clones =
-  cenv.order <- succ cenv.order ;
-  let inst = {
-    inst_from = cenv.from ;
-    inst_order = cenv.order ;
-    inst_scope = scope ;
-    inst_cloned = thy ;
-    inst_clones = clones ;
-  } in
-  let m = Hid.find_def cenv.cloned Mstr.empty thy.th_name in
+let add_instance cenv scope (cloned : Thy.theory) clones =
+  let order = succ cenv.order in
+  let line = cenv.line in
+  cenv.order <- order ;
+  let clones = List.sort by_line @@ List.rev clones in
+  let inst = Instance {
+      container = cenv.from ; order ; line ; scope ; cloned ; clones
+    } in
+  let m = Hid.find_def cenv.cloned Mstr.empty cloned.th_name in
   let m = Mstr.add (skey scope) inst m in
-  Hid.replace cenv.cloned thy.th_name m
+  Hid.replace cenv.cloned cloned.th_name m ;
+  cenv.clones <- Inst { line ; order ; cloned } :: cenv.clones
 
 let add_used cenv thy = cenv.used <- thy :: cenv.used
 
-let add_clone clones a b =
-  clones := { id_source = a ; id_target = b } :: !clones
-
 let find_instance index ~scope id =
-  Mstr.find_opt (skey scope) @@ Hid.find index id
+  try Some (Mstr.find (skey scope) @@ Hid.find index id)
+  with Not_found -> None
 
 let iter_instances fn index =
   Hid.iter (fun _id m -> Mstr.iter (fun _s inst -> fn inst) m) index
 
-let iter_module cenv (m : Why3.Pmodule.pmodule) =
+let iter_module cenv ~scope (m : Why3.Pmodule.pmodule) =
   let open Why3.Pmodule in
   let rec walk scope = function
     | Uscope(a,mus) -> List.iter (walk @@ a::scope) mus
@@ -212,16 +223,17 @@ let iter_module cenv (m : Why3.Pmodule.pmodule) =
       let clones = ref [] in
       Wutil.iter_mi (fun a b ->
           if Sid.mem b m.mod_local && not @@ Id.lemma b then
-            add_clone clones a b
+            clones := Clone { source = a ; target = b } :: !clones
         ) mi ;
       add_instance cenv scope thy !clones
     | Uuse m -> add_used cenv m.mod_theory
-    | Udecl _ | Umeta _ -> ()
-  in List.iter (walk []) m.mod_units
+    | Udecl d -> Wutil.iter_pdecl (add_id cenv) d
+    | Umeta _ -> ()
+  in List.iter (walk scope) m.mod_units
 
-let iter_theory cenv thy =
+let iter_theory cenv ~scope thy =
   try
-    iter_module cenv @@ Why3.Pmodule.restore_module thy
+    iter_module cenv ~scope @@ Why3.Pmodule.restore_module thy
   with Not_found ->
     List.iter
       (fun d ->
@@ -232,11 +244,12 @@ let iter_theory cenv thy =
            add_used cenv th ;
            let clones = ref [] in
            Wutil.iter_sm (fun a b ->
-               if Sid.mem b thy.th_local then
-                 add_clone clones a b
+               if Sid.mem b th.th_local then
+                 clones := Clone { source = a ; target = b } :: !clones
              ) sm ;
-           add_instance cenv [] th !clones
-         | Thy.Decl _ | Thy.Meta _ -> ()
+           add_instance cenv scope th !clones
+         | Thy.Decl d -> Wutil.iter_decl (add_id cenv) d
+         | Thy.Meta _ -> ()
       ) thy.th_decls
 
 (* -------------------------------------------------------------------------- *)
@@ -297,10 +310,13 @@ let source ~wenv ~henv ~lib ?root ~filename inc =
   let theories =
     Mstr.mapi
       (fun name (theory : Thy.theory) ->
+         let line = Id.line theory.th_name in
          let from = Printf.sprintf "%s.%s" path name in
          let cloned = Hid.create 0 in
-         let cenv = { from ; order = 0 ; used = [] ; cloned } in
-         iter_theory cenv theory ;
+         let cenv = {
+           from ; line ; order = 0 ; used = [] ; clones = [] ; cloned
+         } in
+         iter_theory ~scope:[] cenv theory ;
          let proofs = zip_goals theory proofs in
          let signature = Axioms.signature henv theory in
          let path = Id.fullname ~lib theory.th_name in
@@ -308,6 +324,7 @@ let source ~wenv ~henv ~lib ?root ~filename inc =
            path ; theory ; signature ; proofs ;
            depends = List.rev cenv.used ;
            instances = cenv.cloned ;
+           iclones = List.sort by_line @@ List.rev cenv.clones ;
          }
       ) thys
   in

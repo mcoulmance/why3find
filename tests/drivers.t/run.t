@@ -11,7 +11,7 @@
   <body>
   <header><a href="index.html">index</a> — <code>library <a href="drivers.index.html">drivers</a></code> — <code>module A</code></header>
   <pre class="src">
-  <span class="keyword">module</span> A<a href="drivers.proof.html#A" title="3 logic parameters, 1 hypothesis, 0 instance found" class="icon small warning icofont-warning-alt"></a><a href="drivers.proof.html#A" title="Valid (no goals)" class="icon remark icofont-check"></a>
+  <span class="keyword">module</span> <span class="scope">A</span><a href="drivers.proof.html#A" title="3 logic parameters, 1 hypothesis, 0 instance found" class="icon small warning icofont-warning-alt"></a><a href="drivers.proof.html#A" title="Valid (no goals)" class="icon remark icofont-check"></a>
     <span class="keyword">type</span> <a id="t">t</a><span title="Parameter" class="icon small remark icofont-question-circle"></span>
     <span class="keyword">val</span> <span class="keyword">function</span> <a id="add">add</a><span title="Parameter" class="icon small remark icofont-question-circle"></span> <a title="drivers.A.t" href="#t">t</a> <a title="drivers.A.t" href="#t">t</a> : <a title="drivers.A.t" href="#t">t</a>
     <span class="keyword">predicate</span> <a id="leq">leq</a><span title="Parameter" class="icon small remark icofont-question-circle"></span> <a title="drivers.A.t" href="#t">t</a> <a title="drivers.A.t" href="#t">t</a>

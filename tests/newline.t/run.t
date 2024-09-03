@@ -34,7 +34,7 @@
   <p>Module A</p>
   </div>
   <pre class="src">
-  <span class="keyword">module</span> A<a href="a.proof.html#A" title="6 logic parameters" class="icon small remark icofont-question-circle"></a><a href="a.proof.html#A" title="Valid (no goals)" class="icon remark icofont-check"></a>
+  <span class="keyword">module</span> <span class="scope">A</span><a href="a.proof.html#A" title="6 logic parameters" class="icon small remark icofont-question-circle"></a><a href="a.proof.html#A" title="Valid (no goals)" class="icon remark icofont-check"></a>
   </pre>
   <div class="doc">
   <p>Some doc</p>

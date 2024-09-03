@@ -138,6 +138,24 @@ let of_infix s =
 
 let pp_infix fmt a = Format.pp_print_string fmt (of_infix a)
 
+let pp_qpath ~local fmt r =
+  let rec pp fmt = function
+    | [] | [_] -> ()
+    | a::w -> pp_prefix fmt a ; pp fmt w
+  in
+  let rec pp2 fmt s r =
+    match s,r with
+    | x::s , y::r when x = y -> pp2 fmt s r
+    | _ -> pp fmt r
+  in pp2 fmt local r.id_qid
+
+let pp_qname fmt r =
+  let rec pp fmt = function
+    | [] -> ()
+    | [a] -> pp_infix fmt a
+    | _::w -> pp fmt w
+  in pp fmt r.id_qid
+
 let pp_local fmt r =
   pp_last fmt pp_infix r.id_qid
 

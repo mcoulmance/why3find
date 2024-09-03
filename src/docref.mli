@@ -29,20 +29,28 @@ module Thy = Why3.Theory
 module Pmod = Why3.Pmodule
 module Mstr = Why3.Wstdlib.Mstr
 
-type ident = Why3.Ident.ident
+type clone =
+  | Inst of {
+      line : int ; (* last known line of declaration *)
+      order : int ; (* instance order *)
+      cloned : Thy.theory ;
+    }
+  | Clone of {
+      source : Id.t ; (* from cloned theory *)
+      target : Id.t ; (* to clone instance *)
+    }
 
-type clone = {
-  id_source : ident ; (* from cloned theory *)
-  id_target : ident ; (* to clone instance *)
-}
+val line : clone -> int
+val by_line : clone -> clone -> int
 
-type instance = {
-  inst_from : string ; (* container theory or module *)
-  inst_order : int ; (* clone declaration offset *)
-  inst_scope : string list ; (* scope of the clone instance *)
-  inst_cloned : Thy.theory ; (* cloned theory *)
-  inst_clones : clone list ; (* clone substitution *)
-}
+type instance = Instance of {
+    line : int ; (* line of last declaration *)
+    order : int ; (* clone rank in the module *)
+    container : string ; (* container module (or theory) *)
+    scope : string list ; (* inside container module clone *)
+    cloned : Thy.theory ; (* cloned theory *)
+    clones : clone list ; (* clone substitution *)
+  }
 
 type instances
 val find_clone : ?instance:instance -> ?source:Id.t -> ?target:Id.t -> unit -> clone option
@@ -55,6 +63,7 @@ type theory = {
   depends: Thy.theory list ;
   signature: Axioms.signature ;
   instances: instances ;
+  iclones: clone list ; (* sorted instances (by line, only [Inst ]) *)
   mutable proofs: Crc.crc Mstr.t ;
 }
 
@@ -89,7 +98,7 @@ type href =
 
 type position = Lexing.position * Lexing.position
 
-val find_proof : ident -> theory option -> Crc.crc option
+val find_proof : Id.t -> theory option -> Crc.crc option
 val reload_proofs : source -> unit
 
 val resolve :
@@ -99,7 +108,7 @@ val resolve :
 val reference :
   wenv:Why3.Env.env ->
   src:source -> current:string option ->
-  string -> string * ident
+  string -> string * Id.t
 
 val find_decl : Why3.Env.env -> source -> Id.id -> Id.decl
 

@@ -26,12 +26,13 @@
 module Thy = Why3.Theory
 module Sinst = Set.Make
     (struct
-      type t = Docref.instance
-      let compare (a : t) (b : t) =
-        let p = String.concat "." @@ List.rev a.inst_scope in
-        let q = String.concat "." @@ List.rev b.inst_scope in
+      open Docref
+      type t = instance
+      let compare (Instance a) (Instance b) =
+        let p = String.concat "." @@ List.rev a.scope in
+        let q = String.concat "." @@ List.rev b.scope in
         let cmp = String.compare p q in
-        if cmp <> 0 then cmp else a.inst_order - b.inst_order
+        if cmp <> 0 then cmp else a.order - b.order
     end)
 
 type soundness =
@@ -57,8 +58,8 @@ let init () = {
   soundness = Hashtbl.create 0 ;
 }
 
-let add hinst ~lib (inst : Docref.instance) =
-  let key = Id.fullname ~lib inst.inst_cloned.th_name in
+let add hinst ~lib (Docref.Instance s as inst) =
+  let key = Id.fullname ~lib s.cloned.th_name in
   try
     let clones = Hashtbl.find hinst key in
     Hashtbl.replace hinst key (Sinst.add inst clones)
@@ -104,12 +105,12 @@ let rec compute (env : env) (th : Docref.theory) : soundness =
           with Not_found -> Unknown []
     in Hashtbl.replace env.soundness path s ; s
 
-and has_ground_instance env inst =
-  try Hashtbl.find env.theories inst.inst_from |> compute env |> is_sound
+and has_ground_instance env (Docref.Instance s) =
+  try Hashtbl.find env.theories s.container |> compute env |> is_sound
   with Not_found -> false
 
-let instance env (inst : Docref.instance) =
-  try Hashtbl.find env.soundness @@ Id.fullname inst.inst_cloned.th_name
+let instance env (Docref.Instance s) =
+  try Hashtbl.find env.soundness @@ Id.fullname s.cloned.th_name
   with Not_found -> free
 
 (* -------------------------------------------------------------------------- *)
