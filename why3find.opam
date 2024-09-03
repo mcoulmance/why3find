@@ -15,8 +15,8 @@ homepage: "https://git.frama-c.com/pub/why3find"
 doc: "https://git.frama-c.com/pub/why3find"
 bug-reports: "https://git.frama-c.com/pub/why3find/issues"
 depends: [
-  "dune" {>= "3.7"}
-  "dune-site" {>= "3.7"}
+  "dune" {>= "3.12"}
+  "dune-site" {>= "3.12"}
   "why3" {>= "1.7.0"}
   "ocaml" {>= "4.13.0"}
   "yojson" {>= "1.7.0"}

@@ -21,6 +21,7 @@
 
 type flag = {
   name : string; [@ocaml.warning "-69"]
+  callback : unit -> unit;
   mutable active : bool;
 }
 
@@ -28,24 +29,24 @@ module M = Why3.Wstdlib.Mstr
 
 let all = ref M.empty
 
-let create_flag name =
-  let flag = { name ; active = false } in
+let create_flag ?(callback=ignore) name =
+  let flag = { name ; callback; active = false } in
   let exn = Invalid_argument "Debug.create_flag: flag already exists" in
   all := M.add_new exn name flag !all;
   flag
 
-let default = create_flag "default"
+let default =
+  create_flag "default" ~callback:(fun () -> Printexc.record_backtrace true)
 
 let parse_one s =
   match M.find_opt s !all with
-  | Some f -> f.active <- true
+  | Some f -> f.callback (); f.active <- true
   | None ->
     let msg = Format.sprintf "unknown debug flag %S" s in
     raise (Stdlib.Arg.Bad msg)
 
 let parse_and_set_flags s =
-  Printexc.record_backtrace true;
-  default.active <- true;
+  parse_one "default";
   List.iter parse_one (String.split_on_char ',' s)
 
 let why3_retry_flags = ref []

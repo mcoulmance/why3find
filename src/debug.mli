@@ -24,8 +24,9 @@
 type flag
 (** The type of degugging flags *)
 
-val create_flag : string -> flag
-(** Create a debugging flag from the given name *)
+val create_flag : ?callback:(unit -> unit) -> string -> flag
+(** Create a debugging flag from the given name. If given, callback will be
+    called on flag activation. *)
 
 val default : flag
 (** Default debugging flag, activated whenever any other flag is activated *)
