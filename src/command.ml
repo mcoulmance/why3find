@@ -550,7 +550,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           drivers ;
           warnoff ;
         } in
-      let modified = Config.config_to_json newconfig <> rawconfig in
+      let jconfig = Config.config_to_json newconfig in
+      let modified = not @@ Json.equal jconfig rawconfig in
       (* --- List Provers -------------- *)
       if !list_provers then
         begin

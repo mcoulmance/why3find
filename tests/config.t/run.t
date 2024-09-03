@@ -17,6 +17,12 @@
     "warnoff": []
   }
 
+  $ WHY3CONFIG=why3.conf why3find config
+  Configuration:
+   - runner: 4 jobs, 1.0s
+   - provers: alt-ergo(2.4.2)
+   - tactics: split_vc, inline_goal (depth 2)
+
   $ WHY3CONFIG=why3.conf why3find config --default
   Configuration:
    - runner: 4 jobs, 1.0s
