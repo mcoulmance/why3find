@@ -56,24 +56,6 @@ let pp_mode fmt = function
 [@@ warning "-32"]
 
 (* -------------------------------------------------------------------------- *)
-(* --- Cloning Substitution                                               --- *)
-(* -------------------------------------------------------------------------- *)
-
-type export = Cloned | Exported | Aliased of string
-
-type cloning =
-  | NotCloning
-  | C_clone of int         (* [tab] clone *)
-  | C_export of int        (* [tab] clone export *)
-  | C_inst of int * export * Id.t (* [tab] clone [export] id [as id] *)
-  | C_axiom                (* clone … with … axiom [….] *)
-  | C_with                 (* clone … with *)
-  | C_decl                 (* clone … with … kwd *)
-  | C_seq                  (* clone … with … kwd a = *)
-  | C_def                  (* clone … with … [kwd a = b | axiom a] *)
-  | C_src of Id.t * int    (* clone … with … kwd a<nspace> *)
-
-(* -------------------------------------------------------------------------- *)
 (* --- Environment                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -97,7 +79,7 @@ type env = {
   henv : Axioms.henv ; (* axioms *)
   senv : Soundness.env ; (* instances *)
   mutable proof_href : int ; (* proof href *)
-  mutable cloning : cloning ; (* clone substitution *)
+  mutable cloning : Cloning.state ; (* clone substitution *)
   mutable declared : Sid.t ; (* locally declared *)
   mutable current : string option ; (* current module name *)
   mutable theory : Docref.theory option ; (* current module theory *)
@@ -148,8 +130,8 @@ let bsync ?wanted env =
 let clear env =
   env.space <- false
 
-let pp_space env =
-  Pdoc.pp_print_char env.out ' '
+let pp_space env = Pdoc.pp_print_char env.out ' '
+let pp_spaces env n = Pdoc.pp env.out Pdoc.pp_spaces n
 
 let space env =
   if env.space then
@@ -698,22 +680,7 @@ let process_clone_section env ~local ~indent ~container ~kind clones =
 (* --- Clone Instance Parsing                                             --- *)
 (* -------------------------------------------------------------------------- *)
 
-type clone_token = [
-  | `id of Id.t
-  | `kwd of string
-  | `name of string
-  | `equal
-  | `coma
-  | `dot
-  | `comment
-  | `newline
-]
-
-let process_clone_spaces env n next =
-  Pdoc.pp env.out Pdoc.pp_spaces n ;
-  env.cloning <- next
-
-let process_clone_target env id n next =
+let process_clone_target env id =
   begin
     match Docref.find_clone ?instance:env.instance ~source:id () with
     | None | Some (Inst _) -> ()
@@ -723,22 +690,15 @@ let process_clone_target env id n next =
       let { current ; package_url } = env in
       let href fmt = Id.pp_ahref ~current ~package_url fmt tgt in
       Pdoc.ppt env.out (pp_mark ~href ~title ~cla:icon_parameter)
-  end ;
-  process_clone_spaces env n next
+  end
 
-let process_clone env ~indent ~export id next =
+let process_clone env ~indent ~export id =
   begin
-    env.cloning <- next ;
     env.instance <- None ;
     match env.theory with
     | None -> ()
     | Some thy ->
-      let scope =
-        match export with
-        | Cloned -> [ id.Why3.Ident.id_string ]
-        | Exported -> []
-        | Aliased a -> [ a ]
-      in
+      let scope = Cloning.scope ~cloned:id export in
       match Docref.find_instance thy.instances ~scope id with
       | None -> ()
       | Some (Instance s) as inst ->
@@ -757,35 +717,15 @@ let process_clone env ~indent ~export id next =
         pp_space env ;
   end
 
-let process_clone_token env (tok : clone_token) =
-  match env.cloning , tok with
-  | _ , `kwd "clone" -> env.cloning <- C_clone (Token.indent env.input)
-  | C_clone k, `kwd "export" -> env.cloning <- C_export k
-  | C_clone k, `id a -> env.cloning <- C_inst(k,Cloned,a)
-  | C_export k, `id a -> env.cloning <- C_inst(k,Exported,a)
-  | C_inst(k,_,id) , `kwd "as" ->
-    pp_space env ; env.cloning <- C_inst(k,Aliased "?",id)
-  | C_inst(k,_,id) , `name a ->
-    pp_space env ; env.cloning <- C_inst(k,Aliased a,id)
-  | C_inst(k,e,id) , `kwd "with" ->
-    process_clone env ~indent:k ~export:e id C_with
-  | C_inst(k,e,id) , (`comment | `newline | `kwd _) ->
-    process_clone env ~indent:k ~export:e id NotCloning
-  | C_with , `kwd "axiom" -> env.cloning <- C_axiom
-  | C_with , `kwd _ -> env.cloning <- C_decl
-  | C_axiom , `id _ -> env.cloning <- C_def
-  | C_axiom , `dot -> ()
-  | C_axiom , `coma -> env.cloning <- C_with
-  | C_decl , `dot -> ()
-  | C_decl , `id a -> env.cloning <- C_src(a,0)
-  | C_src(_,n) , `equal -> process_clone_spaces env n C_seq
-  | C_src(id,n) , `coma -> process_clone_target env id n C_with
-  | C_src(id,n) , `comment -> process_clone_target env id n NotCloning
-  | C_src(id,_) , `newline -> process_clone_target env id 0 NotCloning
-  | C_seq , `dot -> ()
-  | C_seq , (`id _ | `name _) -> env.cloning <- C_def
-  | C_def , `coma -> env.cloning <- C_with
-  | _ -> ()
+let process_clone_token env (tok : Cloning.token) =
+  let next , action = Cloning.process env.cloning env.input tok in
+  env.cloning <- next ;
+  match action with
+  | `nop -> ()
+  | `space -> pp_space env
+  | `spaces n -> pp_spaces env n
+  | `target(id,n) -> process_clone_target env id ; pp_spaces env n
+  | `clone(indent,export,id) -> process_clone env ~indent ~export id
 
 (* -------------------------------------------------------------------------- *)
 (* --- References                                                         --- *)
@@ -801,7 +741,7 @@ let process_href env (href : Docref.href) s =
 
   | Docref.Def(id,proof) ->
     env.declared <- Sid.add id.self env.declared ;
-    env.cloning <- NotCloning ;
+    env.cloning <- Cloning.init ;
     if id.id_qid = [] then
       Pdoc.pp env.out Pdoc.pp_html s
     else
@@ -1031,10 +971,9 @@ let process_space env =
     | Lines(l,n) -> env.indent <- Lines(l,succ n)
     | Code ->
       bsync env ;
-      match env.cloning with
-      | C_inst _ -> ()
-      | C_src(id,n) -> env.cloning <- C_src(id,succ n)
-      | _ -> pp_space env
+      match Cloning.space env.cloning with
+      | Some state -> env.cloning <- state
+      | None -> pp_space env
 
 let process_newline env =
   match env.mode with
@@ -1204,7 +1143,7 @@ let process_markdown ~wenv ~henv ~senv ~out:dir ~title ~package_url file =
       space = false ;  indent = Code ;
       block = Raw; mode = Body ; file = Body ; stack = [] ;
       current = None ; theory = None ; instance = None ;
-      cloning = NotCloning ; cloned = 0 ;
+      cloning = Cloning.init ; cloned = 0 ;
       proof_href = 0 ;
       declared = Sid.empty ;
       opened = [] ; scopes = [] ;
@@ -1240,7 +1179,7 @@ let process_source ~wenv ~henv ~senv ~out:dir ~package_url file
     space = false ; indent = Code ;
     block = Raw ; mode = Body ; file = Body ; stack = [] ;
     current = None ; theory = None ; instance = None ;
-    cloning = NotCloning ; cloned = 0 ;
+    cloning = Cloning.init ; cloned = 0 ;
     proof_href = 0 ;
     declared = Sid.empty ;
     opened = [] ; scopes = [] ; section = 0 ;
