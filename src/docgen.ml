@@ -670,30 +670,29 @@ let process_clone_axioms env clones =
         ) free clones in
     Pdoc.pp env.out pp_axioms hs
 
-let process_clone_section env ~local ~indent ~container clones =
-  (*if clones <> [] then*)
-  begin
-    text env ;
-    process_clone_axioms env clones ;
-    process_clone_proofs env clones ;
-    Pdoc.printf env.out
-      "<span class=\"section\">\
-       {<span class=\"section-toggle\">…</span>\
-       <span class=\"section-text\">@\n\
-       %a<span class=\"comment section-toggle\">begin</span>@\n"
-      Pdoc.pp_spaces (indent+2) ;
-    List.iter
-      (function
-        | Docref.Inst { order ; cloned } ->
-          instance env (indent+4) order cloned
-        | Docref.Clone { target ; source } ->
-          declaration env (indent+4) ~local ~source ~container ~target
-      ) clones ;
-    Pdoc.printf env.out
-      "%a<span class=\"comment section-toggle\">end</span>@\n\
-       %a</span>}</span> "
-      Pdoc.pp_spaces (indent+2) Pdoc.pp_spaces indent ;
-  end
+let process_clone_section env ~local ~indent ~container ~kind clones =
+  if clones <> [] then
+    begin
+      text env ;
+      Pdoc.printf env.out
+        "<span class=\"section\">\
+         {<span class=\"section-toggle\">%s</span>\
+         <span class=\"section-text\">@\n\
+         %a<span class=\"comment section-toggle\">begin</span>@\n"
+        kind Pdoc.pp_spaces (indent+2) ;
+      List.iter
+        (function
+          | Docref.Inst { order ; cloned } ->
+            instance env (indent+4) order cloned
+          | Docref.Clone { order ; target ; source } ->
+            env.cloned <- max order env.cloned ;
+            declaration env (indent+4) ~local ~source ~container ~target
+        ) clones ;
+      Pdoc.printf env.out
+        "%a<span class=\"comment section-toggle\">end</span>@\n\
+         %a</span>}</span>"
+        Pdoc.pp_spaces (indent+2) Pdoc.pp_spaces indent ;
+    end
 
 (* -------------------------------------------------------------------------- *)
 (* --- Clone Instance Parsing                                             --- *)
@@ -747,11 +746,15 @@ let process_clone env ~indent ~export id next =
         let filter = List.filter @@ function
           | Docref.Clone { target } -> not @@ Sid.mem target env.declared
           | Inst { order } -> env.cloned < order && order <= s.order in
-        let clones =
-          List.merge Docref.by_order (filter thy.iclones) (filter s.clones) in
+        let iclones = filter thy.iclones in
+        let dclones = filter s.clones in
         let local = List.rev scope in
         let container = thy.theory in
-        process_clone_section env ~local ~indent ~container clones
+        process_clone_section env ~local ~indent ~container ~kind:"#" iclones ;
+        process_clone_section env ~local ~indent ~container ~kind:"…" dclones ;
+        process_clone_axioms env dclones ;
+        process_clone_proofs env dclones ;
+        pp_space env ;
   end
 
 let process_clone_token env (tok : clone_token) =

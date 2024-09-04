@@ -73,13 +73,16 @@
   <span class="keyword">module</span> <span class="scope">B</span><a href="bar.proof.html#B" title="1 logic parameter" class="icon small remark icofont-question-circle"></a><a href="bar.proof.html#B" title="Failed (no proof)" class="icon failed icofont-error"></a>
     <span class="keyword">use</span> int.<a title="int.Int" href="https://www.why3.org/stdlib/int.html#Int_">Int</a>
   
-    <span class="keyword">clone</span> foo.<a title="foo.A" href="foo.A.html#">A</a><span title="1 logic parameter" class="icon small remark icofont-question-circle"></span><span title="Failed (no proof)" class="icon failed icofont-error"></span><span class="section">{<span class="section-toggle">…</span><span class="section-text">
+    <span class="keyword">clone</span> foo.<a title="foo.A" href="foo.A.html#">A</a><span class="section">{<span class="section-toggle">#</span><span class="section-text">
+      <span class="comment section-toggle">begin</span>
+        <span class="comment">(* cloned <a name="clone-4" href="foo.A.html#">foo.A</a> *)</span>
+      <span class="comment section-toggle">end</span>
+    </span>}</span><span class="section">{<span class="section-toggle">…</span><span class="section-text">
       <span class="comment section-toggle">begin</span>
         <span class="keyword">predicate</span> <a id="A.eq" href="foo.A.html#eq" title="bar.B.A.eq  (cloned from foo.A.eq)">eq</a><span title="Parameter" class="icon small remark icofont-question-circle"></span> int int
         <span class="keyword">lemma</span> <a id="A.refl" href="foo.A.html#refl" title="bar.B.A.refl  (cloned from foo.A.refl)">refl</a><a href="bar.proof.html#B.A.refl" title="Failed (no proof)" class="icon failed icofont-error"></a>
-        <span class="comment">(* cloned <a name="clone-4" href="foo.A.html#">foo.A</a> *)</span>
       <span class="comment section-toggle">end</span>
-    </span>}</span> <span class="keyword">with</span> <span class="keyword">type</span> <a title="foo.A.a" href="foo.A.html#a">a</a> = int
+    </span>}</span><span title="1 logic parameter" class="icon small remark icofont-question-circle"></span><span title="Failed (no proof)" class="icon failed icofont-error"></span> <span class="keyword">with</span> <span class="keyword">type</span> <a title="foo.A.a" href="foo.A.html#a">a</a> = int
   
   <span class="keyword">end</span>
   </pre>

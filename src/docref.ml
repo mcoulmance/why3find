@@ -182,14 +182,36 @@ let find_clone ?instance ?source ?target () =
   | Some (Instance ci) -> List.find_opt (is_clone ?source ?target) ci.clones
 
 (* -------------------------------------------------------------------------- *)
-(* --- Theory Iterators                                                   --- *)
+(* --- Instances                                                          --- *)
 (* -------------------------------------------------------------------------- *)
 
 let skey scope = String.concat "<" scope
+
+let has_instance index ~scope id =
+  try Mstr.mem (skey scope) @@ Hid.find index id
+  with Not_found -> false
+
+let find_instance index ~scope id =
+  try Some (Mstr.find (skey scope) @@ Hid.find index id)
+  with Not_found -> None
+
+let register_instance index ~scope id s =
+  let m = Hid.find_def index Mstr.empty id in
+  let m = Mstr.add (skey scope) s m in
+  Hid.replace index id m
+
+let iter_instances fn index =
+  Hid.iter (fun _id m -> Mstr.iter (fun _s inst -> fn inst) m) index
+
+(* -------------------------------------------------------------------------- *)
+(* --- Theory Iterators                                                   --- *)
+(* -------------------------------------------------------------------------- *)
+
 let order = function Inst { order } | Clone { order } -> order
 let by_order a b = order a - order b
 let next cenv = let order = succ cenv.order in cenv.order <- order ; order
-let declare cenv (id : Id.t) = Hid.add cenv.ranks id @@ next cenv
+
+let add_decl cenv (id : Id.t) = Hid.add cenv.ranks id @@ next cenv
 
 let add_instance cenv scope (cloned : Thy.theory) clones =
   let order = next cenv in
@@ -197,9 +219,8 @@ let add_instance cenv scope (cloned : Thy.theory) clones =
   let inst = Instance {
       container = cenv.from ; order ; scope ; cloned ; clones
     } in
-  let m = Hid.find_def cenv.cloned Mstr.empty cloned.th_name in
-  let m = Mstr.add (skey scope) inst m in
-  Hid.replace cenv.cloned cloned.th_name m ;
+  if not @@ has_instance cenv.cloned ~scope cloned.th_name then
+    register_instance cenv.cloned ~scope cloned.th_name inst ;
   cenv.clones <- Inst { order ; cloned } :: cenv.clones
 
 let add_clone cenv locals clones a b =
@@ -208,13 +229,6 @@ let add_clone cenv locals clones a b =
     clones := Clone { order ; source = a ; target = b } :: !clones
 
 let add_used cenv thy = cenv.used <- thy :: cenv.used
-
-let find_instance index ~scope id =
-  try Some (Mstr.find (skey scope) @@ Hid.find index id)
-  with Not_found -> None
-
-let iter_instances fn index =
-  Hid.iter (fun _id m -> Mstr.iter (fun _s inst -> fn inst) m) index
 
 let iter_module cenv ~scope (m : Why3.Pmodule.pmodule) =
   let open Why3.Pmodule in
@@ -227,7 +241,7 @@ let iter_module cenv ~scope (m : Why3.Pmodule.pmodule) =
       Wutil.iter_mi (add_clone cenv m.mod_local clones) mi ;
       add_instance cenv scope thy !clones
     | Uuse m -> add_used cenv m.mod_theory
-    | Udecl d -> Wutil.iter_pdecl (declare cenv) d
+    | Udecl d -> Wutil.iter_pdecl (add_decl cenv) d
     | Umeta _ -> ()
   in List.iter (walk scope) m.mod_units
 
@@ -245,7 +259,7 @@ let iter_theory cenv ~scope thy =
            let clones = ref [] in
            Wutil.iter_sm (add_clone cenv th.th_local clones) sm ;
            add_instance cenv scope th !clones
-         | Thy.Decl d -> Wutil.iter_decl (declare cenv) d
+         | Thy.Decl d -> Wutil.iter_decl (add_decl cenv) d
          | Thy.Meta _ -> ()
       ) thy.th_decls
 

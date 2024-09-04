@@ -52,11 +52,14 @@
     <span class="keyword">use</span> int.<a title="int.Int" href="https://www.why3.org/stdlib/int.html#Int_">Int</a>
     <span class="keyword">use</span> list.<a title="list.List" href="https://www.why3.org/stdlib/list.html#List_">List</a>
     <span class="keyword">let</span> <span class="keyword">constant</span> <a id="zero">zero</a> = 0
-    <span class="keyword">clone</span> <span class="keyword">export</span> <a title="a.A" href="a.A.html#">A</a><span class="section">{<span class="section-toggle">…</span><span class="section-text">
+    <span class="keyword">clone</span> <span class="keyword">export</span> <a title="a.A" href="a.A.html#">A</a><span class="section">{<span class="section-toggle">#</span><span class="section-text">
+      <span class="comment section-toggle">begin</span>
+        <span class="comment">(* cloned <a name="clone-4" href="a.A.html#">a.A</a> *)</span>
+      <span class="comment section-toggle">end</span>
+    </span>}</span><span class="section">{<span class="section-toggle">…</span><span class="section-text">
       <span class="comment section-toggle">begin</span>
         <span class="keyword">let</span> <a id="square" href="a.A.html#square" title="a.B.square  (cloned from a.A.square)">square</a> int : int
         <span class="keyword">let</span> <a id="assoc" href="a.A.html#assoc" title="a.B.assoc  (cloned from a.A.assoc)">assoc</a> (<a title="list.List.list" href="https://www.why3.org/stdlib/list.html#list_8">list</a> int) : int
-        <span class="comment">(* cloned <a name="clone-4" href="a.A.html#">a.A</a> *)</span>
       <span class="comment section-toggle">end</span>
     </span>}</span> <span class="keyword">with</span> <span class="keyword">type</span> <a title="a.A.t" href="a.A.html#t">t</a> = int, <span class="keyword">val</span> <a title="a.A.neutral" href="a.A.html#neutral">neutral</a> = <a title="a.B.zero" href="#zero">zero</a>, <span class="keyword">val</span> <a title="a.A.op" href="a.A.html#op">op</a> = (<a title="int.Int.(+)" href="https://www.why3.org/stdlib/int.html#infix%20+_19">+</a>)
     <span class="keyword">let</span> <a id="twice">twice</a> (x : int) : int = <a title="a.B.assoc" href="#assoc">assoc</a> (<a title="list.List.Cons" href="https://www.why3.org/stdlib/list.html#Cons_8">Cons</a> x (<a title="list.List.Cons" href="https://www.why3.org/stdlib/list.html#Cons_8">Cons</a> x <a title="list.List.Nil" href="https://www.why3.org/stdlib/list.html#Nil_8">Nil</a>))
