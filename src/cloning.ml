@@ -34,7 +34,8 @@ type state =
   | NotCloning
   | C_clone of int         (* [tab] clone *)
   | C_export of int        (* [tab] clone export *)
-  | C_inst of int * export * Id.t (* [tab] clone [export] id [as id] *)
+  | C_inst of int * export * Token.position * Id.t
+  (* [tab] clone [export] id [as id] *)
   | C_axiom                (* clone … with … axiom [….] *)
   | C_with                 (* clone … with *)
   | C_decl                 (* clone … with … kwd *)
@@ -58,7 +59,7 @@ type action = [
   | `space
   | `spaces of int
   | `target of Id.t * int
-  | `clone of int * export * Id.t
+  | `clone of int * export * Token.position * Id.t
 ]
 
 let init = NotCloning
@@ -69,16 +70,16 @@ let space state =
   | C_src(id,n) -> Some (C_src(id,succ n))
   | _ -> None
 
-let process state input token =
+let process state input token : state * action =
   match state, token with
   | C_clone k, `kwd "export" -> C_export k , `nop
-  | C_clone k, `id a -> C_inst(k,Cloned,a) , `nop
-  | C_export k, `id a -> C_inst(k,Exported,a) , `nop
-  | C_inst(k,_,id) , `kwd "as" -> C_inst(k,Aliased "?",id) , `space
-  | C_inst(k,_,id) , `name a -> C_inst(k,Aliased a,id) , `space
-  | C_inst(k,e,id) , `kwd "with" -> C_with , `clone(k,e,id)
-  | C_inst(k,e,id) , `kwd "clone" -> C_clone (Token.indent input) , `clone(k,e,id)
-  | C_inst(k,e,id) , (`comment | `newline | `kwd _) -> NotCloning , `clone(k,e,id)
+  | C_clone k, `id a -> C_inst(k,Cloned,Token.position input,a) , `nop
+  | C_export k, `id a -> C_inst(k,Exported,Token.position input,a) , `nop
+  | C_inst(k,_,p,id) , `kwd "as" -> C_inst(k,Aliased "?",p,id) , `space
+  | C_inst(k,_,_,id) , `name a -> C_inst(k,Aliased a,Token.position input,id) , `space
+  | C_inst(k,e,p,id) , `kwd "with" -> C_with , `clone(k,e,p,id)
+  | C_inst(k,e,p,id) , `kwd "clone" -> C_clone (Token.indent input) , `clone(k,e,p,id)
+  | C_inst(k,e,p,id) , (`comment | `newline | `kwd _) -> NotCloning , `clone(k,e,p,id)
   | _ , `kwd "clone" -> C_clone (Token.indent input) , `nop
   | C_with , `kwd "axiom" -> C_axiom , `nop
   | C_with , `kwd _ -> C_decl , `nop

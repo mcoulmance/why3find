@@ -23,6 +23,8 @@
 (* --- Documentation Generator Tokens                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
+type position = Lexing.position * Lexing.position
+
 type style =
   | Head
   | Emph

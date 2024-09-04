@@ -32,18 +32,15 @@ let load_plugins () = !plugins && (plugins := false ; true)
 type source = {
   env : Wenv.env ;
   src : Docref.source ;
-  hrefs : Docref.href Rangemap.t ;
-  mutable reloaded : bool ;
+  symbols : Srcref.symbol Rangemap.t ;
   mutable updates : Lspserver.update list ;
 }
 
 let sources = Hashtbl.create 0
 
-let set_source ~filename env src hrefs =
+let set_source ~filename env src symbols =
   Hashtbl.replace sources filename {
-    env ; src ; hrefs ;
-    reloaded = false ;
-    updates = [] ;
+    env ; src ; symbols ; updates = [] ;
   }
 
 let find_decl (source:source) id =
@@ -131,8 +128,8 @@ let preprocess filename diagnostics =
     let lib = library ~root ~filename in
     let parser = Docref.source ~wenv ~henv ~lib ~root ~filename in
     let src = Utils.input ~file:filename parser in
-    let hrefs = Srcref.parse ~doc:false ~env ~src filename in
-    set_source ~filename env src hrefs ;
+    let refs = Srcref.parse ~doc:false ~env ~src filename in
+    set_source ~filename env src refs ;
   with
   | Why3.Loc.Located(loc,exn) ->
     let file,range = of_loc loc in
@@ -194,10 +191,10 @@ let locate ~uri (pos : Lspserver.position) =
   | Some filename ->
     let src = Hashtbl.find sources filename in
     match backward src.updates pos with
-    | Some pos ->
-      let range,href = Rangemap.find (pos.line, pos.char) src.hrefs in
-      filename, src, range, href
     | None -> raise Not_found
+    | Some pos ->
+      let rg,symbol = Rangemap.find (pos.line, pos.char) src.symbols in
+      filename, src, rg, symbol
 
 (* -------------------------------------------------------------------------- *)
 (* --- Goto Definition                                                    --- *)
@@ -211,10 +208,10 @@ let goto = function
     Lspserver.Loc { uri ; range }
 
 let definition _channel ~uri (pos : Lspserver.position) =
-  let _,_,_,href = locate ~uri pos in
-  match href with
-  | Ref id -> [goto id.self.id_loc]
-  | _ -> []
+  let _,_,_,s = locate ~uri pos in
+  match s with
+  | Def _ -> []
+  | Ref id | Clone id -> [goto id.self.id_loc]
 
 let () = Lspserver.on_definition definition
 
@@ -232,17 +229,15 @@ let typeof_decl = function
   | Id.Exn x -> typeof_ty @@ Why3.Ity.ty_of_ity x.xs_ity
 
 let typedef _channel ~uri (pos : Lspserver.position) =
-  let _,src,_,href = locate ~uri pos in
-  match href with
-  | Ref id ->
-    begin
-      try
-        let ts = typeof_decl @@ find_decl src id in
-        [goto ts.ts_name.id_loc]
-      with Not_found ->
-        [goto id.self.id_loc]
-    end
-  | _ -> []
+  let _,src,_,s = locate ~uri pos in
+  match s with
+  | Clone _ -> []
+  | Def id | Ref id ->
+    try
+      let ts = typeof_decl @@ find_decl src id in
+      [goto ts.ts_name.id_loc]
+    with Not_found ->
+      [goto id.self.id_loc]
 
 let () = Lspserver.on_definition ~kind:`Typedef typedef
 
@@ -380,13 +375,15 @@ let code source id =
   with Not_found -> []
 
 let hover _channel ~uri (pos : Lspserver.position) =
-  let _,source,rg,href = locate ~uri pos in
-  match href with
-  | Ref id ->
+  let _,src,rg,s = locate ~uri pos in
+  match s with
+  | Clone id ->
+    let title = Format.asprintf "clone instance %a" Id.pp_title id in
+    Lspserver.hover ~range:(of_range rg) ~kind:`Markdown [title]
+  | Def id | Ref id ->
     let title = Format.asprintf "%a" Id.pp_title id in
-    let code = Lspserver.code ~lang:"why3" @@ code source id in
+    let code = Lspserver.code ~lang:"why3" @@ code src id in
     Lspserver.hover ~range:(of_range rg) ~kind:`Markdown (title::code)
-  | _ -> raise Not_found
 
 let () = Lspserver.on_hover hover
 
@@ -439,12 +436,9 @@ let pp_crc fmt (crc : Crc.crc) =
     pp_depth fmt crc ;
   end
 
-let get_proof source = function
-  | Docref.NoRef | Ref _ -> None
-  | Def(_,proof) when not source.reloaded -> proof
-  | Def(id,_) ->
-    let thy = Docref.Mstr.find_opt id.id_mod source.src.theories in
-    Docref.find_proof id.self thy
+let get_proof source (id : Id.id) =
+  let thy = Docref.Mstr.find_opt id.id_mod source.src.theories in
+  Docref.find_proof id.self thy
 
 let lenses _channel ~uri =
   match Lspserver.to_file ~uri with
@@ -453,18 +447,21 @@ let lenses _channel ~uri =
     let source = Hashtbl.find sources filename in
     let pool = ref [] in
     Rangemap.iter
-      begin fun rg (href : Docref.href) ->
-        match get_proof source href with
-        | None -> ()
-        | Some crc ->
-          let (line,char) = fst rg in
-          match forward source.updates Lspserver.{ line ; char } with
+      begin fun rg (s : Srcref.symbol) ->
+        match s with
+        | Clone _ | Ref _ -> ()
+        | Def id ->
+          match get_proof source id with
           | None -> ()
-          | Some pos ->
-            let title = Format.asprintf "%a" pp_crc crc in
-            let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
-            pool := Lspserver.resolved pos cmd :: !pool
-      end source.hrefs ;
+          | Some crc ->
+            let (line,char) = fst rg in
+            match forward source.updates Lspserver.{ line ; char } with
+            | None -> ()
+            | Some pos ->
+              let title = Format.asprintf "%a" pp_crc crc in
+              let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
+              pool := Lspserver.resolved pos cmd :: !pool
+      end source.symbols ;
     !pool
 
 let () = Lspserver.on_codelens lenses
@@ -498,7 +495,6 @@ let () = Lspserver.on_file_event
           | None -> ()
           | Some source ->
             Docref.reload_proofs source.src ;
-            source.reloaded <- true ;
             Lspserver.refresh_codelens channel
     end
 

@@ -49,7 +49,7 @@ type action = [
   | `space
   | `spaces of int
   | `target of Id.t * int
-  | `clone of int * export * Id.t
+  | `clone of int * export * Token.position * Id.t
 ]
 
 val process : state -> Token.input -> token -> state * action

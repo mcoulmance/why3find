@@ -725,7 +725,7 @@ let process_clone_token env (tok : Cloning.token) =
   | `space -> pp_space env
   | `spaces n -> pp_spaces env n
   | `target(id,n) -> process_clone_target env id ; pp_spaces env n
-  | `clone(indent,export,id) -> process_clone env ~indent ~export id
+  | `clone(indent,export,_,id) -> process_clone env ~indent ~export id
 
 (* -------------------------------------------------------------------------- *)
 (* --- References                                                         --- *)
@@ -739,7 +739,7 @@ let resolve env ?(infix=false) () =
 let process_href env (href : Docref.href) s =
   match href with
 
-  | Docref.Def(id,proof) ->
+  | Def(id,proof) ->
     env.declared <- Sid.add id.self env.declared ;
     env.cloning <- Cloning.init ;
     if id.id_qid = [] then
@@ -749,7 +749,7 @@ let process_href env (href : Docref.href) s =
     process_axioms env id ;
     process_proof env id proof
 
-  | Docref.Ref id ->
+  | Ref id ->
     let { current ; package_url } = env in
     Pdoc.printf env.out "<a title=\"%a\" href=\"%a\">%a</a>"
       Id.pp_title id
@@ -757,7 +757,7 @@ let process_href env (href : Docref.href) s =
       Pdoc.pp_html s ;
     process_clone_token env (`id id.self)
 
-  | Docref.NoRef ->
+  | NoRef ->
     begin
       match s with
       | "=" -> process_clone_token env `equal
@@ -871,6 +871,7 @@ let process_close_module env key =
 (* -------------------------------------------------------------------------- *)
 (* --- Identifiers                                                        --- *)
 (* -------------------------------------------------------------------------- *)
+
 let process_opening s env =
   begin
     env.opened <- s :: env.opened ;

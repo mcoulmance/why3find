@@ -23,6 +23,8 @@
 (* --- Documentation Generator Tokens                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
+type position = Lexing.position * Lexing.position
+
 type style =
   | Head
   | Emph
@@ -82,7 +84,7 @@ val token : input -> token (** next buffer *)
 val fetch_id : kind:string -> input -> string
 
 (** Position of the last token. *)
-val position : input -> Lexing.position * Lexing.position
+val position : input -> position
 
 (** Line number of the last token. *)
 val line : input -> int
