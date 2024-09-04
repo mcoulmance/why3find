@@ -152,7 +152,6 @@ type cenv = {
 let init () =
   begin
     (* Parser config *)
-    Why3.Debug.set_flag Why3.Glob.flag ;
     List.iter (fun k -> Hashtbl.add keywords k ()) Why3.Keywords.keywords ;
     (* Cloning env *)
     { cloning = Hid.create 0 ; path = "" ; order = 0 }
@@ -275,35 +274,43 @@ let empty () = {
 }
 
 let source ~wenv ~cenv ~henv ~lib ?root ~filename inc =
-  let path = String.concat "." lib in
-  let thys = Why3.Env.read_channel Why3.Env.base_language wenv filename inc in
-  let profile, proofs = Proofs.load_proofs filename in
-  let theories =
-    Mstr.mapi
-      (fun id (theory : Thy.theory) ->
-         set_container cenv ~path ~id ;
-         let depends = ref [] in
-         let depend th = depends := th :: !depends in
-         let clones = ref [] in
-         let cloned s a b =
-           clones := {
-             id_instance = s ;
-             id_source = a ;
-             id_target = b ;
-           } :: !clones in
-         iter_theory cenv ~depend ~cloned theory ;
-         Hid.add cenv.cloning theory.th_name cenv.order ;
-         let proofs = zip_goals theory proofs in
-         let signature = Axioms.signature henv theory in
-         let path = Id.fullname ~lib theory.th_name in
-         {
-           path ; theory ; signature ; proofs ;
-           depends = List.rev !depends ;
-           clones = List.rev !clones ;
-         }
-      ) thys
-  in
-  { filename ; lib ; root ; urlbase = path ; profile ; theories }
+  let globals = Why3.Debug.test_flag Why3.Glob.flag in
+  try
+    if not globals then Why3.Debug.set_flag Why3.Glob.flag ;
+    Why3.Glob.clear filename ;
+    let thys = Why3.Env.read_channel Why3.Env.base_language wenv filename inc in
+    let path = String.concat "." lib in
+    let profile, proofs = Proofs.load_proofs filename in
+    let theories =
+      Mstr.mapi
+        (fun id (theory : Thy.theory) ->
+           set_container cenv ~path ~id ;
+           let depends = ref [] in
+           let depend th = depends := th :: !depends in
+           let clones = ref [] in
+           let cloned s a b =
+             clones := {
+               id_instance = s ;
+               id_source = a ;
+               id_target = b ;
+             } :: !clones in
+           iter_theory cenv ~depend ~cloned theory ;
+           Hid.add cenv.cloning theory.th_name cenv.order ;
+           let proofs = zip_goals theory proofs in
+           let signature = Axioms.signature henv theory in
+           let path = Id.fullname ~lib theory.th_name in
+           {
+             path ; theory ; signature ; proofs ;
+             depends = List.rev !depends ;
+             clones = List.rev !clones ;
+           }
+        ) thys
+    in
+    if not globals then Why3.Debug.unset_flag Why3.Glob.flag ;
+    { filename ; lib ; root ; urlbase = path ; profile ; theories }
+  with exn ->
+    if not globals then Why3.Debug.unset_flag Why3.Glob.flag ;
+    raise exn
 
 let parse ~wenv ~cenv ~henv file =
   if not @@ String.ends_with ~suffix:".mlw" file then
