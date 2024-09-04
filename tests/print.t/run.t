@@ -1,92 +1,92 @@
-  $ why3find print bar.mlw
+  $ why3find print bar.mlw | sed 's/<[0-9]*>/<REDACTED>/g'
   (* -------------------------------------------- *)
   (* --- bar.A                                --- *)
   (* -------------------------------------------- *)
   
-  module A<124> {
-    use BuiltIn<21>
-    use Bool<23>
-    use Unit<65>
-    type a<125> = private {..}
+  module A<REDACTED> {
+    use BuiltIn<REDACTED>
+    use Bool<REDACTED>
+    use Unit<REDACTED>
+    type a<REDACTED> = private {..}
   }
   
   (* -------------------------------------------- *)
   (* --- bar.B                                --- *)
   (* -------------------------------------------- *)
   
-  module B<126> {
-    use BuiltIn<21>
-    use Bool<23>
-    use Unit<65>
-    type b<127> = private {..}
+  module B<REDACTED> {
+    use BuiltIn<REDACTED>
+    use Bool<REDACTED>
+    use Unit<REDACTED>
+    type b<REDACTED> = private {..}
   }
   
   (* -------------------------------------------- *)
   (* --- bar.C                                --- *)
   (* -------------------------------------------- *)
   
-  module C<128> {
-    use BuiltIn<21>
-    use Bool<23>
-    use Unit<65>
+  module C<REDACTED> {
+    use BuiltIn<REDACTED>
+    use Bool<REDACTED>
+    use Unit<REDACTED>
     scope A {
-      use BuiltIn<21>
-      use Bool<23>
-      use Unit<65>
-      type a<129> = private {..}
-      clone A<124> {
-        a<125> -> a<129> ;
+      use BuiltIn<REDACTED>
+      use Bool<REDACTED>
+      use Unit<REDACTED>
+      type a<REDACTED> = private {..}
+      clone A<REDACTED> {
+        a<REDACTED> -> a<REDACTED> ;
       }
     }
-    use BuiltIn<21>
-    use Bool<23>
-    use Unit<65>
-    type a<130> = private {..}
-    clone A<124> {
-      a<125> -> a<130> ;
+    use BuiltIn<REDACTED>
+    use Bool<REDACTED>
+    use Unit<REDACTED>
+    type a<REDACTED> = private {..}
+    clone A<REDACTED> {
+      a<REDACTED> -> a<REDACTED> ;
     }
     scope B {
-      use BuiltIn<21>
-      use Bool<23>
-      use Unit<65>
-      type a<131> = private {..}
-      clone A<124> {
-        a<125> -> a<131> ;
+      use BuiltIn<REDACTED>
+      use Bool<REDACTED>
+      use Unit<REDACTED>
+      type a<REDACTED> = private {..}
+      clone A<REDACTED> {
+        a<REDACTED> -> a<REDACTED> ;
       }
     }
     scope S {
-      use BuiltIn<21>
-      use Bool<23>
-      use Unit<65>
-      type a<132> = private {..}
-      clone A<124> {
-        a<125> -> a<132> ;
+      use BuiltIn<REDACTED>
+      use Bool<REDACTED>
+      use Unit<REDACTED>
+      type a<REDACTED> = private {..}
+      clone A<REDACTED> {
+        a<REDACTED> -> a<REDACTED> ;
       }
     }
     scope R {
       scope A {
-        use BuiltIn<21>
-        use Bool<23>
-        use Unit<65>
-        type a<133> = private {..}
-        clone A<124> {
-          a<125> -> a<133> ;
+        use BuiltIn<REDACTED>
+        use Bool<REDACTED>
+        use Unit<REDACTED>
+        type a<REDACTED> = private {..}
+        clone A<REDACTED> {
+          a<REDACTED> -> a<REDACTED> ;
         }
       }
-      use BuiltIn<21>
-      use Bool<23>
-      use Unit<65>
-      type b<134> = private {..}
-      clone B<126> {
-        b<127> -> b<134> ;
+      use BuiltIn<REDACTED>
+      use Bool<REDACTED>
+      use Unit<REDACTED>
+      type b<REDACTED> = private {..}
+      clone B<REDACTED> {
+        b<REDACTED> -> b<REDACTED> ;
       }
     }
-    use Tuple5<149>
-    type r<146> = ..
-    function p1<156> = ..
-    function p2<172> = ..
-    function p3<188> = ..
-    function p4<204> = ..
-    function p5<220> = ..
+    use Tuple5<REDACTED>
+    type r<REDACTED> = ..
+    function p1<REDACTED> = ..
+    function p2<REDACTED> = ..
+    function p3<REDACTED> = ..
+    function p4<REDACTED> = ..
+    function p5<REDACTED> = ..
   }
   
