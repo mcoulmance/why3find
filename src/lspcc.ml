@@ -223,10 +223,11 @@ let typeof_ty (ty : Why3.Ty.ty) =
 let typeof_decl = function
   | Id.Type(ts,_) -> ts
   | Id.Logic { ls_value = Some result } -> typeof_ty result
-  | Id.Logic { ls_value = None } -> raise Not_found
   | Id.Var pv -> typeof_ty pv.pv_vs.vs_ty
   | Id.Let r -> typeof_ty @@ Why3.Ity.ty_of_ity r.rs_cty.cty_result
   | Id.Exn x -> typeof_ty @@ Why3.Ity.ty_of_ity x.xs_ity
+  | Id.Logic { ls_value = None }
+  | Id.Axiom _ | Id.Lemma _ | Id.Goal _ -> raise Not_found
 
 let typedef _channel ~uri (pos : Lspserver.position) =
   let _,src,_,s = locate ~uri pos in
@@ -245,8 +246,14 @@ let () = Lspserver.on_definition ~kind:`Typedef typedef
 (* --- Hover                                                              --- *)
 (* -------------------------------------------------------------------------- *)
 
+let scoped = ref false
+let pp_long fmt id = Id.pp_path fmt @@ Id.path id
 let pp_name fmt (id : Why3.Ident.ident) =
   Format.pp_print_string fmt id.id_string
+let pp_scoped fmt (id : Why3.Ident.ident) =
+  if !scoped then
+    let _,_,qid = Id.path id in Id.pp_qid fmt qid
+  else pp_name fmt id
 
 let pp_infix fmt (id : Why3.Ident.ident) =
   Format.pp_print_string fmt (Id.of_infix id.id_string)
@@ -254,15 +261,27 @@ let pp_infix fmt (id : Why3.Ident.ident) =
 let pp_tvar fmt (x : Why3.Ty.tvsymbol) =
   Format.fprintf fmt "'%a" pp_name x.tv_name
 
+let builtins =
+  let open Why3.Ty in
+  Mts.add ts_int "int" @@
+  Mts.add ts_bool "bool" @@
+  Mts.add ts_real "real" @@
+  Mts.add ts_str "string" @@
+  Mts.empty
+
+let pp_tsymbol fmt ts =
+  try Format.pp_print_string fmt @@ Why3.Ty.Mts.find ts builtins
+  with Not_found -> pp_long fmt ts.ts_name
+
 let rec pp_type fmt (t : Why3.Ty.ty) =
   match t.ty_node with
   | Why3.Ty.Tyvar x -> pp_tvar fmt x
+  | Why3.Ty.Tyapp (t, []) -> pp_tsymbol fmt t
   | Why3.Ty.Tyapp (t, ts) when Why3.Ty.is_ts_tuple t -> pp_tuple fmt ts
   | Why3.Ty.Tyapp (t, [a;b]) when Why3.Ty.(ts_equal t ts_func) ->
     Format.fprintf fmt "@[<hov 2>(%a@ -> %a)@]" pp_type a pp_func b ;
-  | Why3.Ty.Tyapp (t,[]) -> pp_name fmt t.ts_name
   | Why3.Ty.Tyapp (t, ts) ->
-    Format.fprintf fmt "@[<hov 2>(%a" pp_name t.ts_name ;
+    Format.fprintf fmt "@[<hov 2>(%a" pp_long t.ts_name ;
     List.iter (Format.fprintf fmt "@ %a" pp_type) ts ;
     Format.fprintf fmt ")@]"
 
@@ -301,13 +320,13 @@ let pp_constr fmt (c : Why3.Decl.constructor) =
   List.iter (Format.fprintf fmt " %a" pp_type) ls.ls_args
 
 let pp_tdecl fmt (ts : Why3.Ty.tysymbol) =
-  pp_name fmt ts.ts_name ;
+  pp_scoped fmt ts.ts_name ;
   List.iter (Format.fprintf fmt " %a" pp_tvar) ts.ts_args
 
 let pp_vdecl fmt (pv : Why3.Ity.pvsymbol) =
   if pv.pv_ghost then Format.fprintf fmt "ghost " ;
   let vs = pv.pv_vs in
-  Format.fprintf fmt "%a : %a" pp_name vs.vs_name pp_type vs.vs_ty
+  Format.fprintf fmt "%a : %a" pp_scoped vs.vs_name pp_type vs.vs_ty
 
 let pp_varg fmt (pv : Why3.Ity.pvsymbol) =
   if pv.pv_ghost then Format.fprintf fmt "(ghost %a)" pp_ity pv.pv_ity
@@ -323,11 +342,11 @@ let pp_decl fmt (d : Id.decl) =
       | Why3.Ty.Alias ty ->
         Format.fprintf fmt "type %a = %a" pp_tdecl t pp_type ty
       | Why3.Ty.Range { ir_lower ; ir_upper } ->
-        Format.fprintf fmt "type %a = <range %s %s>" pp_name t.ts_name
+        Format.fprintf fmt "type %a = <range %s %s>" pp_scoped t.ts_name
           (Why3.BigInt.to_string ir_lower)
           (Why3.BigInt.to_string ir_upper)
       | Why3.Ty.Float ff ->
-        Format.fprintf fmt "type %a = <float %d %d>" pp_name t.ts_name
+        Format.fprintf fmt "type %a = <float %d %d>" pp_scoped t.ts_name
           ff.fp_significand_digits ff.fp_exponent_digits
     end
   | Id.Type (t, [r]) when is_record r ->
@@ -364,10 +383,13 @@ let pp_decl fmt (d : Id.decl) =
       Format.fprintf fmt "@ : %a" pp_ity r.rs_cty.cty_result
     end
   | Id.Exn x ->
-    Format.fprintf fmt "@[<hov 2>exception %a" pp_name x.xs_name ;
+    Format.fprintf fmt "@[<hov 2>exception %a" pp_scoped x.xs_name ;
     let ty = x.xs_ity in
     if not @@ is_unit ty then Format.fprintf fmt " : %a" pp_ity ty ;
     Format.fprintf fmt "@]"
+  | Id.Axiom p -> Format.fprintf fmt "@[<hov 2>axiom %a@]" pp_scoped p.pr_name
+  | Id.Lemma p -> Format.fprintf fmt "@[<hov 2>lemma %a@]" pp_scoped p.pr_name
+  | Id.Goal p -> Format.fprintf fmt "@[<hov 2>goal %a@]" pp_scoped p.pr_name
 
 let code source id =
   try Some (Format.asprintf "%a" pp_decl @@ find_decl source id)
@@ -378,10 +400,14 @@ let clone source ids =
     List.filter_map
       (fun id -> try Some (find_decl source id) with Not_found -> None) ids in
   if ds = [] then None else
-    let tt =
-      Format.asprintf "scope%t@\nend"
-        (fun fmt -> List.iter (Format.fprintf fmt "@\n  %a" pp_decl) ds)
-    in Some tt
+    begin
+      scoped := true ;
+      let tt =
+        Format.asprintf "scope%t@\nend"
+          (fun fmt -> List.iter (Format.fprintf fmt "@\n  %a" pp_decl) ds) in
+      scoped := false ;
+      Some tt
+    end
 
 let mk_hover rg ~title ?code () =
   Lspserver.hover ~range:(of_range rg) ~kind:`Markdown

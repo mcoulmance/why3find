@@ -55,6 +55,9 @@ val resolve : lib:string list -> ?root:string -> t -> id
 val of_infix : string -> string
 val to_infix : string -> string
 
+val pp_path : Format.formatter -> (string list * string * string list) -> unit
+val pp_qid : Format.formatter -> string list -> unit
+
 val pp_qpath : local:string list -> Format.formatter -> id -> unit
 (** only the prefix path of qid after local *)
 val pp_qname : Format.formatter -> id -> unit (** only the (infix) name of qid *)
@@ -77,6 +80,9 @@ type decl =
   | Var of Why3.Ity.pvsymbol
   | Let of Why3.Expr.rsymbol
   | Exn of Why3.Ity.xsymbol
+  | Axiom of Why3.Decl.prsymbol
+  | Lemma of Why3.Decl.prsymbol
+  | Goal of Why3.Decl.prsymbol
 
 val find : Why3.Theory.theory -> t -> decl
 

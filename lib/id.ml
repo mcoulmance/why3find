@@ -159,15 +159,19 @@ let pp_qname fmt r =
 let pp_local fmt r =
   pp_last fmt pp_infix r.id_qid
 
-let pp_title fmt r =
-  List.iter (pp_prefix fmt) r.id_lib ;
-  if r.id_qid = [] then
-    Format.pp_print_string fmt r.id_mod
-  else
-    begin
-      pp_prefix fmt r.id_mod ;
-      pp_local fmt r
+let pp_qid fmt qid = pp_last fmt pp_infix qid
+
+let pp_path fmt (lib,m,qid) =
+    List.iter (pp_prefix fmt) lib ;
+    if qid = [] then
+      Format.pp_print_string fmt m
+    else
+      begin
+        pp_prefix fmt m ;
+        pp_qid fmt qid ;
     end
+
+let pp_title fmt r = pp_path fmt (r.id_lib,r.id_mod,r.id_qid)
 
 (* URI Encoding *)
 
@@ -256,6 +260,9 @@ type decl =
   | Var of Why3.Ity.pvsymbol
   | Let of Why3.Expr.rsymbol
   | Exn of Why3.Ity.xsymbol
+  | Axiom of Why3.Decl.prsymbol
+  | Lemma of Why3.Decl.prsymbol
+  | Goal of Why3.Decl.prsymbol
 
 let eq = Why3.Ident.id_equal
 
@@ -277,7 +284,9 @@ let find_decl id (d: Why3.Decl.decl) =
   | Ddata ds -> find_data id ds
   | Dlogic ds -> Logic (find_logic id ds)
   | Dind(_,ds) -> Logic (find_logic id ds)
-  | _ -> raise Not_found
+  | Dprop(Paxiom,p,_) -> Axiom p
+  | Dprop(Plemma,p,_) -> Lemma p
+  | Dprop(Pgoal,_,_) | Dtype _ | Dparam _ -> raise Not_found
 
 let rec find_letdefs id = function
   | [] -> raise Not_found

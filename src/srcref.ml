@@ -52,6 +52,8 @@ let lexpos (pos : Lexing.position) : Range.pos =
 
 let lexrange ((p,q) : Token.position) : Range.range = lexpos p, lexpos q
 
+let resolve env id = Id.resolve ~lib:env.src.lib ~root:env.src.filename id
+
 let process_clone_token env token =
   let state, action = Cloning.process env.cloning env.input token in
   env.cloning <- state ;
@@ -65,7 +67,7 @@ let process_clone_token env token =
       match Docref.find_instance thy.instances ~scope id with
       | None -> ()
       | Some (Instance s) ->
-        let id = Id.resolve ~lib:env.src.lib id in
+        let id = resolve env id in
         let ids =
           List.filter_map
             (function
@@ -73,7 +75,7 @@ let process_clone_token env token =
               | Clone { target } ->
                 if Sid.mem target env.declared then None else
                   ( env.declared <- Sid.add target env.declared ;
-                    Some (Id.resolve ~lib:env.src.lib target) )
+                    Some (resolve env target) )
             ) s.clones in
         let symbol = Clone(id,ids) in
         env.symbols <- Rangemap.add (lexrange pos) symbol env.symbols
