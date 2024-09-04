@@ -44,7 +44,7 @@
         <span class="keyword">axiom</span> <a id="A.neutral" href="clones.A.html#neutral" title="clones.B.A.neutral  (cloned from clones.A.neutral)">neutral</a><span title="Hypothesis" class="icon small warning icofont-warning-alt"></span>
         <span class="keyword">lemma</span> <a id="A.commutative" href="clones.A.html#commutative" title="clones.B.A.commutative  (cloned from clones.A.commutative)">commutative</a><a href="clones.proof.html#B.A.commutative" title="Valid (one goal)" class="icon valid icofont-check"></a>
         <span class="keyword">lemma</span> <a id="A.neutral_com" href="clones.A.html#neutral_com" title="clones.B.A.neutral_com  (cloned from clones.A.neutral_com)">neutral_com</a><span title="cloned" class="icon remark icofont-check"></span>
-        <span class="comment">(* cloned <a name="clone-1" href="clones.A.html#">clones.A</a> *)</span>
+        <span class="comment">(* cloned <a name="clone-8" href="clones.A.html#">clones.A</a> *)</span>
       <span class="comment section-toggle">end</span>
     </span>}</span> <span class="keyword">with</span> <span class="keyword">type</span> <a title="clones.A.t" href="clones.A.html#t">t</a> = int, <span class="keyword">function</span> <a title="clones.A.op" href="clones.A.html#op">op</a> = (<a title="int.Int.(+)" href="https://www.why3.org/stdlib/int.html#infix%20+_19">+</a>), <span class="keyword">axiom</span> <a title="clones.A.neutral" href="clones.A.html#neutral">neutral</a>
   <span class="keyword">end</span>
@@ -122,7 +122,7 @@
   <pre class="src">
     <span class="keyword">axiom</span> <a id="A.neutral" href="clones.A.html#neutral">neutral</a><span title="uncloned hypothesis" class="icon small warning icofont-warning-alt"></span>
     <span class="keyword">axiom</span> <a id="A.commutative" href="clones.A.html#commutative">commutative</a><span title="uncloned hypothesis" class="icon small warning icofont-warning-alt"></span>
-    <span class="keyword">instance</span> <a href="clones.B.html#clone-1">clones.B</a><span title="incomplete instance" class="icon small warning icofont-warning-alt"></span>
+    <span class="keyword">instance</span> <a href="clones.B.html#clone-8">clones.B</a><span title="incomplete instance" class="icon small warning icofont-warning-alt"></span>
   </pre>
   <pre class="src">
     <span class="keyword">goal</span> <a id="A.neutral_com" href="clones.A.html#neutral_com">neutral_com</a><span title="Valid (one goal)" class="icon valid icofont-check"></span>

@@ -748,7 +748,7 @@ let process_clone env ~indent ~export id next =
           | Docref.Clone { target } -> not @@ Sid.mem target env.declared
           | Inst { order } -> env.cloned < order && order <= s.order in
         let clones =
-          List.merge Docref.by_line (filter thy.iclones) (filter s.clones) in
+          List.merge Docref.by_order (filter thy.iclones) (filter s.clones) in
         let local = List.rev scope in
         let container = thy.theory in
         process_clone_section env ~local ~indent ~container clones

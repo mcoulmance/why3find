@@ -31,20 +31,19 @@ module Mstr = Why3.Wstdlib.Mstr
 
 type clone =
   | Inst of {
-      line : int ; (* last known line of declaration *)
-      order : int ; (* instance order *)
+      order : int ; (* declaration order *)
       cloned : Thy.theory ;
     }
   | Clone of {
+      order : int ; (* declaration order *)
       source : Id.t ; (* from cloned theory *)
       target : Id.t ; (* to clone instance *)
     }
 
-val line : clone -> int
-val by_line : clone -> clone -> int
+val order : clone -> int
+val by_order : clone -> clone -> int
 
 type instance = Instance of {
-    line : int ; (* line of last declaration *)
     order : int ; (* clone rank in the module *)
     container : string ; (* container module (or theory) *)
     scope : string list ; (* inside container module clone *)
