@@ -211,7 +211,7 @@ let definition _channel ~uri (pos : Lspserver.position) =
   let _,_,_,s = locate ~uri pos in
   match s with
   | Def _ -> []
-  | Ref id | Clone id -> [goto id.self.id_loc]
+  | Ref id | Clone(id,_) -> [goto id.self.id_loc]
 
 let () = Lspserver.on_definition definition
 
@@ -370,20 +370,33 @@ let pp_decl fmt (d : Id.decl) =
     Format.fprintf fmt "@]"
 
 let code source id =
-  try
-    String.split_on_char '\n' @@ Format.asprintf "%a" pp_decl @@ find_decl source id
-  with Not_found -> []
+  try Some (Format.asprintf "%a" pp_decl @@ find_decl source id)
+  with Not_found -> None
+
+let clone source ids =
+  let ds =
+    List.filter_map
+      (fun id -> try Some (find_decl source id) with Not_found -> None) ids in
+  if ds = [] then None else
+    let tt =
+      Format.asprintf "scope%t@\nend"
+        (fun fmt -> List.iter (Format.fprintf fmt "@\n  %a" pp_decl) ds)
+    in Some tt
+
+let mk_hover rg ~title ?code () =
+  Lspserver.hover ~range:(of_range rg) ~kind:`Markdown
+    (title :: match code with None -> [] | Some tt ->
+         Lspserver.code ~lang:"why3" (String.split_on_char '\n' tt))
 
 let hover _channel ~uri (pos : Lspserver.position) =
   let _,src,rg,s = locate ~uri pos in
   match s with
-  | Clone id ->
-    let title = Format.asprintf "clone instance %a" Id.pp_title id in
-    Lspserver.hover ~range:(of_range rg) ~kind:`Markdown [title]
+  | Clone(id,ids) ->
+    let title = Format.asprintf "cloned %a" Id.pp_title id in
+    mk_hover rg ~title ?code:(clone src ids) ()
   | Def id | Ref id ->
     let title = Format.asprintf "%a" Id.pp_title id in
-    let code = Lspserver.code ~lang:"why3" @@ code src id in
-    Lspserver.hover ~range:(of_range rg) ~kind:`Markdown (title::code)
+    mk_hover rg ~title ?code:(code src id) ()
 
 let () = Lspserver.on_hover hover
 
@@ -448,16 +461,16 @@ let lenses _channel ~uri =
     let pool = ref [] in
     Rangemap.iter
       begin fun rg (s : Srcref.symbol) ->
-        match s with
-        | Clone _ | Ref _ -> ()
-        | Def id ->
-          match get_proof source id with
-          | None -> ()
-          | Some crc ->
-            let (line,char) = fst rg in
-            match forward source.updates Lspserver.{ line ; char } with
+        let (line,char) = fst rg in
+        match forward source.updates Lspserver.{ line ; char } with
+        | None -> ()
+        | Some pos ->
+          match s with
+          | Clone _ | Ref _ -> ()
+          | Def id ->
+            match get_proof source id with
             | None -> ()
-            | Some pos ->
+            | Some crc ->
               let title = Format.asprintf "%a" pp_crc crc in
               let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
               pool := Lspserver.resolved pos cmd :: !pool

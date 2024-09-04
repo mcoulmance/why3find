@@ -24,7 +24,7 @@ module Sid = Why3.Ident.Sid
 type symbol =
   | Ref of Id.id
   | Def of Id.id
-  | Clone of Id.id
+  | Clone of Id.id * Id.id list
 
 type env = {
   env : Wenv.env ;
@@ -64,9 +64,19 @@ let process_clone_token env token =
       let scope = Cloning.instance ~scope:env.scopes ~cloned:id export in
       match Docref.find_instance thy.instances ~scope id with
       | None -> ()
-      | Some _instance ->
+      | Some (Instance s) ->
         let id = Id.resolve ~lib:env.src.lib id in
-        env.symbols <- Rangemap.add (lexrange pos) (Clone id) env.symbols
+        let ids =
+          List.filter_map
+            (function
+              | Docref.Inst _ -> None
+              | Clone { target } ->
+                if Sid.mem target env.declared then None else
+                  ( env.declared <- Sid.add target env.declared ;
+                    Some (Id.resolve ~lib:env.src.lib target) )
+            ) s.clones in
+        let symbol = Clone(id,ids) in
+        env.symbols <- Rangemap.add (lexrange pos) symbol env.symbols
 
 let process_href env pos token (href : Docref.href) =
   match href with
