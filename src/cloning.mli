@@ -23,7 +23,8 @@
 
 type export = Cloned | Exported | Aliased of string
 
-val scope : cloned:Id.t -> export -> string list
+val instance : cloned:Id.t -> scope:string list -> export -> string list
+(** Returns a clone instance scope from current scope and export kind *)
 
 type state
 

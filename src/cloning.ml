@@ -19,17 +19,16 @@
 (*                                                                        *)
 (**************************************************************************)
 
-
 (* -------------------------------------------------------------------------- *)
 (* --- Cloning Substitution                                               --- *)
 (* -------------------------------------------------------------------------- *)
 
 type export = Cloned | Exported | Aliased of string
 
-let scope ~cloned = function
-  | Cloned -> [ cloned.Why3.Ident.id_string ]
-  | Exported -> []
-  | Aliased a -> [ a ]
+let instance ~cloned ~scope = function
+  | Cloned -> cloned.Why3.Ident.id_string :: scope
+  | Exported -> scope
+  | Aliased a -> a :: scope
 
 type state =
   | NotCloning

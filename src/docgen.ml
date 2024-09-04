@@ -698,7 +698,7 @@ let process_clone env ~indent ~export id =
     match env.theory with
     | None -> ()
     | Some thy ->
-      let scope = Cloning.scope ~cloned:id export in
+      let scope = Cloning.instance ~cloned:id ~scope:env.scopes export in
       match Docref.find_instance thy.instances ~scope id with
       | None -> ()
       | Some (Instance s) as inst ->
@@ -889,7 +889,6 @@ let process_closing s env =
     env.opened <- ks
   | [] ->
     Token.error env.input "No matching opening keyword for '%s" s
-
 
 let process_ident env s =
   if Docref.is_keyword s then
