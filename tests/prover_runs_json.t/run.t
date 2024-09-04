@@ -1,6 +1,6 @@
   $ why3find prove -P alt-ergo -r --log-prover-results results.json
   Theory foo.S: ✔ (-)
-  Theory foo.T: ✔ (2)
+  Theory foo.T: ✔ (1)
 
   $ cat foo/proof.json
   {
@@ -25,14 +25,6 @@
   }
   {
     "goal": "Add.com",
-    "prover": "alt-ergo@2.4.2",
-    "timeout": "REDACTED",
-    "time": "REDACTED",
-    "why3find time": "REDACTED",
-    "result": "Valid"
-  }
-  {
-    "goal": "Mul.com",
     "prover": "alt-ergo@2.4.2",
     "timeout": "REDACTED",
     "time": "REDACTED",

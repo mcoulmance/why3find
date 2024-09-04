@@ -6,5 +6,4 @@ end
 module T
   use int.Int
   clone S as Add with function op = (+)
-  clone S as Mul with function op = (*)
 end
