@@ -15,7 +15,8 @@
   zeromq,
   yojson,
   terminal_size,
-  jq }:
+  jq,
+  cvc4 }:
 
 buildDunePackage {
   pname = "why3find";
@@ -49,11 +50,11 @@ buildDunePackage {
 
   doCheck = true;
 
-  nativeCheckInputs = [ headache ocp-indent alt-ergo bisect_ppx jq ] ;
+  nativeCheckInputs = [ headache ocp-indent alt-ergo bisect_ppx jq cvc4 ] ;
 
   checkPhase = ''
     BISECT_FILE=$(pwd)/bisect \
-    dune runtest -p why3find -j1 --force --instrument-with bisect_ppx
+    dune build -p why3find -j1 --force --instrument-with bisect_ppx @runtest @nixtests
     bisect-ppx-report cobertura report.xml
     bisect-ppx-report summary | sed -e 's/.*(\(1\?[0-9]\{2\}\.[0-9]\+%\))/Coverage: \1/' > coverage.txt
 

@@ -54,4 +54,4 @@ type env = Config.env = private {
   pkgs : Meta.pkg list ;
 }
 
-val init : ?root:string -> Config.config -> Config.env
+val init : ?root:string -> ?loadplugins:bool -> Config.config -> Config.env

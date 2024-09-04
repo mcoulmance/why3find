@@ -286,10 +286,11 @@ let disable_warning s =
   Why3.Loc.disable_warning @@
   Why3.Loc.register_warning s Why3.Pp.empty_formatted
 
-let init ?root config =
+let init ?root ?(loadplugins=true) config =
   begin
     let wenv = Config.create_env ?root ~config () in
-    Why3.Whyconf.load_plugins @@ Why3.Whyconf.get_main wenv.wconfig;
+    if loadplugins then
+      Why3.Whyconf.load_plugins @@ Why3.Whyconf.get_main wenv.wconfig;
     Debug.init_why3_debug ();
     List.iter disable_warning config.warnoff;
     wenv

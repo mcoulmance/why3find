@@ -160,7 +160,6 @@ let forward_position (p : position) (u : update) =
     else
       None
 
-
 let backward_range (u: update) (r : range) =
   match
     backward_position u r.start,
@@ -334,20 +333,19 @@ let wcommand = function Cmd { title ; command ; args } ->
 (* -------------------------------------------------------------------------- *)
 
 type codelens =
-  | Resolved of { line: int ; cmd: command }
-  | ToResolve of { line: int ; data: Json.t }
+  | Resolved of position * command
+  | ToResolve of position * Json.t
 
-let wline line =
-  let start = { line ; char = 0 } in wrange { start ; stop = start }
+let wrangepos p = wrange { start = p ; stop = p }
 
 let wcodelens = function
-  | Resolved { line ; cmd } ->
-    Json.assoc [ "range", wline line ; "command", wcommand cmd ]
-  | ToResolve { line ; data } ->
-    Json.assoc [ "range", wline line ; "data", data ]
+  | Resolved(p,cmd) ->
+    Json.assoc [ "range", wrangepos p ; "command", wcommand cmd ]
+  | ToResolve(p,data) ->
+    Json.assoc [ "range", wrangepos p ; "data", data ]
 
-let codelens ~line data = ToResolve { line ; data }
-let resolved ~line cmd = Resolved { line ; cmd }
+let resolved pos cmd = Resolved(pos,cmd)
+let codelens pos data = ToResolve(pos,data)
 
 let on_codelens ?resolve fn =
   codeLensProvider := true ;
@@ -362,15 +360,13 @@ let on_codelens ?resolve fn =
     begin fun fn ->
       Lsp.register "codeLens/resolve"
         begin fun _ param ->
-          let line =
+          let pos =
             Json.jfield "range" param |>
-            Json.jfield "start" |>
-            Json.jfield "line" |>
-            Json.jint in
+            Json.jfield "start" |> jposition in
           let data = Json.jfield "data" param in
           wcodelens @@
-          try Resolved { line ; cmd = fn ~line data }
-          with Exit | Not_found -> ToResolve { line ; data }
+          try Resolved(pos,fn pos data)
+          with Exit | Not_found -> ToResolve(pos,data)
         end
     end resolve
 

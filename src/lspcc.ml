@@ -25,6 +25,10 @@ let init () = () (* for dependencies only *)
 (* ---  Source Management                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
+let plugins = ref true
+
+let load_plugins () = !plugins && (plugins := false ; true)
+
 type source = {
   env : Wenv.env ;
   src : Docref.source ;
@@ -120,7 +124,8 @@ let preprocess filename diagnostics =
     Hashtbl.remove sources filename ;
     Docref.init () ;
     let config = Config.load_config root in
-    let env = Wenv.init ~root config in
+    let loadplugins = load_plugins () in
+    let env = Wenv.init ~root ~loadplugins config in
     let wenv = env.wenv in
     let henv = Axioms.init env in
     let lib = library ~root ~filename in
@@ -151,7 +156,8 @@ let compile channel doc =
       begin
         let diagnostics = ref [] in
         preprocess filename diagnostics ;
-        Lspserver.publish_diagnostic channel ~uri !diagnostics
+        Lspserver.publish_diagnostic channel ~uri !diagnostics ;
+        Lspserver.refresh_codelens channel ;
       end
 
 let update _channel ~uri update =
@@ -451,13 +457,13 @@ let lenses _channel ~uri =
         match get_proof source href with
         | None -> ()
         | Some crc ->
-          let line = fst @@ fst rg in
-          match forward source.updates Lspserver.{ line ; char = 0} with
+          let (line,char) = fst rg in
+          match forward source.updates Lspserver.{ line ; char } with
           | None -> ()
-          | Some { line } ->
+          | Some pos ->
             let title = Format.asprintf "%a" pp_crc crc in
             let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
-            pool := Lspserver.resolved ~line cmd :: !pool
+            pool := Lspserver.resolved pos cmd :: !pool
       end source.hrefs ;
     !pool
 
