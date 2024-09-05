@@ -162,13 +162,13 @@ let pp_local fmt r =
 let pp_qid fmt qid = pp_last fmt pp_infix qid
 
 let pp_path fmt (lib,m,qid) =
-    List.iter (pp_prefix fmt) lib ;
-    if qid = [] then
-      Format.pp_print_string fmt m
-    else
-      begin
-        pp_prefix fmt m ;
-        pp_qid fmt qid ;
+  List.iter (pp_prefix fmt) lib ;
+  if qid = [] then
+    Format.pp_print_string fmt m
+  else
+    begin
+      pp_prefix fmt m ;
+      pp_qid fmt qid ;
     end
 
 let pp_title fmt r = pp_path fmt (r.id_lib,r.id_mod,r.id_qid)
