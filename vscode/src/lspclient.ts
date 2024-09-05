@@ -26,7 +26,7 @@
 import { rm } from 'fs/promises';
 import { Socket, connect } from 'net';
 import { ChildProcess, spawn } from 'child_process';
-import { OutputChannel, window, workspace } from 'vscode';
+import { Disposable, OutputChannel, window, workspace } from 'vscode';
 
 import {
 	LanguageClient,
@@ -113,6 +113,11 @@ function launchServer(): Promise<StreamInfo> {
 /* -------------------------------------------------------------------------- */
 /* --- LSP Entry Points                                                   --- */
 /* -------------------------------------------------------------------------- */
+
+export function deactivate() {
+	disconnectFromServer();
+	shutdownServer();
+};
 
 export async function stop(): Promise<void> {
 	if (client) {
