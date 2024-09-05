@@ -36,6 +36,8 @@ module Mstr = Why3.Wstdlib.Mstr
 let keywords = Hashtbl.create 97
 let is_keyword = Hashtbl.mem keywords
 
+let () = List.iter (fun k -> Hashtbl.add keywords k ()) Why3.Keywords.keywords
+
 let is_opening = function
   | "scope" | "match" | "try" | "begin" -> true
   | _ -> false
@@ -49,13 +51,6 @@ let is_closing = function
 let is_uppercased s =
   String.length s > 0 &&
   let c = s.[0] in 'A' <= c && c <= 'Z'
-
-let init () =
-  begin
-    (* Parser config *)
-    Why3.Debug.set_flag Why3.Glob.flag ;
-    List.iter (fun k -> Hashtbl.add keywords k ()) Why3.Keywords.keywords ;
-  end
 
 (* -------------------------------------------------------------------------- *)
 (* --- Global References                                                  --- *)

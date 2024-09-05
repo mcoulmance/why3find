@@ -1291,8 +1291,6 @@ let process ~wenv ~henv ~out ~title (file,kind) =
 
 let generate ~(env:Config.env) ~out ~title ~files ~url ~package_url =
   begin
-    (* Keywords *)
-    Docref.init () ;
     (* Why3 environment *)
     let wenv = env.wenv in
     (* Axioms config *)

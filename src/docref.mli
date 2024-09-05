@@ -23,8 +23,6 @@
 (* --- Global References                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
-val init : unit -> unit
-
 module Thy = Why3.Theory
 module Pmod = Why3.Pmodule
 module Mstr = Why3.Wstdlib.Mstr

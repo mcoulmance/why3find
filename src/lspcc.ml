@@ -119,7 +119,6 @@ let preprocess filename diagnostics =
       | Some(dir,_) -> dir
     in
     Hashtbl.remove sources filename ;
-    Docref.init () ;
     let config = Config.load_config root in
     let loadplugins = load_plugins () in
     let env = Wenv.init ~root ~loadplugins config in
