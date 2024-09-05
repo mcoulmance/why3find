@@ -721,11 +721,11 @@ let process_clone_token env (tok : Cloning.token) =
   let next , action = Cloning.process env.cloning env.input tok in
   env.cloning <- next ;
   match action with
-  | `nop -> ()
-  | `space -> pp_space env
-  | `spaces n -> pp_spaces env n
-  | `target(id,n) -> process_clone_target env id ; pp_spaces env n
-  | `clone(indent,export,_,id) -> process_clone env ~indent ~export id
+  | `Nop -> ()
+  | `Space -> pp_space env
+  | `Spaces n -> pp_spaces env n
+  | `Target(id,n) -> process_clone_target env id ; pp_spaces env n
+  | `Clone(indent,export,_,id) -> process_clone env ~indent ~export id
 
 (* -------------------------------------------------------------------------- *)
 (* --- References                                                         --- *)
@@ -755,14 +755,14 @@ let process_href env (href : Docref.href) s =
       Id.pp_title id
       (Id.pp_ahref ~current ~package_url) id
       Pdoc.pp_html s ;
-    process_clone_token env (`id id.self)
+    process_clone_token env (`Id id.self)
 
   | NoRef ->
     begin
       match s with
-      | "=" -> process_clone_token env `equal
-      | "." -> process_clone_token env `dot
-      | _ -> process_clone_token env (`name s)
+      | "=" -> process_clone_token env `Equal
+      | "." -> process_clone_token env `Dot
+      | _ -> process_clone_token env (`Name s)
     end ;
     Pdoc.pp_html_s env.out s
 
@@ -900,7 +900,7 @@ let process_ident env s =
       | "assume" ->
         Pdoc.pp env.out Pdoc.pp_admitted s
       | _ ->
-        process_clone_token env (`kwd s) ;
+        process_clone_token env (`Kwd s) ;
         if Docref.is_closing s then process_closing s env ;
         text env ;
         Pdoc.pp env.out Pdoc.pp_keyword s ;
@@ -993,7 +993,7 @@ let process_newline env =
     | Lines(n,_) -> env.indent <- Lines(succ n,0)
     | Head _ -> env.indent <- Head 0
     | Code ->
-      process_clone_token env `newline ;
+      process_clone_token env `Newline ;
       env.indent <- Lines(1,0)
 
 (* -------------------------------------------------------------------------- *)
@@ -1025,7 +1025,7 @@ let parse env =
     match Token.token env.input with
     | Eof -> close env ; bsync env
     | Char ',' ->
-      process_clone_token env `coma ;
+      process_clone_token env `Coma ;
       text env ;
       Pdoc.pp_print_char out ','
     | Char c -> text env ; Pdoc.pp_html_c out c
@@ -1033,7 +1033,7 @@ let parse env =
     | Comment s ->
       if env.mode = Pre then
         begin
-          process_clone_token env `comment ;
+          process_clone_token env `Comment ;
           text env ;
           Pdoc.pp_html_s out ~className:"comment" s ;
         end

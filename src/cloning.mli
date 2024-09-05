@@ -34,22 +34,22 @@ val space : state -> state option
 (** If none, the current state shall be kept and the space shall be printed *)
 
 type token = [
-  | `id of Id.t
-  | `kwd of string
-  | `name of string
-  | `equal
-  | `coma
-  | `dot
-  | `comment
-  | `newline
+  | `Id of Id.t
+  | `Kwd of string
+  | `Name of string
+  | `Equal
+  | `Coma
+  | `Dot
+  | `Comment
+  | `Newline
 ]
 
 type action = [
-  | `nop
-  | `space
-  | `spaces of int
-  | `target of Id.t * int
-  | `clone of int * export * Token.position * Id.t
+  | `Nop
+  | `Space
+  | `Spaces of int
+  | `Target of Id.t * int
+  | `Clone of int * export * Token.position * Id.t
 ]
 
 val process : state -> Token.input -> token -> state * action

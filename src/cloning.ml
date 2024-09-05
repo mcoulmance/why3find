@@ -44,22 +44,22 @@ type state =
   | C_src of Id.t * int    (* clone … with … kwd a<nspace> *)
 
 type token = [
-  | `id of Id.t
-  | `kwd of string
-  | `name of string
-  | `equal
-  | `coma
-  | `dot
-  | `comment
-  | `newline
+  | `Id of Id.t
+  | `Kwd of string
+  | `Name of string
+  | `Equal
+  | `Coma
+  | `Dot
+  | `Comment
+  | `Newline
 ]
 
 type action = [
-  | `nop
-  | `space
-  | `spaces of int
-  | `target of Id.t * int
-  | `clone of int * export * Token.position * Id.t
+  | `Nop
+  | `Space
+  | `Spaces of int
+  | `Target of Id.t * int
+  | `Clone of int * export * Token.position * Id.t
 ]
 
 let init = NotCloning
@@ -72,28 +72,28 @@ let space state =
 
 let process state input token : state * action =
   match state, token with
-  | C_clone k, `kwd "export" -> C_export k , `nop
-  | C_clone k, `id a -> C_inst(k,Cloned,Token.position input,a) , `nop
-  | C_export k, `id a -> C_inst(k,Exported,Token.position input,a) , `nop
-  | C_inst(k,_,p,id) , `kwd "as" -> C_inst(k,Aliased "?",p,id) , `space
-  | C_inst(k,_,_,id) , `name a -> C_inst(k,Aliased a,Token.position input,id) , `space
-  | C_inst(k,e,p,id) , `kwd "with" -> C_with , `clone(k,e,p,id)
-  | C_inst(k,e,p,id) , `kwd "clone" -> C_clone (Token.indent input) , `clone(k,e,p,id)
-  | C_inst(k,e,p,id) , (`comment | `newline | `kwd _) -> NotCloning , `clone(k,e,p,id)
-  | _ , `kwd "clone" -> C_clone (Token.indent input) , `nop
-  | C_with , `kwd "axiom" -> C_axiom , `nop
-  | C_with , `kwd _ -> C_decl , `nop
-  | C_axiom , `id _ -> C_def , `nop
-  | C_axiom , `dot -> C_axiom , `nop
-  | C_axiom , `coma -> C_with , `nop
-  | C_decl , `dot -> C_decl , `nop
-  | C_decl , `id a -> C_src(a,0) , `nop
-  | C_src(_,n) , `equal -> C_seq , `spaces n
-  | C_src(id,n) , `coma -> C_with , `target(id,n)
-  | C_src(id,n) , `comment -> C_def , `target(id,n)
-  | C_src(id,_) , `newline -> C_def , `target(id,0)
-  | C_seq , `dot -> C_seq , `nop
-  | C_seq , (`id _ | `name _) -> C_def , `nop
-  | C_def , `coma -> C_with , `nop
-  | _ , `kwd _ -> NotCloning , `nop
-  | _ -> state , `nop
+  | C_clone k, `Kwd "export" -> C_export k , `Nop
+  | C_clone k, `Id a -> C_inst(k,Cloned,Token.position input,a) , `Nop
+  | C_export k, `Id a -> C_inst(k,Exported,Token.position input,a) , `Nop
+  | C_inst(k,_,p,id) , `Kwd "as" -> C_inst(k,Aliased "?",p,id) , `Space
+  | C_inst(k,_,_,id) , `Name a -> C_inst(k,Aliased a,Token.position input,id) , `Space
+  | C_inst(k,e,p,id) , `Kwd "with" -> C_with , `Clone(k,e,p,id)
+  | C_inst(k,e,p,id) , `Kwd "clone" -> C_clone (Token.indent input) , `Clone(k,e,p,id)
+  | C_inst(k,e,p,id) , (`Comment | `Newline | `Kwd _) -> NotCloning , `Clone(k,e,p,id)
+  | _ , `Kwd "clone" -> C_clone (Token.indent input) , `Nop
+  | C_with , `Kwd "axiom" -> C_axiom , `Nop
+  | C_with , `Kwd _ -> C_decl , `Nop
+  | C_axiom , `Id _ -> C_def , `Nop
+  | C_axiom , `Dot -> C_axiom , `Nop
+  | C_axiom , `Coma -> C_with , `Nop
+  | C_decl , `Dot -> C_decl , `Nop
+  | C_decl , `Id a -> C_src(a,0) , `Nop
+  | C_src(_,n) , `Equal -> C_seq , `Spaces n
+  | C_src(id,n) , `Coma -> C_with , `Target(id,n)
+  | C_src(id,n) , `Comment -> C_def , `Target(id,n)
+  | C_src(id,_) , `Newline -> C_def , `Target(id,0)
+  | C_seq , `Dot -> C_seq , `Nop
+  | C_seq , (`Id _ | `Name _) -> C_def , `Nop
+  | C_def , `Coma -> C_with , `Nop
+  | _ , `Kwd _ -> NotCloning , `Nop
+  | _ -> state , `Nop

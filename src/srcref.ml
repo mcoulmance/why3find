@@ -58,8 +58,8 @@ let process_clone_token env token =
   let state, action = Cloning.process env.cloning env.input token in
   env.cloning <- state ;
   match action with
-  | `nop | `space | `spaces _ | `target _ -> ()
-  | `clone(_,export,pos,id) ->
+  | `Nop | `Space | `Spaces _ | `Target _ -> ()
+  | `Clone(_,export,pos,id) ->
     match env.thy with
     | None -> ()
     | Some thy ->
@@ -83,12 +83,12 @@ let process_clone_token env token =
 let process_href env pos token (href : Docref.href) =
   match href with
   | NoRef ->
-    process_clone_token env (`name token)
+    process_clone_token env (`Name token)
   | Def(id,_) ->
     env.declared <- Sid.add id.self env.declared ;
     env.symbols <- Rangemap.add (lexrange pos) (Def id) env.symbols
   | Ref id ->
-    process_clone_token env (`id id.self) ;
+    process_clone_token env (`Id id.self) ;
     env.symbols <- Rangemap.add (lexrange pos) (Ref id) env.symbols
 
 let process_identifier ?(infix=false) env token =
@@ -140,7 +140,7 @@ let process_word env s =
       | _ ->
         if Docref.is_opening s then process_opening s env ;
         if Docref.is_closing s then process_closing s env ;
-        process_clone_token env (`kwd s)
+        process_clone_token env (`Kwd s)
     end
   else
     process_identifier env s
@@ -157,8 +157,8 @@ let parse ?doc ?filename ~env ~src file =
       | Token.Ident s -> process_word env s
       | Token.Infix s -> process_identifier ~infix:true env s
       | Token.Ref _ -> ()
-      | Token.Newline -> process_clone_token env `newline
-      | Token.Comment _ -> process_clone_token env `comment
+      | Token.Newline -> process_clone_token env `Newline
+      | Token.Comment _ -> process_clone_token env `Comment
 
       (* skipped *)
       | Token.Eof
