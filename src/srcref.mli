@@ -24,6 +24,10 @@ type symbol =
   | Def of Id.id
   | Clone of Id.id * Id.id list
   (* cloned theory, target scope and declared new symbols *)
+  | Section of string
+  (* foldable section *)
+
+type env
 
 val parse :
   ?doc:bool -> ?filename:string ->
