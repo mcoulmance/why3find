@@ -51,12 +51,20 @@ val iter : (Session.goal -> state -> unit) -> crc -> unit
 
 type verdict = [ `Valid of int | `Failed of int | `Partial of int * int ]
 val verdict : crc -> verdict
+val verdict_all : crc list -> verdict
+
 val nverdict : stuck:int -> proved:int -> verdict
 
-val get_stuck : crc -> int
+val get_stuck :  crc -> int
 val get_proved : crc -> int
-val get_time : crc -> float
-val get_depth : crc -> int
+val get_time :   crc -> float
+val get_depth :  crc -> int
+
+val get_stuck_all :  crc list -> int
+val get_proved_all : crc list -> int
+val get_time_all :   crc list -> float
+val get_depth_all :  crc list -> int
+
 val is_stuck : crc -> bool
 val is_unknown : crc -> bool
 val is_complete : crc -> bool

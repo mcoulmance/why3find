@@ -81,11 +81,16 @@ let is_unknown { state } = match state with
   | Prover _ -> false
   | Tactic { stuck ; proved } -> stuck > 0 && proved = 0
 
+let get_time_all = List.fold_left (fun t c -> max t @@ get_time c) 0.0
+let get_depth_all = List.fold_left (fun h c -> max h @@ get_depth c) 0
+let get_stuck_all = List.fold_left (fun n c -> n + get_stuck c) 0
+let get_proved_all = List.fold_left (fun n c -> n + get_proved c) 0
+
 let tactic ?goal id children =
-  let stuck = List.fold_left (fun n c -> n + get_stuck c) 0 children in
-  let proved = List.fold_left (fun n c -> n + get_proved c) 0 children in
-  let depth = List.fold_left (fun h c -> max h @@ get_depth c) 0 children in
-  let time = List.fold_left (fun t c -> max t @@ get_time c) 0.0 children in
+  let stuck = get_stuck_all children in
+  let proved = get_proved_all children in
+  let time = get_time_all children in
+  let depth = get_depth_all children in
   if stuck > 0 && proved = 0 then { goal ; state = Stuck } else
     { goal; state = Tactic { id ; children ; stuck ; proved ; depth ; time } }
 
@@ -97,6 +102,7 @@ let nverdict ~stuck:s ~proved:p =
     `Partial(p,s+p)
 
 let verdict crc = nverdict ~stuck:(get_stuck crc) ~proved:(get_proved crc)
+let verdict_all cs = nverdict ~stuck:(get_stuck_all cs) ~proved:(get_proved_all cs)
 
 let pp_result fmt ~stuck:s ~proved:p =
   if s = 0 then

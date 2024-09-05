@@ -19,7 +19,13 @@
 (*                                                                        *)
 (**************************************************************************)
 
+type symbol =
+  | Ref of Id.id
+  | Def of Id.id
+  | Clone of Id.id * Id.id list
+  (* cloned theory, target scope and declared new symbols *)
+
 val parse :
   ?doc:bool -> ?filename:string ->
   env:Wenv.env -> src:Docref.source ->
-  string -> Docref.href Rangemap.t
+  string -> symbol Rangemap.t
