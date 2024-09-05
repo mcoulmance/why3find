@@ -26,7 +26,19 @@ val exts : unit -> string list
 val filepath : string -> string * string list (* dir & lib *)
 val load_theories : Env.env -> Env.filename -> Theory.theory list * Env.fformat
 
+(** Iterates over declared id. *)
+val iter_decl : (Ident.ident -> unit) -> Decl.decl -> unit
+
+(** Iterates over declared id. *)
+val iter_tdecl : (Ident.ident -> unit) -> Theory.tdecl -> unit
+
+(** Iterates over declared id. *)
+val iter_pdecl : (Ident.ident -> unit) -> Pdecl.pdecl -> unit
+
+(** Iterates over mapped identifiers (source, target). *)
 val iter_sm : (Ident.ident -> Ident.ident -> unit) -> Theory.symbol_map -> unit
+
+(** Iterates over mapped identifiers (source, target). *)
 val iter_mi : (Ident.ident -> Ident.ident -> unit) -> Pmodule.mod_inst -> unit
 
 val pp_thy : Format.formatter -> Theory.theory -> unit (* name *)

@@ -127,7 +127,7 @@
   <body>
   <header><a href="index.html">index</a> — <code>library <a href="refine.index.html">refine</a></code> — <code>module Interface</code></header>
   <pre class="src">
-  <span class="keyword">module</span> Interface<a href="refine.proof.html#Interface" title="2 value parameters, 5 logic parameters, 2 hypotheses, 1 incomplete instance" class="icon small warning icofont-warning-alt"></a><a href="refine.proof.html#Interface" title="Failed (no proof)" class="icon failed icofont-error"></a>
+  <span class="keyword">module</span> <span class="scope">Interface</span><a href="refine.proof.html#Interface" title="2 value parameters, 5 logic parameters, 2 hypotheses, 1 incomplete instance" class="icon small warning icofont-warning-alt"></a><a href="refine.proof.html#Interface" title="Failed (no proof)" class="icon failed icofont-error"></a>
     <span class="keyword">use</span> int.<a title="int.Int" href="https://www.why3.org/stdlib/int.html#Int_">Int</a>
   </pre>
   <div class="doc">

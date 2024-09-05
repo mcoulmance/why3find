@@ -58,6 +58,10 @@ pre.src {
     /* Source code block styling */
 }
 
+.scope {
+    color: teal;
+}
+
 .keyword {
     color: purple;
 }

@@ -55,11 +55,19 @@ val resolve : lib:string list -> ?root:string -> t -> id
 val of_infix : string -> string
 val to_infix : string -> string
 
-val pp_local : Format.formatter -> id -> unit
-val pp_title : Format.formatter -> id -> unit
+val pp_qpath : local:string list -> Format.formatter -> id -> unit
+(** only the prefix path of qid after local *)
+val pp_qname : Format.formatter -> id -> unit (** only the (infix) name of qid *)
+
+val pp_local : Format.formatter -> id -> unit (** only the qualified name (qid) *)
+val pp_title : Format.formatter -> id -> unit (** the full path name *)
+
 val pp_aname : Format.formatter -> id -> unit
-val pp_ahref : scope:string option -> package_url:string option
+val pp_ahref :
+  current:string option ->
+  package_url:string option
   -> Format.formatter -> id -> unit
+
 val pp_proof_aname : Format.formatter -> id -> unit
 val pp_proof_ahref : Format.formatter -> id -> unit
 

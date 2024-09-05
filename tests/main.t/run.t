@@ -85,7 +85,7 @@
   <p>Introducing A</p>
   </div>
   <pre class="src">
-  <span class="keyword">module</span> A<a href="p.a.proof.html#A" title="Valid (no goals)" class="icon remark icofont-check"></a>
+  <span class="keyword">module</span> <span class="scope">A</span><a href="p.a.proof.html#A" title="Valid (no goals)" class="icon remark icofont-check"></a>
   
     <span class="keyword">type</span> <a id="t">t</a> = <a id="A">A</a> | <a id="B">B</a>
   </pre>
@@ -121,7 +121,7 @@
   <p>Introducing B</p>
   </div>
   <pre class="src">
-  <span class="keyword">module</span> B<a href="p.a.proof.html#B" title="1 value parameter, 0 instance found" class="icon small warning icofont-warning-alt"></a><a href="p.a.proof.html#B" title="Valid (no goals)" class="icon remark icofont-check"></a>
+  <span class="keyword">module</span> <span class="scope">B</span><a href="p.a.proof.html#B" title="1 value parameter, 0 instance found" class="icon small warning icofont-warning-alt"></a><a href="p.a.proof.html#B" title="Valid (no goals)" class="icon remark icofont-check"></a>
   
     <span class="keyword">exception</span> <a id="Error">Error</a>
   

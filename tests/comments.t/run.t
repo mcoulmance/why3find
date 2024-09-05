@@ -28,7 +28,7 @@
   <body>
   <header><a href="index.html">index</a> — <code>library <a href="a.index.html">a</a></code> — <code>module Foo</code></header>
   <pre class="src">
-  <span class="keyword">module</span> Foo<a href="a.proof.html#Foo" title="Valid (no goals)" class="icon remark icofont-check"></a>
+  <span class="keyword">module</span> <span class="scope">Foo</span><a href="a.proof.html#Foo" title="Valid (no goals)" class="icon remark icofont-check"></a>
     <span class="comment">(* Printed
        Huge
        Comment *)</span>

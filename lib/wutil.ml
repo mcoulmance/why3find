@@ -66,6 +66,25 @@ let load_theories (env : Why3.Env.env) file =
 (* --- Iterators                                                          --- *)
 (* -------------------------------------------------------------------------- *)
 
+let iter_ts f (ts : Ty.tysymbol) = f ts.ts_name
+let iter_ls f (ls : Term.lsymbol) = f ls.ls_name
+let iter_decl f (d : Decl.decl) =
+  match d.d_node with
+  | Dtype ts -> iter_ts f ts
+  | Ddata ds -> List.iter (fun (ts,_) -> iter_ts f ts) ds
+  | Dparam ls -> iter_ls f ls
+  | Dlogic fs -> List.iter (fun (ls,_) -> iter_ls f ls) fs
+  | Dind(_,cs) -> List.iter (fun (ls,_) -> iter_ls f ls) cs
+  | Dprop(_,pr,_) -> f pr.pr_name
+
+let iter_tdecl f (td : Theory.tdecl) =
+  match td.td_node with
+  | Decl d -> iter_decl f d
+  | Use _ | Clone _ | Meta _ -> ()
+
+let iter_pdecl f (pd : Pdecl.pdecl) =
+  Ident.Sid.iter f pd.pd_news
+
 let iter_mi f (mi : Pmodule.mod_inst) =
   begin
     let open Ty in

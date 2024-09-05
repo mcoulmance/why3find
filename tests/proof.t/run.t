@@ -11,13 +11,13 @@
   <body>
   <header><a href="index.html">index</a> — <code>library <a href="clones.index.html">clones</a></code> — <code>module A</code></header>
   <pre class="src">
-  <span class="keyword">module</span> A<a href="clones.proof.html#A" title="3 logic parameters, 2 hypotheses, 1 ground instance" class="icon small valid icofont-star"></a><a href="clones.proof.html#A" title="Valid (one goal)" class="icon valid icofont-check"></a>
+  <span class="keyword">module</span> <span class="scope">A</span><a href="clones.proof.html#A" title="3 logic parameters, 2 hypotheses, 1 incomplete instance" class="icon small warning icofont-warning-alt"></a><a href="clones.proof.html#A" title="Valid (one goal)" class="icon valid icofont-check"></a>
   
     <span class="keyword">type</span> <a id="t">t</a><span title="Parameter" class="icon small remark icofont-question-circle"></span>
     <span class="keyword">constant</span> <a id="e">e</a><span title="Parameter" class="icon small remark icofont-question-circle"></span> : <a title="clones.A.t" href="#t">t</a>
     <span class="keyword">function</span> <a id="op">op</a><span title="Parameter" class="icon small remark icofont-question-circle"></span> <a title="clones.A.t" href="#t">t</a> <a title="clones.A.t" href="#t">t</a> : <a title="clones.A.t" href="#t">t</a>
-    <span class="keyword">axiom</span> <a id="neutral">neutral</a><span title="Hypothesis with ground instance" class="icon small valid icofont-star"></span>: <span class="keyword">forall</span> x. <a title="clones.A.op" href="#op">op</a> x <a title="clones.A.e" href="#e">e</a> = x
-    <span class="keyword">axiom</span> <a id="commutative">commutative</a><span title="Hypothesis with ground instance" class="icon small valid icofont-star"></span>: <span class="keyword">forall</span> x y. <a title="clones.A.op" href="#op">op</a> x y = <a title="clones.A.op" href="#op">op</a> y x
+    <span class="keyword">axiom</span> <a id="neutral">neutral</a><span title="Hypothesis" class="icon small warning icofont-warning-alt"></span>: <span class="keyword">forall</span> x. <a title="clones.A.op" href="#op">op</a> x <a title="clones.A.e" href="#e">e</a> = x
+    <span class="keyword">axiom</span> <a id="commutative">commutative</a><span title="Hypothesis" class="icon small warning icofont-warning-alt"></span>: <span class="keyword">forall</span> x y. <a title="clones.A.op" href="#op">op</a> x y = <a title="clones.A.op" href="#op">op</a> y x
     <span class="keyword">lemma</span> <a id="neutral_com">neutral_com</a><a href="clones.proof.html#A.neutral_com" title="Valid (one goal)" class="icon valid icofont-check"></a>: <span class="keyword">forall</span> x. <a title="clones.A.op" href="#op">op</a> <a title="clones.A.e" href="#e">e</a> x = x
   
   <span class="keyword">end</span>
@@ -36,16 +36,20 @@
   <body>
   <header><a href="index.html">index</a> — <code>library <a href="clones.index.html">clones</a></code> — <code>module B</code></header>
   <pre class="src">
-  <span class="keyword">module</span> B<a href="clones.proof.html#B" title="1 logic parameter, 1 hypothesis, 0 instance found" class="icon small warning icofont-warning-alt"></a><a href="clones.proof.html#B" title="Valid (one goal)" class="icon valid icofont-check"></a>
+  <span class="keyword">module</span> <span class="scope">B</span><a href="clones.proof.html#B" title="1 logic parameter, 1 hypothesis, 0 instance found" class="icon small warning icofont-warning-alt"></a><a href="clones.proof.html#B" title="Valid (one goal)" class="icon valid icofont-check"></a>
     <span class="keyword">use</span> int.<a title="int.Int" href="https://www.why3.org/stdlib/int.html#Int_">Int</a>
-    <span class="keyword">clone</span> <a id="clone-1" title="clones.A" href="clones.A.html#">A</a><span title="1 logic parameter, 1 hypothesis" class="icon small warning icofont-warning-alt"></span><span title="Valid (one goal)" class="icon valid icofont-check"></span><span class="section">{<span class="section-toggle">…</span><span class="section-text">
+    <span class="keyword">clone</span> <a title="clones.A" href="clones.A.html#">A</a><span class="section">{<span class="section-toggle">#</span><span class="section-text">
       <span class="comment section-toggle">begin</span>
-        <span class="keyword">function</span> <a id="A.e" title="clones.A.e" href="clones.A.html#e">e</a><span title="Parameter" class="icon small remark icofont-question-circle"></span> : int
-        <span class="keyword">axiom</span> <a id="A.neutral" title="clones.A.neutral" href="clones.A.html#neutral">neutral</a><span title="Hypothesis" class="icon small warning icofont-warning-alt"></span>
-        <span class="keyword">lemma</span> <a id="A.commutative" title="clones.A.commutative" href="clones.A.html#commutative">commutative</a><a href="clones.proof.html#B.A.commutative" title="Valid (one goal)" class="icon valid icofont-check"></a>
-        <span class="keyword">lemma</span> <a id="A.neutral_com" title="clones.A.neutral_com" href="clones.A.html#neutral_com">neutral_com</a><span title="cloned" class="icon remark icofont-check"></span>
+        <span class="comment">(* cloned <a name="clone-8" href="clones.A.html#">clones.A</a> *)</span>
       <span class="comment section-toggle">end</span>
-    </span>}</span> <span class="keyword">with</span> <span class="keyword">type</span> <a title="clones.A.t" href="clones.A.html#t">t</a> = int, <span class="keyword">function</span> <a title="clones.A.op" href="clones.A.html#op">op</a> = (<a title="int.Int.(+)" href="https://www.why3.org/stdlib/int.html#infix%20+_19">+</a>), <span class="keyword">axiom</span> <a title="clones.A.neutral" href="clones.A.html#neutral">neutral</a>
+    </span>}</span><span class="section">{<span class="section-toggle">…</span><span class="section-text">
+      <span class="comment section-toggle">begin</span>
+        <span class="keyword">function</span> <a id="A.e" href="clones.A.html#e" title="clones.B.A.e  (cloned from clones.A.e)">e</a><span title="Parameter" class="icon small remark icofont-question-circle"></span> : int
+        <span class="keyword">axiom</span> <a id="A.neutral" href="clones.A.html#neutral" title="clones.B.A.neutral  (cloned from clones.A.neutral)">neutral</a><span title="Hypothesis" class="icon small warning icofont-warning-alt"></span>
+        <span class="keyword">lemma</span> <a id="A.commutative" href="clones.A.html#commutative" title="clones.B.A.commutative  (cloned from clones.A.commutative)">commutative</a><a href="clones.proof.html#B.A.commutative" title="Valid (one goal)" class="icon valid icofont-check"></a>
+        <span class="keyword">lemma</span> <a id="A.neutral_com" href="clones.A.html#neutral_com" title="clones.B.A.neutral_com  (cloned from clones.A.neutral_com)">neutral_com</a><span title="cloned" class="icon remark icofont-check"></span>
+      <span class="comment section-toggle">end</span>
+    </span>}</span><span title="1 logic parameter, 1 hypothesis" class="icon small warning icofont-warning-alt"></span><span title="Valid (one goal)" class="icon valid icofont-check"></span> <span class="keyword">with</span> <span class="keyword">type</span> <a title="clones.A.t" href="clones.A.html#t">t</a> = int, <span class="keyword">function</span> <a title="clones.A.op" href="clones.A.html#op">op</a> = (<a title="int.Int.(+)" href="https://www.why3.org/stdlib/int.html#infix%20+_19">+</a>), <span class="keyword">axiom</span> <a title="clones.A.neutral" href="clones.A.html#neutral">neutral</a>
   <span class="keyword">end</span>
   </pre>
   <script type="text/javascript" src="script.js"></script>
@@ -62,7 +66,7 @@
   <body>
   <header><a href="index.html">index</a> — <code>library <a href="certif.index.html">certif</a></code> — <code>module S</code></header>
   <pre class="src">
-  <span class="keyword">module</span> S<a href="certif.proof.html#S" title="Partial proof (6/10 goals)" class="icon warning icofont-error"></a>
+  <span class="keyword">module</span> <span class="scope">S</span><a href="certif.proof.html#S" title="Partial proof (6/10 goals)" class="icon warning icofont-error"></a>
   
     <span class="keyword">use</span> int.<a title="int.Int" href="https://www.why3.org/stdlib/int.html#Int_">Int</a>
     <span class="keyword">use</span> int.<a title="int.MinMax" href="https://www.why3.org/stdlib/int.html#MinMax_">MinMax</a>
@@ -117,11 +121,11 @@
     alt-ergo     @2.4.2  n=16  169ms
   </pre>
   <h1>Proofs</h1>
-  <pre class="src"><span class="keyword">module</span> <a id="A" href="clones.A.html">clones.A</a><span title="3 logic parameters, 2 hypotheses, 1 ground instance" class="icon small valid icofont-star"></span><span title="Valid (one goal)" class="icon valid icofont-check"></span></pre>
+  <pre class="src"><span class="keyword">module</span> <a id="A" href="clones.A.html">clones.A</a><span title="3 logic parameters, 2 hypotheses, 1 incomplete instance" class="icon small warning icofont-warning-alt"></span><span title="Valid (one goal)" class="icon valid icofont-check"></span></pre>
   <pre class="src">
-    <span class="keyword">axiom</span> <a id="A.neutral" href="clones.A.html#neutral">neutral</a><span title="witnessed hypothesis" class="icon small valid icofont-star"></span>
-    <span class="keyword">axiom</span> <a id="A.commutative" href="clones.A.html#commutative">commutative</a><span title="witnessed hypothesis" class="icon small valid icofont-star"></span>
-    <span class="keyword">instance</span> <a href="clones.C.html#clone-1">clones.C</a><span title="sound instance" class="icon small valid icofont-star"></span>
+    <span class="keyword">axiom</span> <a id="A.neutral" href="clones.A.html#neutral">neutral</a><span title="uncloned hypothesis" class="icon small warning icofont-warning-alt"></span>
+    <span class="keyword">axiom</span> <a id="A.commutative" href="clones.A.html#commutative">commutative</a><span title="uncloned hypothesis" class="icon small warning icofont-warning-alt"></span>
+    <span class="keyword">instance</span> <a href="clones.B.html#clone-8">clones.B</a><span title="incomplete instance" class="icon small warning icofont-warning-alt"></span>
   </pre>
   <pre class="src">
     <span class="keyword">goal</span> <a id="A.neutral_com" href="clones.A.html#neutral_com">neutral_com</a><span title="Valid (one goal)" class="icon valid icofont-check"></span>
