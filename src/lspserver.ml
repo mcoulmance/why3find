@@ -48,6 +48,7 @@ let typedefProvider = ref false
 let implementationProvider = ref false
 let hoverProvider = ref false
 let codeLensProvider = ref false
+let foldingRangeProvider = ref false
 
 let () = Lsp.register ~force:true "initialize"
     begin fun _channel _data ->
@@ -63,6 +64,7 @@ let () = Lsp.register ~force:true "initialize"
           "implementationProvider", `Bool !implementationProvider ;
           "hoverProvider", `Bool !hoverProvider ;
           "codeLensProvider", `Bool !codeLensProvider ;
+          "foldingRangeProvider", `Bool !foldingRangeProvider ;
         ];
         "serverInfo", `Assoc [
           "name", `String "why3find" ;
@@ -353,8 +355,8 @@ let on_codelens ?resolve fn =
     begin fun channel data ->
       let doc = Json.jfield "textDocument" data in
       let uri = Json.jfield "uri" doc |> Json.jstring in
-      let lenses = try fn channel ~uri with Exit | Not_found -> [] in
-      Json.list_map wcodelens lenses
+      try Json.list_map wcodelens @@ fn channel ~uri
+      with Exit | Not_found -> `Null
     end ;
   Option.iter
     begin fun fn ->
@@ -372,6 +374,39 @@ let on_codelens ?resolve fn =
 
 let refresh_codelens channel =
   Lsp.send channel "workspace/codeLens/refresh" `Null
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Folding Ranges                                                    --- *)
+(* -------------------------------------------------------------------------- *)
+
+type folding = Folding of {
+    range : range ;
+    kind : string option ;
+    text : string option ;
+  }
+
+let folding ~range ?kind ?text () =
+  Folding { range ; kind ; text }
+
+let wfolding = function Folding { range ; kind ; text } ->
+  Json.assoc [
+    "startLine", `Int range.start.line ;
+    "startCharacter", `Int range.start.char ;
+    "endLine", `Int range.stop.line ;
+    "endCharacter", `Int range.stop.char ;
+    "kind", Json.option_map Json.string kind ;
+    "collapsedText", Json.option_map Json.string text ;
+  ]
+
+let on_folding fn =
+  foldingRangeProvider := true ;
+  Lsp.register "textDocument/foldingRange"
+    begin fun channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      try Json.list_map wfolding @@ fn channel ~uri
+      with Exit | Not_found -> `Null
+    end
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Diagnostics                                                       --- *)

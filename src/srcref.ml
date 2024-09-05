@@ -25,6 +25,7 @@ type symbol =
   | Ref of Id.id
   | Def of Id.id
   | Clone of Id.id * Id.id list
+  | Section of string
 
 type env = {
   env : Wenv.env ;
@@ -33,8 +34,9 @@ type env = {
   mutable thy : Docref.theory option ;
   mutable opened : string list ;
   mutable scopes : string list ;
-  mutable cloning : Cloning.state ;
   mutable declared : Sid.t ;
+  mutable cloning : Cloning.state ;
+  mutable sections : (string * Lexing.position) list ;
   mutable symbols : symbol Rangemap.t ;
 }
 
@@ -43,6 +45,7 @@ let init env src input = {
   opened = [] ;
   scopes = [] ;
   declared = Sid.empty ;
+  sections = [] ;
   cloning = Cloning.init ;
   symbols = Rangemap.empty ;
 }
@@ -145,6 +148,18 @@ let process_word env s =
   else
     process_identifier env s
 
+let process_open_section env input s =
+  let _,p = Token.position input in
+  env.sections <- (s,p) :: env.sections
+
+let process_close_section env input =
+  match env.sections with
+  | [] -> ()
+  | (s,p) :: sections ->
+    let q,_ = Token.position input in
+    env.sections <- sections ;
+    env.symbols <- Rangemap.add (lexrange (p,q)) (Section s) env.symbols
+
 let parse ?doc ?filename ~env ~src file =
   let input = Token.input ?doc ?filename file in
   let env = init env src input in
@@ -160,11 +175,14 @@ let parse ?doc ?filename ~env ~src file =
       | Token.Newline -> process_clone_token env `Newline
       | Token.Comment _ -> process_clone_token env `Comment
 
+      (* folding *)
+      | Token.OpenSection (_, s) -> process_open_section env input s
+      | Token.CloseSection _ -> process_close_section env input
+
       (* skipped *)
       | Token.Eof
       | Token.Char _ | Token.Text _
       | Token.OpenDoc | Token.CloseDoc
-      | Token.OpenSection (_, _) | Token.CloseSection _
       | Token.Space | Token.Style (_, _) | Token.Verb _ -> ()
 
     done ;

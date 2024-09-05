@@ -184,6 +184,11 @@ let rec forward updates pos =
   | upd::updates ->
     Option.bind (Lspserver.forward_position pos upd) (forward updates)
 
+let forward_range updates Lspserver.{ start ; stop } =
+  match forward updates start , forward updates stop with
+  | Some start , Some stop -> Some Lspserver.{ start ; stop }
+  | _ -> None
+
 let locate ~uri (pos : Lspserver.position) =
   match Lspserver.to_file ~uri with
   | None -> raise Not_found
@@ -209,7 +214,7 @@ let goto = function
 let definition _channel ~uri (pos : Lspserver.position) =
   let _,_,_,s = locate ~uri pos in
   match s with
-  | Def _ -> []
+  | Def _ | Section _ -> []
   | Ref id | Clone(id,_) -> [goto id.self.id_loc]
 
 let () = Lspserver.on_definition definition
@@ -231,8 +236,8 @@ let typeof_decl = function
 let typedef _channel ~uri (pos : Lspserver.position) =
   let _,src,_,s = locate ~uri pos in
   match s with
-  | Clone _ -> []
-  | Def id | Ref id ->
+  | Section _ -> []
+  | Def id | Ref id | Clone(id,_) ->
     try
       let ts = typeof_decl @@ find_decl src id in
       [goto ts.ts_name.id_loc]
@@ -484,6 +489,7 @@ let mk_hover rg ~title ?code ?(infos=[]) () =
 let hover _channel ~uri (pos : Lspserver.position) =
   let _,src,rg,s = locate ~uri pos in
   match s with
+  | Section _ -> raise Not_found
   | Clone(id,ids) ->
     let title = Format.asprintf "cloned %a" Id.pp_title id in
     mk_hover rg ~title ?code:(clone src ids) ()
@@ -510,7 +516,7 @@ let lenses _channel ~uri =
         | None -> ()
         | Some pos ->
           match s with
-          | Ref _ -> ()
+          | Ref _ | Section _ -> ()
           | Clone(_,ids) ->
             let cs = List.filter_map (get_proof source) ids in
             if cs <> [] then
@@ -528,6 +534,34 @@ let lenses _channel ~uri =
     !pool
 
 let () = Lspserver.on_codelens lenses
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Folding Ranges                                                    --- *)
+(* -------------------------------------------------------------------------- *)
+
+let folding _channel ~uri =
+  match Lspserver.to_file ~uri with
+  | None -> raise Not_found
+  | Some filename ->
+    let source = Hashtbl.find sources filename in
+    let pool = ref [] in
+    Rangemap.iter
+      begin fun rg (s : Srcref.symbol) ->
+        match s with
+        | Ref _ | Def _ | Clone _ -> ()
+        | Section _title ->
+          let (p,q) = rg in
+          let start = Lspserver.{ line = fst p ; char = snd p } in
+          let stop = Lspserver.{ line = fst q ; char = snd q } in
+          let range = Lspserver.{ start ; stop } in
+          match forward_range source.updates range with
+          | None -> ()
+          | Some range ->
+            pool := Lspserver.folding ~kind:"region" ~range () :: !pool
+      end source.symbols ;
+    !pool
+
+let () = Lspserver.on_folding folding
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Proof Watcher                                                     --- *)

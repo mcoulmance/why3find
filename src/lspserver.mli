@@ -112,6 +112,18 @@ val on_codelens :
 
 val refresh_codelens : Lsp.channel -> unit
 
+(** {2 Folding Ranges} *)
+
+type folding = Folding of {
+    range : range ;
+    kind : string option ;
+    text : string option ;
+  }
+
+val folding : range:range -> ?kind:string -> ?text:string -> unit -> folding
+
+val on_folding : (Lsp.channel -> uri:string -> folding list) -> unit
+
 (** {2 Worspace File Watching} *)
 
 type event = [ `Created | `Changed | `Deleted ]
