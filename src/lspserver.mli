@@ -123,6 +123,7 @@ type folding = Folding of {
 val folding : range:range -> ?kind:string -> ?text:string -> unit -> folding
 
 val on_folding : (Lsp.channel -> uri:string -> folding list) -> unit
+val refresh_folding : Lsp.channel -> unit
 
 (** {2 Worspace File Watching} *)
 
