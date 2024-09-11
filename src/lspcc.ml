@@ -154,6 +154,7 @@ let compile channel doc =
         preprocess filename diagnostics ;
         Lspserver.publish_diagnostic channel ~uri !diagnostics ;
         Lspserver.refresh_codelens channel ;
+        Lspserver.refresh_folding channel ;
       end
 
 let update _channel ~uri update =

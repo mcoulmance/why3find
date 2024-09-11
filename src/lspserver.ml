@@ -408,6 +408,9 @@ let on_folding fn =
       with Exit | Not_found -> `Null
     end
 
+let refresh_folding channel =
+  Lsp.send channel "workspace/foldingRange/refresh" `Null
+
 (* -------------------------------------------------------------------------- *)
 (* ---  Diagnostics                                                       --- *)
 (* -------------------------------------------------------------------------- *)
