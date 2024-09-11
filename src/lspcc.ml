@@ -340,10 +340,10 @@ let pp_tsymbol fmt ts =
 let rec pp_type fmt (t : Why3.Ty.ty) =
   match t.ty_node with
   | Why3.Ty.Tyvar x -> pp_tvar fmt x
-  | Why3.Ty.Tyapp (t, []) -> pp_tsymbol fmt t
   | Why3.Ty.Tyapp (t, ts) when Why3.Ty.is_ts_tuple t -> pp_tuple fmt ts
   | Why3.Ty.Tyapp (t, [a;b]) when Why3.Ty.(ts_equal t ts_func) ->
     Format.fprintf fmt "@[<hov 2>(%a@ -> %a)@]" pp_type a pp_func b ;
+  | Why3.Ty.Tyapp (t, []) -> pp_tsymbol fmt t
   | Why3.Ty.Tyapp (t, ts) ->
     Format.fprintf fmt "@[<hov 2>(%a" pp_long t.ts_name ;
     List.iter (Format.fprintf fmt "@ %a" pp_type) ts ;
