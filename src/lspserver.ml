@@ -48,6 +48,7 @@ let typedefProvider = ref false
 let implementationProvider = ref false
 let hoverProvider = ref false
 let codeLensProvider = ref false
+let documentSymbolProvider = ref false
 let foldingRangeProvider = ref false
 
 let () = Lsp.register ~force:true "initialize"
@@ -64,6 +65,7 @@ let () = Lsp.register ~force:true "initialize"
           "implementationProvider", `Bool !implementationProvider ;
           "hoverProvider", `Bool !hoverProvider ;
           "codeLensProvider", `Bool !codeLensProvider ;
+          "documentSymbolProvider", `Bool !documentSymbolProvider;
           "foldingRangeProvider", `Bool !foldingRangeProvider ;
         ];
         "serverInfo", `Assoc [
@@ -410,6 +412,58 @@ let on_folding fn =
 
 let refresh_folding channel =
   Lsp.send channel "workspace/foldingRange/refresh" `Null
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Document Symbols                                                  --- *)
+(* -------------------------------------------------------------------------- *)
+
+type kind = [
+  | `File | `Module | `Namespace | `Package | `Class
+  | `Method | `Property | `Field | `Constructor | `Enum | `Interface
+  | `Function | `Variable | `Constant
+  | `String | `Number | `Boolean | `Array | `Object | `Key
+  | `Null | `EnumMember | `Struct
+  | `Event | `Operator| `TypeParameter
+]
+
+let ikind (kind : kind) =
+  match kind with
+  | `File -> 1 | `Module -> 2 | `Namespace -> 3 | `Package -> 4 | `Class -> 5
+  | `Method -> 6 | `Property -> 7 | `Field -> 8 | `Constructor -> 9
+  | `Enum -> 10 | `Interface -> 11 | `Function -> 12 | `Variable -> 13
+  | `Constant -> 14 | `String -> 15 | `Number -> 16 | `Boolean -> 17
+  | `Array -> 18 | `Object -> 19 | `Key -> 20 | `Null -> 21 | `EnumMember -> 22
+  | `Struct -> 23 | `Event -> 24 | `Operator -> 25 | `TypeParameter -> 26
+
+type symbol = Symbol of {
+    name : string ;
+    kind : kind ;
+    range : range ;
+    selection : range ;
+    children : symbol list ;
+  }
+
+let symbol ~name ~kind ~range ?(selection=range) ?(children=[]) () =
+  Symbol { name ; kind ; range ; selection ; children }
+
+let rec wsymbol = function Symbol s ->
+  Json.assoc [
+    "name", `String s.name ;
+    "kind", `Int (ikind s.kind) ;
+    "range", wrange s.range ;
+    "selectionRange", wrange s.selection ;
+    "children", Json.list_map wsymbol s.children ;
+  ]
+
+let on_document_symbol fn =
+  documentSymbolProvider := true ;
+  Lsp.register "textDocument/documentSymbol"
+    begin fun channel data ->
+      let doc = Json.jfield "textDocument" data in
+      let uri = Json.jfield "uri" doc |> Json.jstring in
+      try Json.list_map wsymbol @@ fn channel ~uri
+      with Exit | Not_found -> `Null
+    end
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Diagnostics                                                       --- *)
