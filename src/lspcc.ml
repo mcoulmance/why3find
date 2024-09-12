@@ -32,15 +32,15 @@ let load_plugins () = !plugins && (plugins := false ; true)
 type source = {
   env : Wenv.env ;
   src : Docref.source ;
+  types : Namespace.t ;
   symbols : Srcref.symbol Rangemap.t ;
   mutable updates : Lspserver.update list ;
 }
 
 let sources = Hashtbl.create 0
-
-let set_source ~filename env src symbols =
+let set_source ~filename env src types symbols =
   Hashtbl.replace sources filename {
-    env ; src ; symbols ; updates = [] ;
+    env ; src ; types ; symbols ; updates = [] ;
   }
 
 let find_decl (source:source) id =
@@ -127,8 +127,13 @@ let preprocess filename diagnostics =
     let lib = library ~root ~filename in
     let parser = Docref.source ~wenv ~henv ~lib ~root ~filename in
     let src = Utils.input ~file:filename parser in
+    let types =
+      Why3.Wstdlib.Mstr.fold
+        (fun _ (t : Docref.theory) d ->
+           Namespace.add_types ~lib:src.lib t.theory d)
+        src.theories Namespace.empty in
     let refs = Srcref.parse ~doc:false ~env ~src filename in
-    set_source ~filename env src refs ;
+    set_source ~filename env src types refs ;
   with
   | Why3.Loc.Located(loc,exn) ->
     let file,range = of_loc loc in
@@ -310,8 +315,11 @@ let get_proof source (id : Id.id) =
 (* --- Symbol Printers                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
+let lib = ref []
+let types = ref Namespace.empty
 let scoped = ref false
-let pp_long fmt id = Id.pp_path fmt @@ Id.path id
+let pp_typename fmt id =
+  Id.pp_qid fmt @@ Namespace.find ~lib:!lib id !types
 let pp_name fmt (id : Why3.Ident.ident) =
   Format.pp_print_string fmt id.id_string
 let pp_scoped fmt (id : Why3.Ident.ident) =
@@ -335,9 +343,9 @@ let builtins =
 
 let pp_tsymbol fmt ts =
   try Format.pp_print_string fmt @@ Why3.Ty.Mts.find ts builtins
-  with Not_found -> pp_long fmt ts.ts_name
+  with Not_found -> pp_typename fmt ts.ts_name
 
-let rec pp_type fmt (t : Why3.Ty.ty) =
+let rec ppt ~par fmt (t : Why3.Ty.ty) =
   match t.ty_node with
   | Why3.Ty.Tyvar x -> pp_tvar fmt x
   | Why3.Ty.Tyapp (t, ts) when Why3.Ty.is_ts_tuple t -> pp_tuple fmt ts
@@ -345,9 +353,12 @@ let rec pp_type fmt (t : Why3.Ty.ty) =
     Format.fprintf fmt "@[<hov 2>(%a@ -> %a)@]" pp_type a pp_func b ;
   | Why3.Ty.Tyapp (t, []) -> pp_tsymbol fmt t
   | Why3.Ty.Tyapp (t, ts) ->
-    Format.fprintf fmt "@[<hov 2>(%a" pp_long t.ts_name ;
-    List.iter (Format.fprintf fmt "@ %a" pp_type) ts ;
-    Format.fprintf fmt ")@]"
+    Format.fprintf fmt "@[<hov 2>" ;
+    if par then Format.pp_print_char fmt '(' ;
+    pp_typename fmt t.ts_name ;
+    List.iter (Format.fprintf fmt "@ %a" pp_subtype) ts ;
+    if par then Format.pp_print_char fmt ')' ;
+    Format.fprintf fmt "@]"
 
 and pp_tuple fmt = function
   | [] -> Format.pp_print_string fmt "unit"
@@ -362,12 +373,18 @@ and pp_func fmt t =
     Format.fprintf fmt "%a@ -> %a" pp_type a pp_func b
   | _ -> pp_type fmt t
 
+and pp_type fmt t = ppt ~par:false fmt t
+and pp_subtype fmt t = ppt ~par:true fmt t
+
 let is_record (c : Why3.Decl.constructor) =
   List.for_all (function None -> false | Some _ -> true) @@ snd c
 
 let is_unit ty = Why3.Ity.(ity_equal ty ity_unit)
 
-let pp_ity fmt ty =
+let pp_pty fmt ty =
+  pp_subtype fmt @@ Why3.Ity.ty_of_ity ty
+
+let pp_rty fmt ty =
   pp_type fmt @@ Why3.Ity.ty_of_ity ty
 
 let pp_field fmt (f : Why3.Term.lsymbol option) =
@@ -381,7 +398,7 @@ let pp_field fmt (f : Why3.Term.lsymbol option) =
 let pp_constr fmt (c : Why3.Decl.constructor) =
   let ls = fst c in
   Format.fprintf fmt "@ | %a" pp_name ls.ls_name ;
-  List.iter (Format.fprintf fmt " %a" pp_type) ls.ls_args
+  List.iter (Format.fprintf fmt " %a" pp_subtype) ls.ls_args
 
 let pp_tdecl fmt (ts : Why3.Ty.tysymbol) =
   pp_scoped fmt ts.ts_name ;
@@ -393,8 +410,8 @@ let pp_vdecl fmt (pv : Why3.Ity.pvsymbol) =
   Format.fprintf fmt "%a : %a" pp_scoped vs.vs_name pp_type vs.vs_ty
 
 let pp_varg fmt (pv : Why3.Ity.pvsymbol) =
-  if pv.pv_ghost then Format.fprintf fmt "(ghost %a)" pp_ity pv.pv_ity
-  else pp_ity fmt pv.pv_ity
+  if pv.pv_ghost then Format.fprintf fmt "(ghost %a)" pp_rty pv.pv_ity
+  else pp_pty fmt pv.pv_ity
 
 let pp_decl fmt (d : Id.decl) =
   match d with
@@ -424,7 +441,7 @@ let pp_decl fmt (d : Id.decl) =
   | Id.Logic ls ->
     let kind = if ls.ls_value = None then "predicate" else "function" in
     Format.fprintf fmt "@[<hv 2>%s %a" kind pp_infix ls.ls_name ;
-    List.iter (Format.fprintf fmt "@ %a" pp_type) ls.ls_args ;
+    List.iter (Format.fprintf fmt "@ %a" pp_subtype) ls.ls_args ;
     Option.iter (Format.fprintf fmt "@ : %a" pp_type) ls.ls_value ;
     if ls.ls_proj then Format.fprintf fmt "@ (* field *)" ;
     if ls.ls_constr > 0 then Format.fprintf fmt "@ (* constructor *)" ;
@@ -441,44 +458,64 @@ let pp_decl fmt (d : Id.decl) =
         | RKpred -> Format.fprintf fmt " predicate"
         | RKlemma -> Format.fprintf fmt " lemma"
       end ;
-      Format.fprintf fmt " %a" pp_infix r.rs_name ;
+      Format.fprintf fmt " %a" pp_scoped r.rs_name ;
       let args = r.rs_cty.cty_args in
       List.iter (Format.fprintf fmt "@ %a" pp_varg) args ;
-      Format.fprintf fmt "@ : %a@]" pp_ity r.rs_cty.cty_result
+      Format.fprintf fmt "@ : %a@]" pp_rty r.rs_cty.cty_result
     end
   | Id.Exn x ->
     Format.fprintf fmt "@[<hov 2>exception %a" pp_scoped x.xs_name ;
     let ty = x.xs_ity in
-    if not @@ is_unit ty then Format.fprintf fmt " : %a" pp_ity ty ;
+    if not @@ is_unit ty then Format.fprintf fmt " : %a" pp_rty ty ;
     Format.fprintf fmt "@]"
   | Id.Axiom p -> Format.fprintf fmt "@[<hov 2>axiom %a@]" pp_scoped p.pr_name
   | Id.Lemma p -> Format.fprintf fmt "@[<hov 2>lemma %a@]" pp_scoped p.pr_name
   | Id.Goal p -> Format.fprintf fmt "@[<hov 2>goal %a@]" pp_scoped p.pr_name
 
+let clear () =
+  begin
+    lib := [] ;
+    types := Namespace.empty ;
+    scoped := false ;
+  end
+
+let context source ?(scope=false) fn =
+  try
+    lib := source.src.lib ;
+    types := source.types ;
+    scoped := scope ;
+    let r = fn () in
+    clear () ; r
+  with exn ->
+    clear () ; raise exn
+
 let code source id =
-  try Some (Format.asprintf "%a" pp_decl @@ find_decl source id)
-  with Not_found -> None
+  context source
+    begin fun () ->
+      try Some (Format.asprintf "%a" pp_decl @@ find_decl source id)
+      with Not_found -> None
+    end
 
 let clone source ids =
   let ds =
     List.filter_map
       (fun id -> try Some (id, find_decl source id) with Not_found -> None) ids in
   if ds = [] then None else
-    begin
-      scoped := true ;
-      let tt =
-        Format.asprintf "scope%t@\nend"
-          (fun fmt ->
-             List.iter
-               (fun (id,decl) ->
-                  Option.iter
-                    (Format.fprintf fmt "@\n  (* %a *)" pp_crc)
-                    (get_proof source id) ;
-                  Format.fprintf fmt "@\n  %a" pp_decl decl ;
-               ) ds) in
-      scoped := false ;
-      Some tt
-    end
+    context source ~scope:true
+      begin fun () ->
+        let tt =
+          Format.asprintf "scope%t@\nend"
+            begin fun fmt ->
+              List.iter
+                (fun (id,decl) ->
+                   Option.iter
+                     (Format.fprintf fmt "@\n  (* %a *)" pp_crc)
+                     (get_proof source id) ;
+                   Format.fprintf fmt "@\n  %a" pp_decl decl ;
+                ) ds
+            end
+        in Some tt
+      end
 
 let mk_hover rg ~title ?code ?(infos=[]) () =
   let code =
