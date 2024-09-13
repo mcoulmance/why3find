@@ -32,4 +32,4 @@ type env
 val parse :
   ?doc:bool -> ?filename:string ->
   env:Wenv.env -> src:Docref.source ->
-  string -> symbol Rangemap.t
+  string -> symbol Rangemap.t * Lspserver.symbol list

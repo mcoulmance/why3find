@@ -27,35 +27,117 @@ type symbol =
   | Clone of Id.id * Id.id list
   | Section of string
 
+type frame = Frame of {
+    name : string ;
+    first : Token.position ;
+    token : Token.position ;
+    kind : Lspserver.kind ;
+    stacked : Lspserver.symbol list ;
+  }
+
 type env = {
   env : Wenv.env ;
   src : Docref.source ;
   input : Token.input ;
+  mutable blanklines : int ; (* number of consecutive blanklines so far *)
+  mutable closing : Token.position ; (* last code-token before the first *)
+  mutable first : Token.position ; (* fist code-token after last blankline *)
+  mutable last : Token.position ; (* last code-token so far *)
   mutable thy : Docref.theory option ;
   mutable opened : string list ;
   mutable scopes : string list ;
   mutable declared : Sid.t ;
   mutable cloning : Cloning.state ;
   mutable sections : (string * Lexing.position) list ;
-  mutable symbols : symbol Rangemap.t ;
+  mutable symbols : Lspserver.symbol list ;
+  mutable frame : frame option ;
+  mutable stack : frame list ;
+  mutable refs : symbol Rangemap.t ;
 }
 
-let init env src input = {
-  env ; src ; input ; thy = None ;
-  opened = [] ;
-  scopes = [] ;
-  declared = Sid.empty ;
-  sections = [] ;
-  cloning = Cloning.init ;
-  symbols = Rangemap.empty ;
-}
+let init env src input =
+  let here = Token.position input in
+  {
+    env ; src ; input ; thy = None ;
+    blanklines = 0 ; closing = here ; first = here ; last = here ;
+    opened = [] ; scopes = [] ; sections = [] ;
+    declared = Sid.empty ;
+    cloning = Cloning.init ;
+    symbols = [] ; frame = None ; stack = [] ;
+    refs = Rangemap.empty ;
+  }
 
 let lexpos (pos : Lexing.position) : Range.pos =
   pos.pos_lnum - 1, pos.pos_cnum - pos.pos_bol
 
 let lexrange ((p,q) : Token.position) : Range.range = lexpos p, lexpos q
 
+let lspos (pos : Lexing.position) : Lspserver.position =
+  let line,char = lexpos pos in { line ; char }
+
+let lsrange ((p,q) : Token.position) : Lspserver.range =
+  { start = lspos p ; stop = lspos q }
+
 let resolve env id = Id.resolve ~lib:env.src.lib ~root:env.src.filename id
+
+let flush env =
+  match env.frame with
+  | None -> ()
+  | Some (Frame { first ; token ; name ; kind }) ->
+    let range = lsrange (fst first,snd env.closing) in
+    let selection = lsrange token in
+    let symbol = Lspserver.symbol ~range ~name ~kind ~selection () in
+    env.symbols <- symbol :: env.symbols ;
+    env.frame <- None
+
+let frame env name kind =
+  flush env ;
+  env.frame <- Some (Frame {
+      first = env.first ;
+      token = Token.position env.input ;
+      name ; kind ; stacked = [] ;
+    })
+
+let push env name kind =
+  begin
+    flush env ;
+    let frame =
+      Frame {
+        first = env.first ;
+        token = Token.position env.input ;
+        name ; kind ;
+        stacked = env.symbols
+      } in
+    env.symbols <- [] ;
+    env.stack <- frame :: env.stack ;
+  end
+
+let pop env =
+  flush env ;
+  match env.stack with
+  | [] -> ()
+  | Frame { first ; token ; name ; kind ; stacked } :: frames ->
+    let children = List.rev env.symbols in
+    let range = lsrange (fst first,snd env.last) in
+    let selection = lsrange token in
+    let symbol = Lspserver.symbol ~range ~name ~kind ~selection ~children () in
+    begin
+      env.stack <- frames ;
+      env.symbols <- symbol :: stacked ;
+    end
+
+let add_symbol env id =
+  try
+    let kind : Lspserver.kind =
+      match Docref.find_decl env.env.wenv env.src id with
+      | Type _ -> `TypeParameter
+      | Logic _ -> `Function
+      | Var _ -> `Variable
+      | Let _ -> `Method
+      | Exn _ -> `Event
+      | Id.Axiom _ | Id.Lemma _ | Id.Goal _ -> `Property in
+    frame env (Id.name id) kind ;
+  with Not_found -> ()
 
 let process_clone_token env token =
   let state, action = Cloning.process env.cloning env.input token in
@@ -81,7 +163,7 @@ let process_clone_token env token =
                     Some (resolve env target) )
             ) s.clones in
         let symbol = Clone(id,ids) in
-        env.symbols <- Rangemap.add (lexrange pos) symbol env.symbols
+        env.refs <- Rangemap.add (lexrange pos) symbol env.refs
 
 let process_href env pos token (href : Docref.href) =
   match href with
@@ -89,10 +171,11 @@ let process_href env pos token (href : Docref.href) =
     process_clone_token env (`Name token)
   | Def(id,_) ->
     env.declared <- Sid.add id.self env.declared ;
-    env.symbols <- Rangemap.add (lexrange pos) (Def id) env.symbols
+    env.refs <- Rangemap.add (lexrange pos) (Def id) env.refs ;
+    add_symbol env id
   | Ref id ->
     process_clone_token env (`Id id.self) ;
-    env.symbols <- Rangemap.add (lexrange pos) (Ref id) env.symbols
+    env.refs <- Rangemap.add (lexrange pos) (Ref id) env.refs
 
 let process_identifier ?(infix=false) env token =
   let pos = Token.position env.input in
@@ -107,10 +190,12 @@ let process_open_module env kind =
     env.scopes <- [] ;
     env.declared <- Sid.empty ;
     env.cloning <- Cloning.init ;
+    push env id `Module ;
   end
 
 let process_close_module env =
   begin
+    pop env ;
     env.thy <- None ;
     env.opened <- [] ;
     env.scopes <- [] ;
@@ -122,15 +207,22 @@ let process_opening s env =
   begin
     env.opened <- s :: env.opened ;
     if s = "scope" then
-      let id = Token.fetch_id ~kind:s env.input in
-      env.scopes <- id :: env.scopes
+      begin
+        let id = Token.fetch_id ~kind:s env.input in
+        push env id `Namespace ;
+        env.scopes <- id :: env.scopes ;
+      end
   end
 
 let process_closing s env =
   match env.opened with
   | k0::ks ->
-    if k0 = "scope" then env.scopes <- List.tl env.scopes ;
-    env.opened <- ks
+    env.opened <- ks ;
+    if k0 = "scope" then
+      begin
+        pop env ;
+        env.scopes <- List.tl env.scopes ;
+      end
   | [] ->
     Token.error env.input "No matching opening keyword for '%s" s
 
@@ -158,7 +250,29 @@ let process_close_section env input =
   | (s,p) :: sections ->
     let q,_ = Token.position input in
     env.sections <- sections ;
-    env.symbols <- Rangemap.add (lexrange (p,q)) (Section s) env.symbols
+    env.refs <- Rangemap.add (lexrange (p,q)) (Section s) env.refs
+
+let process_block env = function
+  | Token.Newline ->
+    env.blanklines <- succ env.blanklines
+
+  | Token.Infix _ | Token.Ident _ | Token.Ref _ ->
+    let here = Token.position env.input in
+    if env.blanklines > 0 then
+      begin
+        env.closing <- env.last ;
+        env.first <- here ;
+        env.blanklines <- 0 ;
+      end ;
+    env.last <- here
+
+  | Token.Comment _ | Token.Space | Token.Eof
+  | Token.Char _ | Token.Text _ | Token.Style _
+  | Token.OpenDoc | Token.CloseDoc
+  | Token.OpenSection _ | Token.CloseSection _
+  | Token.Verb _ -> ()
+
+
 
 let parse ?doc ?filename ~env ~src file =
   let input = Token.input ?doc ?filename file in
@@ -166,6 +280,7 @@ let parse ?doc ?filename ~env ~src file =
   try
     while not @@ Token.eof input do
       let tok = Token.token input in
+      process_block env tok ;
       match tok with
 
       (* scanned *)
@@ -187,7 +302,7 @@ let parse ?doc ?filename ~env ~src file =
 
     done ;
     Token.close input ;
-    env.symbols
+    env.refs, env.symbols
   with exn ->
     Token.close input ;
     raise exn

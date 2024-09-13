@@ -125,6 +125,25 @@ val folding : range:range -> ?kind:string -> ?text:string -> unit -> folding
 val on_folding : (Lsp.channel -> uri:string -> folding list) -> unit
 val refresh_folding : Lsp.channel -> unit
 
+(** {2 Document Symbols} *)
+
+type symbol
+type kind = [
+  | `File | `Module | `Namespace | `Package | `Class
+  | `Method | `Property | `Field | `Constructor | `Enum | `Interface
+  | `Function | `Variable | `Constant
+  | `String | `Number | `Boolean | `Array | `Object | `Key
+  | `Null | `EnumMember | `Struct
+  | `Event | `Operator| `TypeParameter
+]
+
+val symbol :
+  name:string -> kind:kind -> range:range ->
+  ?selection:range -> ?children:symbol list ->
+  unit -> symbol
+
+val on_document_symbol : (Lsp.channel -> uri:string -> symbol list) -> unit
+
 (** {2 Worspace File Watching} *)
 
 type event = [ `Created | `Changed | `Deleted ]

@@ -32,15 +32,16 @@ let load_plugins () = !plugins && (plugins := false ; true)
 type source = {
   env : Wenv.env ;
   src : Docref.source ;
+  refs : Srcref.symbol Rangemap.t ;
   types : Namespace.t ;
-  symbols : Srcref.symbol Rangemap.t ;
+  symbols : Lspserver.symbol list ;
   mutable updates : Lspserver.update list ;
 }
 
 let sources = Hashtbl.create 0
-let set_source ~filename env src types symbols =
+let set_source ~filename env src refs types symbols =
   Hashtbl.replace sources filename {
-    env ; src ; types ; symbols ; updates = [] ;
+    env ; src ; refs ; types ; symbols ; updates = [] ;
   }
 
 let find_decl (source:source) id =
@@ -132,8 +133,8 @@ let preprocess filename diagnostics =
         (fun _ (t : Docref.theory) d ->
            Namespace.add_types ~lib:src.lib t.theory d)
         src.theories Namespace.empty in
-    let refs = Srcref.parse ~doc:false ~env ~src filename in
-    set_source ~filename env src types refs ;
+    let refs, symbols = Srcref.parse ~doc:false ~env ~src filename in
+    set_source ~filename env src refs types symbols ;
   with
   | Why3.Loc.Located(loc,exn) ->
     let file,range = of_loc loc in
@@ -203,7 +204,7 @@ let locate ~uri (pos : Lspserver.position) =
     match backward src.updates pos with
     | None -> raise Not_found
     | Some pos ->
-      let rg,symbol = Rangemap.find (pos.line, pos.char) src.symbols in
+      let rg,symbol = Rangemap.find (pos.line, pos.char) src.refs in
       filename, src, rg, symbol
 
 (* -------------------------------------------------------------------------- *)
@@ -568,7 +569,7 @@ let lenses _channel ~uri =
               let title = Format.asprintf "%a" pp_crc crc in
               let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
               pool := Lspserver.resolved pos cmd :: !pool
-      end source.symbols ;
+      end source.refs ;
     !pool
 
 let () = Lspserver.on_codelens lenses
@@ -588,18 +589,27 @@ let folding _channel ~uri =
         match s with
         | Ref _ | Def _ | Clone _ -> ()
         | Section _title ->
-          let (p,q) = rg in
-          let start = Lspserver.{ line = fst p ; char = snd p } in
-          let stop = Lspserver.{ line = fst q ; char = snd q } in
-          let range = Lspserver.{ start ; stop } in
-          match forward_range source.updates range with
+          match forward_range source.updates (of_range rg) with
           | None -> ()
           | Some range ->
             pool := Lspserver.folding ~kind:"region" ~range () :: !pool
-      end source.symbols ;
+      end source.refs ;
     !pool
 
 let () = Lspserver.on_folding folding
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Document Symbols                                                  --- *)
+(* -------------------------------------------------------------------------- *)
+
+let symbols _channel ~uri =
+  match Lspserver.to_file ~uri with
+  | None -> raise Not_found
+  | Some filename ->
+    let source = Hashtbl.find sources filename in
+    source.symbols
+
+let () = Lspserver.on_document_symbol symbols
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Proof Watcher                                                     --- *)
