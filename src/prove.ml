@@ -253,11 +253,12 @@ let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess file =
     let dir, lib = Wutil.filepath file in
     let theories, format = Wutil.load_theories env.Wenv.wenv file in
     let session = Session.create ~session ~dir ~file ~format theories in
-    let profile, strategy =
-      Proofs.load ~local:(Calibration.default env) file in
-    let dumper = match mode with
-      | `Force | `Update | `Minimize -> Some (Proofs.create file profile)
-      | `Replay -> None in
+    let local = Calibration.default env in
+    let profile, strategy = Proofs.load ~local file in
+    let dumper = (* the proof strategy must be kept to stabilize crc files *)
+      if (mode = `Replay)
+      then None
+      else Some (Proofs.create file profile strategy) in
     let context = match log with `Context n -> n | _ -> (-1) in
     let* proofs =
       Fibers.all @@ List.map

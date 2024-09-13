@@ -49,7 +49,7 @@ let load ?local file : profile * proofs =
   let strategy = jmap (jmap Crc.of_json) @@ Json.jfield "proofs" js in
   profile , strategy
 
-type dumper = {
+type buffer = {
   file : string;
   profile : Calibration.profile ;
   mutable proofs : proofs ;
@@ -65,8 +65,7 @@ let save_proofs { file; profile; proofs } =
 
 let save_proofs = Timer.timed ~name:"Proofs dump" save_proofs
 
-let create file profile =
-  { file; profile; proofs = M.empty; }
+let create file profile proofs = { file; profile; proofs }
 
 let dump dumper =
   save_proofs dumper

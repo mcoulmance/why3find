@@ -34,15 +34,13 @@ val filename : string -> string
 (** Returns the proofs file associated with the given mlw file *)
 
 val load : ?local:profile -> string -> profile * proofs
-(**
-   Load the content of the proofs file associated with the given mlw file.
-   If a [~local] profile is provided, the returned profile also inherits from
-   it in addition to the one present in the file.
-*)
+(** Load the content of the proofs file associated with the given mlw file. If a
+    [~local] profile is provided, the returned profile also inherits from it in
+    addition to the one present in the file. *)
 
 (** Collection of proofs to be saved *)
-type dumper
+type buffer
 
-val create : string -> profile -> dumper
-val add : Session.theory -> string -> Crc.crc -> dumper -> unit
-val dump : dumper -> unit
+val create : string -> profile -> proofs -> buffer
+val add : Session.theory -> string -> Crc.crc -> buffer -> unit
+val dump : buffer -> unit
