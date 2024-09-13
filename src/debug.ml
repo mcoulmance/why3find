@@ -80,6 +80,12 @@ let debug ?(flag=default) format =
   if flag.active then
     begin
       Utils.flush ();
-      Format.printf ("@[<hov>" ^^ format ^^ "@]@.")
+      let out = Format.std_formatter in
+      Format.pp_open_hovbox out 0 ;
+      Format.kfprintf
+        begin fun fmt ->
+          Format.pp_close_box fmt () ;
+          Format.pp_print_newline fmt () ;
+        end out format ;
     end
   else Format.ifprintf Format.std_formatter format

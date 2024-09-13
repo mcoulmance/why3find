@@ -70,7 +70,7 @@ val timed2 : name:string -> ('a -> 'b -> 'c) -> ('a -> 'b -> 'c)
 val timed3 : name:string -> ('a -> 'b -> 'c -> 'd) -> ('a -> 'b -> 'c -> 'd)
 (** Same as {!timed} for ternary functions. *)
 
-val print_timings : Format.formatter -> unit -> unit
+val print_timings : Format.formatter -> unit
 (** Print the global timers on the given formatter. *)
 
 (** {2 Throttles} *)

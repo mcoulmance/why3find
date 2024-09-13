@@ -96,10 +96,11 @@ let () =
     let times = Unix.times () in
     let tend = Unix.gettimeofday () in
     Utils.flush ();
-    Debug.debug ~flag:print_timings "@[<v>%a@,CPU time: %f@,Real time: %f@]"
-      Timer.print_timings ()
-      (times.tms_utime +. times.tms_stime)
-      (tend -. tstart);
+    Debug.debug ~flag:print_timings
+      "%t%-20s %6f@\n%-20s %6f"
+      Timer.print_timings
+      "CPU time" (times.tms_utime +. times.tms_stime)
+      "Real time" (tend -. tstart) ;
   in
   at_exit (fun () -> try handler () with _ -> ())
 

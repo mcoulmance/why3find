@@ -236,6 +236,14 @@ let round t =
   if t < 20.0 then Float.round (t *. 1e1) *. 1e-1 else
     Float.round t
 
+let pp_rtime fmt t =
+  if t < 1e-3 then Format.fprintf fmt "%3dns" (int_of_float @@ t *. 1e6) else
+  if t < 1.0 then Format.fprintf fmt "%3dms" (int_of_float @@ t *. 1e3) else
+  if t < 20.0 then Format.fprintf fmt "%4.1fs" t else
+  if t < 60.0 then Format.fprintf fmt "%4ds" (int_of_float t) else
+  if t < 3600.0 then Format.fprintf fmt "%2dmin" (int_of_float @@ t /. 60.0) else
+    Format.fprintf fmt "%3dh" (int_of_float @@ t /. 3600.0)
+
 let pp_atime fmt t =
   if t < 1e-3 then Format.fprintf fmt "%dns" (int_of_float @@ t *. 1e6) else
   if t < 1.0 then Format.fprintf fmt "%dms" (int_of_float @@ t *. 1e3) else

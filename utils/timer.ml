@@ -95,18 +95,17 @@ let timed3 ~name f =
     r
 
 let print_global fmt (name, ti) =
-  Format.fprintf fmt "%s (min %f, max %f, avg %f, tot %f, count %d)"
+  Format.fprintf fmt "%-20s %6f (%4d) | %6f - %6f - %6f |@\n"
     name
-    (min_time ti)
-    (max_time ti)
-    (average_time ti)
     (total_time ti)
     (Stats.count (stats ti))
+    (min_time ti)
+    (average_time ti)
+    (max_time ti)
 
-let print_timings fmt () =
-  Format.fprintf fmt "@[<v>";
-  Format.pp_print_list print_global fmt (List.rev !global_timers);
-  Format.fprintf fmt "@]"
+let print_timings fmt =
+  List.iter (print_global fmt) (List.rev !global_timers)
+
 let throttle ?(delay=0.1) fn =
   let stamp = ref (Unix.gettimeofday ()) in
   fun ?(force=false) x ->
