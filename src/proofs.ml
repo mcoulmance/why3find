@@ -54,24 +54,33 @@ type buffer = {
   profile : Calibration.profile ;
   mutable proofs : proofs ;
 }
+let save = Timer.timed ~name:"Proofs dump"
+    begin function { file; profile; proofs } ->
+      let file = filename file in
+      Utils.mkdirs (Filename.dirname file) ;
+      Json.to_file file @@ `Assoc [
+        "profile", Calibration.to_json profile ;
+        "proofs", jproofs proofs ;
+      ]
+    end
 
-let save_proofs { file; profile; proofs } =
-  let file = filename file in
-  Utils.mkdirs (Filename.dirname file) ;
-  Json.to_file file @@ `Assoc [
-    "profile", Calibration.to_json profile ;
-    "proofs", jproofs proofs ;
-  ]
+let create file profile proofs = { file; profile ; proofs }
 
-let save_proofs = Timer.timed ~name:"Proofs dump" save_proofs
-
-let create file profile proofs = { file; profile; proofs }
-
-let dump dumper =
-  save_proofs dumper
-
-let add theory goal crc dumper =
+let add theory goal crc buffer =
   let theory = Session.name theory in
-  let tasks = M.add goal crc @@ M.find_def M.empty theory dumper.proofs in
-  let proofs = M.add theory tasks dumper.proofs in
-  dumper.proofs <- proofs ; dump dumper
+  let goal = Session.goal_name goal in
+  let tasks = M.add goal crc @@ M.find_def M.empty theory buffer.proofs in
+  buffer.proofs <- M.add theory tasks buffer.proofs ; save buffer
+
+let init theory goals hints buffer =
+  let theory = Session.name theory in
+  let results =
+    if M.is_empty hints then M.empty else
+      List.fold_left
+        (fun rs goal ->
+           let a = Session.goal_name goal in
+           match M.find_opt a hints with
+           | None -> rs
+           | Some r -> M.add a r rs)
+        M.empty goals
+  in buffer.proofs <- M.add theory results buffer.proofs ; save buffer

@@ -31,10 +31,11 @@ open Fibers.Monad
 (* --- Proof Driver                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
-let prove_theory ~file ~context mode profile dumper strategy theory =
+let prove_theory ~file ~context mode profile buffer strategy theory =
   let thy = Session.name theory in
   let tasks = Session.split theory in
   let hints = M.find_def M.empty thy strategy in
+  Option.iter (Proofs.init theory tasks hints) buffer ;
   let+ proofs =
     Fibers.all @@ List.map
       (fun task ->
@@ -46,7 +47,7 @@ let prove_theory ~file ~context mode profile dumper strategy theory =
            Hammer.schedule profile ~replay ~depth:0 ~idename:goal task
              (if mode = `Force then Crc.stuck () else hint)
          in
-         Option.iter (Proofs.add theory goal crc) dumper;
+         Option.iter (Proofs.add theory task crc) buffer;
          if Utils.tty then Crc.stats hint crc ;
          if not (Crc.is_complete crc) then
            begin
@@ -255,18 +256,18 @@ let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess file =
     let session = Session.create ~session ~dir ~file ~format theories in
     let local = Calibration.default env in
     let profile, strategy = Proofs.load ~local file in
-    let dumper = (* the proof strategy must be kept to stabilize crc files *)
+    let buffer = (* the proof strategy must be kept to stabilize crc files *)
       if (mode = `Replay)
       then None
       else Some (Proofs.create file profile strategy) in
     let context = match log with `Context n -> n | _ -> (-1) in
     let* proofs =
       Fibers.all @@ List.map
-        (prove_theory ~file ~context mode profile dumper strategy)
+        (prove_theory ~file ~context mode profile buffer strategy)
         (Session.theories session)
     in
     Session.save session ;
-    Option.iter Proofs.dump dumper ;
+    Option.iter Proofs.save buffer ;
     let henv =
       if axioms then
         Some (Axioms.init env)

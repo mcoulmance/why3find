@@ -42,5 +42,6 @@ val load : ?local:profile -> string -> profile * proofs
 type buffer
 
 val create : string -> profile -> proofs -> buffer
-val add : Session.theory -> string -> Crc.crc -> buffer -> unit
-val dump : buffer -> unit
+val add : Session.theory -> Session.goal -> Crc.crc -> buffer -> unit
+val init : Session.theory -> Session.goal list -> Crc.crc Mstr.t -> buffer -> unit
+val save : buffer -> unit
