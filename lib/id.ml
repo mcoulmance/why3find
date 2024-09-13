@@ -173,6 +173,13 @@ let pp_path fmt (lib,m,qid) =
 
 let pp_title fmt r = pp_path fmt (r.id_lib,r.id_mod,r.id_qid)
 
+let name id =
+  let rec last = function
+    | [] -> ""
+    | [a] -> of_infix a
+    | _::qid -> last qid
+  in last id.id_qid
+
 (* URI Encoding *)
 
 let charset_uri =

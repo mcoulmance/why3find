@@ -62,6 +62,8 @@ val pp_qpath : local:string list -> Format.formatter -> id -> unit
 (** only the prefix path of qid after local *)
 val pp_qname : Format.formatter -> id -> unit (** only the (infix) name of qid *)
 
+val name : id -> string (** only the last (infix) part of qid *)
+
 val pp_local : Format.formatter -> id -> unit (** only the qualified name (qid) *)
 val pp_title : Format.formatter -> id -> unit (** the full path name *)
 
