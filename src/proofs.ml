@@ -54,7 +54,10 @@ type buffer = {
   profile : Calibration.profile ;
   mutable proofs : proofs ;
 }
-let save = Timer.timed ~name:"Proofs dump"
+
+let save =
+  Timer.throttle @@
+  Timer.timed ~name:"Proofs dump"
     begin function { file; profile; proofs } ->
       let file = filename file in
       Utils.mkdirs (Filename.dirname file) ;

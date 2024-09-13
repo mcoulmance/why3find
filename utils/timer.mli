@@ -19,14 +19,15 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(** {1 Timers} *)
+(** Time related features. *)
 
-(** This module features restartable timers to do timings and statistics.
+(** {2 Timers}
 
     A timer is created with {!create}, and can the be started with {!start}.
     A running timer can be stopped with {!stop} and the time of this {e run}
     (the time elapsed since last {!start}) is added to the timer. A new run can
-    then be started with {!start}. *)
+    then be started with {!start}
+*)
 
 type timer
 (** The type of timers. *)
@@ -71,3 +72,10 @@ val timed3 : name:string -> ('a -> 'b -> 'c -> 'd) -> ('a -> 'b -> 'c -> 'd)
 
 val print_timings : Format.formatter -> unit -> unit
 (** Print the global timers on the given formatter. *)
+
+(** {2 Throttles} *)
+
+val throttle : ?delay:float -> ('a -> unit) -> (?force:bool -> 'a -> unit)
+(** [throttle ~delay:d f] make succesive calls to [f] to only happen every
+    [~delay] seconds. The delayed function can be passed [~force:true] to
+    apply [f] immediately. Defaults to [~delay:0.1] which is 100ms. *)

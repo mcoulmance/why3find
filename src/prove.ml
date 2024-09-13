@@ -267,7 +267,7 @@ let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess file =
         (Session.theories session)
     in
     Session.save session ;
-    Option.iter Proofs.save buffer ;
+    Option.iter (Proofs.save ~force:true) buffer ;
     let henv =
       if axioms then
         Some (Axioms.init env)

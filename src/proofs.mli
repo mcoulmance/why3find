@@ -44,4 +44,4 @@ type buffer
 val create : string -> profile -> proofs -> buffer
 val add : Session.theory -> Session.goal -> Crc.crc -> buffer -> unit
 val init : Session.theory -> Session.goal list -> Crc.crc Mstr.t -> buffer -> unit
-val save : buffer -> unit
+val save : ?force:bool -> buffer -> unit

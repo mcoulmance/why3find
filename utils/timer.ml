@@ -107,3 +107,9 @@ let print_timings fmt () =
   Format.fprintf fmt "@[<v>";
   Format.pp_print_list print_global fmt (List.rev !global_timers);
   Format.fprintf fmt "@]"
+let throttle ?(delay=0.1) fn =
+  let stamp = ref (Unix.gettimeofday ()) in
+  fun ?(force=false) x ->
+    let time = Unix.gettimeofday () in
+    if force || time > !stamp +. delay then
+      (stamp := time ; fn x)
