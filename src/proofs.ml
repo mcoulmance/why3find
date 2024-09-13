@@ -23,26 +23,27 @@ module M = Why3.Wstdlib.Mstr
 module Th = Why3.Theory
 
 type profile = Calibration.profile
-type theories = Crc.crc M.t M.t
+type proofs = Crc.crc M.t M.t (* Theory -> Task -> CRC *)
 
 (* -------------------------------------------------------------------------- *)
 (* --- Proof Files                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
+(* Json to Map converter *)
 let jmap cc js =
   let m = ref M.empty in
   Json.jiter (fun fd js -> m := M.add fd (cc js) !m) js ; !m
 
-let jproofs proofs : Json.t =
-  let folder th rs acc =
-    (th, `Assoc (List.map (fun (g,r) -> g, Crc.to_json r) rs)) :: acc in
-  `Assoc (M.fold folder proofs [])
+(* Map to Json converter *)
+let map cc m = Json.assoc @@ M.fold (fun a e js -> (a, cc e) :: js) m []
 
-let proofs_file file =
+let jproofs : proofs -> Json.t = map (map Crc.to_json)
+
+let filename file =
   Filename.concat (Filename.chop_extension file) "proof.json"
 
-let load_proofs ?local file : profile * theories =
-  let file = proofs_file file in
+let load ?local file : profile * proofs =
+  let file = filename file in
   let js = if Sys.file_exists file then Json.of_file file else `Null in
   let profile = Calibration.of_json ?default:local @@ Json.jfield "profile" js in
   let strategy = jmap (jmap Crc.of_json) @@ Json.jfield "proofs" js in
@@ -50,12 +51,12 @@ let load_proofs ?local file : profile * theories =
 
 type dumper = {
   file : string;
-  profile : Calibration.profile;
-  mutable proofs : (string * Crc.crc) list M.t;
+  profile : Calibration.profile ;
+  mutable proofs : proofs ;
 }
 
 let save_proofs { file; profile; proofs } =
-  let file = proofs_file file in
+  let file = filename file in
   Utils.mkdirs (Filename.dirname file) ;
   Json.to_file file @@ `Assoc [
     "profile", Calibration.to_json profile ;
@@ -71,7 +72,7 @@ let dump dumper =
   save_proofs dumper
 
 let add theory goal crc dumper =
-  let changer o =
-    Some ((goal, crc) :: Option.value ~default:[] o) in
-  dumper.proofs <- M.change changer (Session.name theory) dumper.proofs;
-  dump dumper
+  let theory = Session.name theory in
+  let tasks = M.add goal crc @@ M.find_def M.empty theory dumper.proofs in
+  let proofs = M.add theory tasks dumper.proofs in
+  dumper.proofs <- proofs ; dump dumper

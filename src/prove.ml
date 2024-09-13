@@ -254,7 +254,7 @@ let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess file =
     let theories, format = Wutil.load_theories env.Wenv.wenv file in
     let session = Session.create ~session ~dir ~file ~format theories in
     let profile, strategy =
-      Proofs.load_proofs ~local:(Calibration.default env) file in
+      Proofs.load ~local:(Calibration.default env) file in
     let dumper = match mode with
       | `Force | `Update | `Minimize -> Some (Proofs.create file profile)
       | `Replay -> None in
