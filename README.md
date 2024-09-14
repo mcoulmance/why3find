@@ -226,6 +226,16 @@ updated after exiting Why3 IDE: this interactive mode is meant for debugging
 purpose, and you will have to re-launch `why3find prove` to update the proof
 certificates when your Why3 specifications have been fixed.
 
+*Goal Selection* is possible with option `-g <name>` where `<name>` can be
+a module name or a module and an individual goal. For instance:
+
+    $ why3find prove foo.mlw -g Bar       ;; only prove module Bar
+    $ why3find prove foo.mlw -g Bar.jazz  ;; only prove goal Bar.jazz
+
+It is possible to select several modules or several goals at a time.
+Notice that proof statistics will then only account for the
+selected goals, and not for the entire file(s).
+
 *Proving Strategy* for building proof certificates is a heuristic based on
 user-defined reference time, registered provers and tactics. It consists
 in several _rounds_ tried in sequence until proof completion:
