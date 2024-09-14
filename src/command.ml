@@ -604,6 +604,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
 let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
     begin fun argv ->
       let files = ref [] in
+      let goals = ref [] in
       let ide = ref false in
       let session = ref false in
       let log = ref `Default in
@@ -618,6 +619,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
           Wenv.options () @
           Runner.options @
           [
+            "-g", Arg.String (add goals), "<name> goals selection";
             "-f", Arg.Unit (set mode `Force), "force rebuild proofs";
             "-u", Arg.Unit (set mode `Update), "update proofs (default)";
             "-r", Arg.Unit (set mode `Replay), "replay proofs (no update)";
@@ -649,8 +651,9 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       let env = Wenv.init config in
       let files = if !files = [] then ["."] else !files in
       let files = Wenv.argfiles @@ List.rev files in
+      let goals = List.rev !goals in
       let result = Prove.prove_files
-          ~env ~mode:!mode ~session ~log:!log ~axioms:!axioms ~files in
+          ~env ~mode:!mode ~session ~log:!log ~axioms:!axioms ~files ~goals in
       let n = List.length result.unfixed in
       if n > 0 then
         begin
