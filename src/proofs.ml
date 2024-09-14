@@ -35,7 +35,8 @@ let jmap cc js =
   Json.jiter (fun fd js -> m := M.add fd (cc js) !m) js ; !m
 
 (* Map to Json converter *)
-let map cc m = Json.assoc @@ M.fold (fun a e js -> (a, cc e) :: js) m []
+let map cc m =
+  Json.assoc @@ List.rev @@ M.fold (fun a e js -> (a, cc e) :: js) m []
 
 let jproofs : proofs -> Json.t = map (map Crc.to_json)
 
