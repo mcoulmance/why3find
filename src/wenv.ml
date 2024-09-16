@@ -42,7 +42,6 @@ let move_to_root () =
 
 let time = ref None
 let depth = ref None
-let cfgs = ref []
 let drvs = ref []
 let pkgs = ref []
 let prvs = ref []
@@ -168,7 +167,6 @@ let settime s =
 
 let alloptions : (opt * string * Arg.spec * string) list = [
   `All, "--root", Arg.Set_string chdir, "DIR change to directory";
-  `All, "--extra-config", Arg.String (add cfgs), "CFG extra why3 config";
   `All, "--why3-warn-off", Arg.String (add warn), "WRN,… disable why3 warnings";
   `Package, "--package", Arg.String (add pkgs), "±PKG,… add package dependency";
   `Prover,  "--time", Arg.String settime, "TIME median proof time";
@@ -200,7 +198,6 @@ let options ?(packages=false) ?(provers=false) ?(drivers=false) () =
 
 let time config = getv config.Config.time time
 let depth config = getv config.Config.depth depth
-let configs config = gets config.Config.configs cfgs
 let packages config = gets config.Config.packages pkgs
 let provers config = gets config.Config.provers prvs
 let tactics config = gets config.Config.tactics tacs
@@ -262,7 +259,6 @@ let add_options config =
   Config.{
     time = time config ;
     depth = depth config ;
-    configs = configs config ;
     packages = packages config ;
     provers = provers config  ;
     tactics = tactics config ;

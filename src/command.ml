@@ -113,7 +113,6 @@ let verbose = ref false
 let exec
     ?(cmd="why3")
     ?(auto=false)
-    ?(configs)
     ?(drivers)
     ?(prefix=[])
     ?(pkgs=[])
@@ -122,7 +121,6 @@ let exec
   let args = ref [] in
   let pkgs = ref pkgs in
   let drivers = ref drivers in
-  let configs = ref configs in
   let why3_debug_flags = ref [] in
   let why3_warn_off = ref [] in
   let p = ref skip in
@@ -154,23 +152,11 @@ let exec
         else
           failwith "missing PKG name"
       | "--drivers" when auto && !drivers = None -> drivers := Some []
-      | "--configs" when auto && !configs = None -> configs := Some []
       | "-v" | "--verbose" -> verbose := true
       | arg -> args := arg :: !args
     end ; incr p
   done ;
   let pkgs = Meta.find_all (List.rev !pkgs) in
-  let cfg =
-    match !configs with
-    | None -> []
-    | Some cs ->
-      List.map (Printf.sprintf "--extra-config=%s") cs @
-      List.concat @@ List.map
-        (fun (pkg : Meta.pkg) ->
-           List.map
-             (Printf.sprintf "--extra-config=%s/%s" pkg.path)
-             pkg.configs
-        ) pkgs in
   let drv =
     match !drivers with
     | None -> []
@@ -191,7 +177,7 @@ let exec
     @ List.map (Printf.sprintf "--warn-off=%s") !why3_warn_off in
   let argv =
     Array.of_list @@ List.concat [
-      cmd::prefix ; cfg ; debug ; [ "-L" ; "." ] ; load ; drv ; List.rev !args
+      cmd::prefix ; debug ; [ "-L" ; "." ] ; load ; drv ; List.rev !args
     ] in
   if !verbose then
     begin
@@ -213,7 +199,6 @@ let process cmd argv : unit =
        \n  Execute command \"CMD\" with wrapped arguments.\n\n\
        OPTIONS:\n\
        \n  --p|--package PKG : pass --library=<path> for the package\
-       \n  --configs : pass also --extra-config-file=<CFG> options\
        \n  --drivers : pass also --driver=<DRV> options\
        \n" ;
     exec ~cmd ~auto:true ~skip:1 argv
@@ -368,7 +353,6 @@ let () = register ~name:"query" ~args:"[PKG...]"
              Format.printf "Package %s:@\n" p.name ;
              Format.printf "  path: %s@\n" p.path ;
              pp_opt "depends" p.depends ;
-             pp_opt "configs" p.configs ;
              pp_opt "drivers" p.drivers ;
              pp_yes "extracted" p.extracted ;
           ) pkgs
@@ -465,13 +449,6 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
         else Config.config_of_json rawconfig in
       let config = Wenv.add_options config in
       let env = Wenv.init config in
-      (* --- Extra Configs ---- *)
-      let cfgs = config.configs in
-      if !list && cfgs <> [] then
-        begin
-          Format.printf "Extra Why3 Configuration:@." ;
-          List.iter (Format.printf " - %s@.") cfgs ;
-        end ;
       (* --- Packages ---- *)
       let pkgs = config.packages in
       if !list && pkgs <> [] then
@@ -543,7 +520,6 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       let newconfig = Config.{
           time ;
           depth ;
-          configs = cfgs ;
           packages = pkgs ;
           provers = patterns ;
           profile = newprofile ;
@@ -799,7 +775,6 @@ let () = register ~name:"extract" ~args:"[OPTIONS] MODULE..."
       if !pkg = "" then failwith "Nothing to extract" ;
       let config = Wenv.load_config () in
       let pkgs = config.packages in
-      let configs = config.configs in
       let drivers = config.drivers in
       let libraries =
         List.rev !libraries @
@@ -825,7 +800,7 @@ let () = register ~name:"extract" ~args:"[OPTIONS] MODULE..."
       Format.printf "Generated %s@." (Utils.absolute dune) ;
       let prefix = ["extract";"-D";"ocaml64";"-o";!out;"--modular"] in
       let argv = Array.of_list @@ List.rev !modules in
-      exec ~prefix ~pkgs ~configs ~drivers argv
+      exec ~prefix ~pkgs ~drivers argv
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -958,7 +933,6 @@ let () = register ~name:"install" ~args:"PKG PATH..."
          \n\
          \n    PKG/**         all why3 source files\
          \n    PKG/**/*.mlw   specified why3 source files\
-         \n    **/*.cfg       extra why3 configuration\
          \n    **/*.drv       OCaml extraction drivers\
          \n\
          \n  If no source file is given, all why3 source files\
@@ -1018,9 +992,7 @@ let () = register ~name:"install" ~args:"PKG PATH..."
         end paths ;
       let depends = config.packages in
       let drivers = !drivers @ config.drivers in
-      let configs = config.configs in
       if !allsrc then Wenv.allfiles (install_src ~check:false) pkg ;
-      List.iter (Log.warning "won't install configuration file %S") configs ;
       List.iter (install ~kind:"(driver)") drivers ;
       let doc = !html in
       if doc <> "" then
@@ -1050,7 +1022,7 @@ let () = register ~name:"install" ~args:"PKG PATH..."
       if dune && extracted then log ~kind:"(dune)" "extracted code" ;
       log ~kind:"(meta)" "META.json" ;
       Meta.install {
-        name = pkg ; path ; depends ; drivers ; configs ; extracted ;
+        name = pkg ; path ; depends ; drivers ; extracted ;
       } ;
       if dune then
         begin
@@ -1127,9 +1099,8 @@ let () = register ~name:"compile" ~args:"[-p PKG] FILE"
          OPTIONS:\n\
          \n  -v|--verbose print why3 command\
          \n  -p|--package PKG package dependency\
-         \n  --extra-config FILE additional configuration file\
          \n";
-      exec ~prefix:["prove";"--type-only"] ~configs:[] ~skip:1 argv
+      exec ~prefix:["prove";"--type-only"] ~skip:1 argv
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -1147,9 +1118,8 @@ let () = register ~name:"ide" ~args:"[-p PKG] FILE"
          OPTIONS:\n\
          \n  -v|--verbose print why3 command\
          \n  -p|--package PKG package dependency\
-         \n  --extra-config FILE additional configuration file\
          \n";
-      exec ~prefix:["ide"] ~configs:[] ~skip:1 argv
+      exec ~prefix:["ide"] ~skip:1 argv
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -1166,9 +1136,8 @@ let () = register ~name:"replay" ~args:"[-p PKG] FILE"
          OPTIONS:\n\
          \n  -v|--verbose print why3 command\
          \n  -p|--package PKG package dependency\
-         \n  --extra-config FILE additional configuration file\
          \n";
-      exec ~prefix:["replay"] ~configs:[] ~skip:1 argv
+      exec ~prefix:["replay"] ~skip:1 argv
     end
 
 (* -------------------------------------------------------------------------- *)

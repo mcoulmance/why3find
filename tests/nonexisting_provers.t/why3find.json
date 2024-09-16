@@ -1,7 +1,6 @@
 {
   "time": 1.0,
   "depth": 4,
-  "configs": [],
   "packages": [],
   "provers": [ "foo", "bar" ],
   "tactics": [ "split_vc" ],

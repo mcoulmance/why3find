@@ -22,7 +22,6 @@
 type config = {
   time : float ;
   depth : int ;
-  configs : string list ;
   packages : string list ;
   provers : string list ;
   tactics : string list ;
@@ -46,17 +45,20 @@ let get ~of_json ~default name json =
 let gets name ?(default=[]) json =
   get ~of_json:Json.jstringlist ~default name json
 
-let config_of_json json = {
-  time = get "time" ~of_json:Json.jfloat ~default:1.0 json;
-  depth = get "depth" ~of_json:Json.jint ~default:4 json;
-  configs = gets "configs" json;
-  packages = gets "packages" json;
-  provers = gets "provers" json;
-  tactics = gets "tactics" ~default:["split_vc"] json;
-  drivers = gets "drivers" json;
-  warnoff = gets "warnoff" json;
-  profile = get ~of_json:Option.some ~default:None "profile" json;
-}
+let config_of_json json =
+  if gets "configs" json <> [] then
+    Log.warning "Support for extra config files was removed in why3find 1.1.@ \
+                 If you need this feature, please report this at %%PKG_ISSUES%%.";
+  {
+    time = get "time" ~of_json:Json.jfloat ~default:1.0 json;
+    depth = get "depth" ~of_json:Json.jint ~default:4 json;
+    packages = gets "packages" json;
+    provers = gets "provers" json;
+    tactics = gets "tactics" ~default:["split_vc"] json;
+    drivers = gets "drivers" json;
+    warnoff = gets "warnoff" json;
+    profile = get ~of_json:Option.some ~default:None "profile" json;
+  }
 
 let default = config_of_json `Null
 
@@ -67,7 +69,6 @@ let config_to_json config =
   let fields = [
     "time", `Float config.time ;
     "depth", `Int config.depth ;
-    "configs", lists config.configs ;
     "packages", lists config.packages ;
     "provers", lists config.provers ;
     "tactics", lists config.tactics ;
@@ -93,8 +94,7 @@ type env = {
 let create_env ?(root=".") ~config () =
   let pkgs = Meta.find_all config.packages in
   let pkg_path = List.map (fun m -> m.Meta.path) pkgs in
-  let extra_config = config.configs in
-  let wconfig = Why3.Whyconf.init_config ~extra_config None in
+  let wconfig = Why3.Whyconf.init_config ~extra_config:[] None in
   let wmain = Why3.Whyconf.get_main wconfig in
   let wpath = Why3.Whyconf.loadpath wmain in
   let wenv = Why3.Env.create_env (root :: pkg_path @ wpath) in

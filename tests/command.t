@@ -107,7 +107,6 @@
   
     -v|--verbose print why3 command
     -p|--package PKG package dependency
-    --extra-config FILE additional configuration file
   
 --------------------------------------------------------------------------
 --- why3find ide
@@ -125,7 +124,6 @@
   
     -v|--verbose print why3 command
     -p|--package PKG package dependency
-    --extra-config FILE additional configuration file
   
 --------------------------------------------------------------------------
 --- why3find replay
@@ -143,7 +141,6 @@
   
     -v|--verbose print why3 command
     -p|--package PKG package dependency
-    --extra-config FILE additional configuration file
   
   $ why3find extract --help
   USAGE:
@@ -157,7 +154,6 @@
   OPTIONS:
   
     --root DIR change to directory
-    --extra-config CFG extra why3 config
     --why3-warn-off WRN,… disable why3 warnings
     --package ±PKG,… add package dependency
     --driver ±DRV,… configure drivers
@@ -188,7 +184,6 @@
   OPTIONS:
   
     --root DIR change to directory
-    --extra-config CFG extra why3 config
     --why3-warn-off WRN,… disable why3 warnings
     --package ±PKG,… add package dependency
     --time TIME median proof time
@@ -236,7 +231,6 @@
   OPTIONS:
   
     --root DIR change to directory
-    --extra-config CFG extra why3 config
     --why3-warn-off WRN,… disable why3 warnings
     --package ±PKG,… add package dependency
     --time TIME median proof time
@@ -300,7 +294,6 @@
   OPTIONS:
   
     --root DIR change to directory
-    --extra-config CFG extra why3 config
     --why3-warn-off WRN,… disable why3 warnings
     --package ±PKG,… add package dependency
     --driver ±DRV,… configure drivers
@@ -386,7 +379,6 @@
   
       PKG/**         all why3 source files
       PKG/**/*.mlw   specified why3 source files
-      **/*.cfg       extra why3 configuration
       **/*.drv       OCaml extraction drivers
   
     If no source file is given, all why3 source files
@@ -434,7 +426,6 @@
   OPTIONS:
   
     --p|--package PKG : pass --library=<path> for the package
-    --configs : pass also --extra-config-file=<CFG> options
     --drivers : pass also --driver=<DRV> options
   
 --------------------------------------------------------------------------
