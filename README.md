@@ -255,20 +255,24 @@ in several _rounds_ tried in sequence until proof completion:
    in _parallel_ with a larger timeout (2 times the reference time).
 
 In case the final round fails to complete the proof, the goal is marked stuck
-and all its parent goals are marked incomplete. *Remark:* incomplete proof
-certificates are also stored in order to be used as hints for further proof
-lookup. However, a tactic-node with all its sub-goals marked « stuck » would be
-removed.
+and all its parent goals are marked incomplete.
 
-The reference time is set to one second by default and can be modified with `-t
-TIME` or configured using `why3find config -t TIME`. A fraction of seconds or
+*Remark:* incomplete proof certificates are also stored in order to be used as
+hints for further proof lookup. However, a tactic-node with all its sub-goals
+marked « stuck » would be removed.
+
+The reference time is set to one second by default and can be modified with
+`-t TIME` or configured using `why3find config -t TIME`. A fraction of seconds or
 suffix time units (`h`,`min`,`s`,`ms`) can be given, eg. `0.5`, `200ms`, `3min`.
 The reference time is specified relatively to the *master* machine, Cf. prover
 calibration below.
 
 Proof search is pruned after a maximal number of nested levels. The default
 depth is 6 and it can be modified with `-d DEPTH` or configured using `why3find
-config -d DEPTH`.
+config -d DEPTH`. It is also possible to interrupt the proof search strategy at
+a given step by using option `-H LEVEL`. For instance, using `-H 2` will run
+steps 1 and 2 of the proof strategy when looking for new goals, but not steps 3
+and 4. However, known proof hints from previous run will still be played.
 
 When using `why3find prove -i` mode, the Why3 IDE is loaded with custom proof
 strategies that mimics the why3find proof strategy:

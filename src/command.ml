@@ -609,6 +609,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       let session = ref false in
       let log = ref `Default in
       let mode = ref `Update in
+      let hammer = ref 4 in
       let axioms = ref false in
       let set m v () = m := v in
       let add r p = r := p :: !r in
@@ -628,6 +629,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
             "-i", Arg.Set ide, "run Why3 IDE on failed proof (implies -s)";
             "-s", Arg.Set session, "save why3 session";
             "-a", Arg.Set axioms, "report axioms and parameters";
+            "-H", Arg.Set_int hammer, "[0-4] hammer strategy level (default 4)";
           ] @
           Client.options @ [
             "--modules",  Arg.Unit (set log `Modules), "list results by module";
@@ -646,6 +648,8 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
          DESCRIPTION:\n\
          \n  Prove all why3 files and directories accessible from PATH.\n\n\
          OPTIONS:\n" ;
+      let mode = !mode in
+      let hammer = !hammer in
       let session = !session || !ide in
       let config = Wenv.load_config () in
       let env = Wenv.init config in
@@ -653,7 +657,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       let files = Wenv.argfiles @@ List.rev files in
       let goals = List.rev !goals in
       let result = Prove.prove_files
-          ~env ~mode:!mode ~session ~log:!log ~axioms:!axioms ~files ~goals in
+          ~env ~mode ~hammer ~session ~log:!log ~axioms:!axioms ~files ~goals in
       let n = List.length result.unfixed in
       if n > 0 then
         begin

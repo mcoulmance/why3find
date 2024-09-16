@@ -295,7 +295,8 @@ type outcome = {
   unfixed : string list ;
 }
 
-let prove_files ~(env:Config.env) ~mode ~session ~log ~axioms ~files ~goals =
+let prove_files ~(env:Config.env) ~mode ~hammer ~session ~log ~axioms ~files
+    ~goals =
   begin
     let time = env.config.time in
     let maxdepth = env.config.depth in
@@ -311,7 +312,7 @@ let prove_files ~(env:Config.env) ~mode ~session ~log ~axioms ~files ~goals =
     List.iter (process ~env ~mode ~session ~log ~axioms ~unsuccess ~goals) files ;
     Hammer.run {
       env ;
-      client = Client.connect env ;
+      client = Client.connect env ; level = hammer ;
       time ; maxdepth ; patterns ; allprovers; provers ; tactics ; minimize ;
     } ;
     if Utils.tty then

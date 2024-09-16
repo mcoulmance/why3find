@@ -41,6 +41,7 @@ type henv = {
   env : Config.env ;
   time : float ;
   client : Client.client option ;
+  level : int ;
   maxdepth : int ;
   allprovers : Prover.prover Prover.Mdesc.t ;
   patterns : string list ;
