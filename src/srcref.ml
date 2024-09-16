@@ -92,20 +92,24 @@ let flush env =
 
 let frame env name kind =
   flush env ;
+  let token = Token.position env.input in
+  env.last <- token ;
+  env.closing <- token ;
   env.frame <- Some (Frame {
       first = env.first ;
-      token = Token.position env.input ;
-      name ; kind ; stacked = [] ;
+      token ; name ; kind ; stacked = [] ;
     })
 
 let push env name kind =
   begin
     flush env ;
+    let token = Token.position env.input in
+    env.last <- token ;
+    env.closing <- token ;
     let frame =
       Frame {
         first = env.first ;
-        token = Token.position env.input ;
-        name ; kind ;
+        token ; name ; kind ;
         stacked = env.symbols
       } in
     env.symbols <- [] ;
