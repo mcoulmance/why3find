@@ -19,6 +19,10 @@
 (*                                                                        *)
 (**************************************************************************)
 
+(* -------------------------------------------------------------------------- *)
+(* ---  Document Lightweight Parsing for LSP                              --- *)
+(* -------------------------------------------------------------------------- *)
+
 module Sid = Why3.Ident.Sid
 
 type symbol =
@@ -43,6 +47,7 @@ type env = {
   mutable closing : Token.position ; (* last code-token before the first *)
   mutable first : Token.position ; (* fist code-token after last blankline *)
   mutable last : Token.position ; (* last code-token so far *)
+  mutable current : string option ; (* theory name *)
   mutable thy : Docref.theory option ;
   mutable opened : string list ;
   mutable scopes : string list ;
@@ -55,10 +60,14 @@ type env = {
   mutable refs : symbol Rangemap.t ;
 }
 
+(* -------------------------------------------------------------------------- *)
+(* ---  Positions & Ranges                                                --- *)
+(* -------------------------------------------------------------------------- *)
+
 let init env src input =
   let here = Token.position input in
   {
-    env ; src ; input ; thy = None ;
+    env ; src ; input ; thy = None ; current = None ;
     blanklines = 0 ; closing = here ; first = here ; last = here ;
     opened = [] ; scopes = [] ; sections = [] ;
     declared = Sid.empty ;
@@ -78,7 +87,9 @@ let lspos (pos : Lexing.position) : Lspserver.position =
 let lsrange ((p,q) : Token.position) : Lspserver.range =
   { start = lspos p ; stop = lspos q }
 
-let resolve env id = Id.resolve ~lib:env.src.lib ~root:env.src.filename id
+(* -------------------------------------------------------------------------- *)
+(* ---  Document Symbols Stack                                            --- *)
+(* -------------------------------------------------------------------------- *)
 
 let flush env =
   match env.frame with
@@ -143,6 +154,12 @@ let add_symbol env id =
     frame env (Id.name id) kind ;
   with Not_found -> ()
 
+(* -------------------------------------------------------------------------- *)
+(* ---  Clones & Identifiers                                              --- *)
+(* -------------------------------------------------------------------------- *)
+
+let resolve env id = Id.resolve ~lib:env.src.lib ~root:env.src.filename id
+
 let process_clone_token env token =
   let state, action = Cloning.process env.cloning env.input token in
   env.cloning <- state ;
@@ -169,6 +186,22 @@ let process_clone_token env token =
         let symbol = Clone(id,ids) in
         env.refs <- Rangemap.add (lexrange pos) symbol env.refs
 
+(* -------------------------------------------------------------------------- *)
+(* ---  References                                                        --- *)
+(* -------------------------------------------------------------------------- *)
+
+let process_reference env s =
+  try
+    let { src ; current ; env = { wenv }} = env in
+    let _, id = Docref.reference ~wenv ~src ~current s in
+    let id = Id.resolve ~lib:src.lib id in
+    let pos = Token.position env.input in
+    Format.eprintf "REF %a %a@." Range.pp_range (lexrange pos) Id.pp_title id ;
+    env.refs <- Rangemap.add (lexrange pos) (Ref id) env.refs ;
+  with
+  | Not_found -> Token.error env.input "unknown reference"
+  | Failure msg -> Token.error env.input "%s" msg
+
 let process_href env pos token (href : Docref.href) =
   match href with
   | NoRef ->
@@ -190,6 +223,7 @@ let process_open_module env kind =
   begin
     let id = Token.fetch_id env.input ~kind in
     env.thy <- Docref.Mstr.find_opt id env.src.theories ;
+    env.current <- Some id ;
     env.opened <- [] ;
     env.scopes <- [] ;
     env.declared <- Sid.empty ;
@@ -201,6 +235,7 @@ let process_close_module env =
   begin
     pop env ;
     env.thy <- None ;
+    env.current <- None ;
     env.opened <- [] ;
     env.scopes <- [] ;
     env.declared <- Sid.empty ;
@@ -276,8 +311,6 @@ let process_block env = function
   | Token.OpenSection _ | Token.CloseSection _
   | Token.Verb _ -> ()
 
-
-
 let parse ?doc ?filename ~env ~src file =
   let input = Token.input ?doc ?filename file in
   let env = init env src input in
@@ -290,7 +323,7 @@ let parse ?doc ?filename ~env ~src file =
       (* scanned *)
       | Token.Ident s -> process_word env s
       | Token.Infix s -> process_identifier ~infix:true env s
-      | Token.Ref _ -> ()
+      | Token.Ref s -> process_reference env s
       | Token.Newline -> process_clone_token env `Newline
       | Token.Comment _ -> process_clone_token env `Comment
 
