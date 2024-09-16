@@ -392,9 +392,9 @@ let pp_field fmt (f : Why3.Term.lsymbol option) =
   match f with
   | None -> ()
   | Some ls ->
-    Format.fprintf fmt "@ @[<hov 2>%a:" pp_name ls.ls_name ;
-    List.iter (Format.fprintf fmt "@ %a" pp_type) ls.ls_args ;
-    Format.fprintf fmt " ;@]"
+    Format.fprintf fmt "@ @[<hov 2>%a:@ %a@]"
+      pp_name ls.ls_name
+      pp_type (Option.value ~default:Why3.Ty.ty_bool ls.ls_value)
 
 let pp_constr fmt (c : Why3.Decl.constructor) =
   let ls = fst c in
