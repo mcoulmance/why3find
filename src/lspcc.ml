@@ -81,8 +81,8 @@ type lexpos = Lexing.position * Lexing.position
 
 let range_of_pos ((p,q) : lexpos) : string * Lspserver.range =
   p.pos_fname , {
-    start = { line = p.pos_lnum ; char = p.pos_cnum - p.pos_bol } ;
-    stop = { line = q.pos_lnum ; char = q.pos_cnum - q.pos_cnum } ;
+    start = { line = p.pos_lnum - 1 ; char = p.pos_cnum - p.pos_bol } ;
+    stop = { line = q.pos_lnum - 1 ; char = q.pos_cnum - q.pos_bol } ;
   }
 
 let library ~root ~filename =
