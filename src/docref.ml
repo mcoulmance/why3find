@@ -443,9 +443,16 @@ let find_decl wenv (src:source) (id : Id.id) =
 let lookup ~scope ~theories kind m qid =
   match if m <> "" then Some m else scope with
   | Some m0 ->
-    (try find_theory kind qid (Mstr.find m0 theories) with Not_found -> [])
+    begin
+      try
+        let thy = Mstr.find m0 theories in
+        if qid = [] then [thy.theory.th_name] else
+          find_theory kind qid thy
+      with Not_found -> []
+    end
   | None ->
-    List.concat @@ List.map (find_theory kind qid) (Mstr.values theories)
+    if qid = [] then [] else
+      List.concat @@ List.map (find_theory kind qid) (Mstr.values theories)
 
 let select ~name ids =
   let ids = List.sort_uniq Id.compare ids in
@@ -479,7 +486,7 @@ let reference ~wenv ~src ~current r =
         Utils.failwith "unknown theory or module '%s.%s'"
           (String.concat "." lp) m
     in
-    if kind = '?' && qid = [] then
+    if qid = [] then
       thy.th_name
     else
       select ~name @@ find kind qid thy
