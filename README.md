@@ -59,7 +59,7 @@ syntax highlighting, goto-definition, typing information, proof results, etc.
 Save your files to keep information in sync.
 
 You must have `why3find` installed and available from your `PATH` to use the
-VSCode client. See [vscode/README.md] for details.
+VSCode client. See [vscode/README](vscode/README.md) for details.
 
 An easy way to install everything for VSCode from the source distribution is:
 
@@ -526,7 +526,7 @@ extracted one, as a separated `dune` library.
 For Why3 and Why3 plug-ins developers, Why3find also provides an utility
 to print the internal representations of theories and modules:
 
-    why3find prove [FILES...]  # pretty print modules and theories
+    why3find print [FILES...]  # pretty print modules and theories
 
 The printer provide the following information:
  - structure of declarations and scopes

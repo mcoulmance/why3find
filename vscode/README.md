@@ -5,14 +5,16 @@ Provides support for the Why3 language and Why3find proof environment.
 ## Features
 
  - Syntax highlighting
- - Typechecking (update on save)
- - Goto definition
- - Goto type definition
- - Hover (full name, signature, updated on save)
+ - Typechecking (after saving)
+ - Goto definition (including doc refs)
+ - Goto type definition (including doc refs)
+ - Hover (full name, signature, cloned symbols)
  - Code Lens (proof feedback, dynamically updated)
+ - Document Structure (namespaces, declarations)
+ - Folding Ranges (proofs, sections)
 
 ## Known Issues
 
 Hovers are only available for top-level declarations, and only after
 complete file typechecking. During code edition, code information is only
-available outside the modified area, until the file is saved again.
+available _outside_ the modified area, until the file is saved again.
