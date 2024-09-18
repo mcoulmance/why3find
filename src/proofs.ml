@@ -23,55 +23,68 @@ module M = Why3.Wstdlib.Mstr
 module Th = Why3.Theory
 
 type profile = Calibration.profile
-type theories = Crc.crc M.t M.t
+type proofs = Crc.crc M.t M.t (* Theory -> Task -> CRC *)
 
 (* -------------------------------------------------------------------------- *)
 (* --- Proof Files                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
+(* Json to Map converter *)
 let jmap cc js =
   let m = ref M.empty in
   Json.jiter (fun fd js -> m := M.add fd (cc js) !m) js ; !m
 
-let jproofs proofs : Json.t =
-  let folder th rs acc =
-    (th, `Assoc (List.map (fun (g,r) -> g, Crc.to_json r) rs)) :: acc in
-  `Assoc (M.fold folder proofs [])
+(* Map to Json converter *)
+let map cc m =
+  Json.assoc @@ List.rev @@ M.fold (fun a e js -> (a, cc e) :: js) m []
 
-let proofs_file file =
+let jproofs : proofs -> Json.t = map (map Crc.to_json)
+
+let filename file =
   Filename.concat (Filename.chop_extension file) "proof.json"
 
-let load_proofs ?local file : profile * theories =
-  let file = proofs_file file in
+let load ?local file : profile * proofs =
+  let file = filename file in
   let js = if Sys.file_exists file then Json.of_file file else `Null in
   let profile = Calibration.of_json ?default:local @@ Json.jfield "profile" js in
   let strategy = jmap (jmap Crc.of_json) @@ Json.jfield "proofs" js in
   profile , strategy
 
-type dumper = {
+type buffer = {
   file : string;
-  profile : Calibration.profile;
-  mutable proofs : (string * Crc.crc) list M.t;
+  profile : Calibration.profile ;
+  mutable proofs : proofs ;
 }
 
-let save_proofs { file; profile; proofs } =
-  let file = proofs_file file in
-  Utils.mkdirs (Filename.dirname file) ;
-  Json.to_file file @@ `Assoc [
-    "profile", Calibration.to_json profile ;
-    "proofs", jproofs proofs ;
-  ]
+let save =
+  Timer.throttle @@
+  Timer.timed ~name:"Proofs dump"
+    begin function { file; profile; proofs } ->
+      let file = filename file in
+      Utils.mkdirs (Filename.dirname file) ;
+      Json.to_file file @@ `Assoc [
+        "profile", Calibration.to_json profile ;
+        "proofs", jproofs proofs ;
+      ]
+    end
 
-let save_proofs = Timer.timed ~name:"Proofs dump" save_proofs
+let create file profile proofs = { file; profile ; proofs }
 
-let create file profile =
-  { file; profile; proofs = M.empty; }
+let add theory goal crc buffer =
+  let theory = Session.name theory in
+  let goal = Session.goal_name goal in
+  let tasks = M.add goal crc @@ M.find_def M.empty theory buffer.proofs in
+  buffer.proofs <- M.add theory tasks buffer.proofs ; save buffer
 
-let dump dumper =
-  save_proofs dumper
-
-let add theory goal crc dumper =
-  let changer o =
-    Some ((goal, crc) :: Option.value ~default:[] o) in
-  dumper.proofs <- M.change changer (Session.name theory) dumper.proofs;
-  dump dumper
+let init theory goals hints buffer =
+  let theory = Session.name theory in
+  let results =
+    if M.is_empty hints then M.empty else
+      List.fold_left
+        (fun rs goal ->
+           let a = Session.goal_name goal in
+           match M.find_opt a hints with
+           | None -> rs
+           | Some r -> M.add a r rs)
+        M.empty goals
+  in buffer.proofs <- M.add theory results buffer.proofs ; save buffer

@@ -253,6 +253,7 @@
     -c force cache update
     -j JOBS max parallel provers
     --log-prover-results FILE log the prover results in the given file
+    -g <name> goals selection
     -f force rebuild proofs
     -u update proofs (default)
     -r replay proofs (no update)

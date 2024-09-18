@@ -277,7 +277,7 @@ let zip_goals thy proofs =
     (Why3.Task.split_theory thy None None)
 
 let reload_proofs source =
-  let _, proofs = Proofs.load_proofs source.filename in
+  let _, proofs = Proofs.load source.filename in
   Mstr.iter
     (fun _ (th : theory) ->
        let proofs = get_proofs th.theory proofs in
@@ -316,7 +316,7 @@ let source ~wenv ~henv ~lib ?root ~filename inc =
     Why3.Glob.clear filename ;
     let path = String.concat "." lib in
     let thys = Why3.Env.read_channel Why3.Env.base_language wenv filename inc in
-    let profile, proofs = Proofs.load_proofs filename in
+    let profile, proofs = Proofs.load filename in
     let theories =
       Mstr.mapi
         (fun name (theory : Thy.theory) ->

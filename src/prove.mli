@@ -47,4 +47,5 @@ val prove_files :
   log:log ->
   axioms:bool ->
   files:string list ->
+  goals:string list ->
   outcome

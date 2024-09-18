@@ -31,10 +31,16 @@ open Fibers.Monad
 (* --- Proof Driver                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
-let prove_theory ~file ~context mode profile dumper strategy theory =
+let accept ~goals thy task =
+  List.mem thy goals || List.mem (thy ^ "." ^ (Session.goal_name task)) goals
+
+let prove_theory ~goals ~file ~context mode profile buffer strategy theory =
   let thy = Session.name theory in
   let tasks = Session.split theory in
   let hints = M.find_def M.empty thy strategy in
+  Option.iter (Proofs.init theory tasks hints) buffer ;
+  let tasks =
+    if goals = [] then tasks else List.filter (accept ~goals thy) tasks in
   let+ proofs =
     Fibers.all @@ List.map
       (fun task ->
@@ -46,7 +52,7 @@ let prove_theory ~file ~context mode profile dumper strategy theory =
            Hammer.schedule profile ~replay ~depth:0 ~idename:goal task
              (if mode = `Force then Crc.stuck () else hint)
          in
-         Option.iter (Proofs.add theory goal crc) dumper;
+         Option.iter (Proofs.add theory task crc) buffer;
          if Utils.tty then Crc.stats hint crc ;
          if not (Crc.is_complete crc) then
            begin
@@ -240,7 +246,7 @@ let report_results (log : results) henv ~lib proofs =
 type mode = [ `Force | `Update | `Minimize | `Replay ]
 type log = [ `Default | `Context of int | results ]
 
-let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess file =
+let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess ~goals file =
   Fibers.background @@
   begin
     let exts = Wutil.exts () in
@@ -253,19 +259,20 @@ let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess file =
     let dir, lib = Wutil.filepath file in
     let theories, format = Wutil.load_theories env.Wenv.wenv file in
     let session = Session.create ~session ~dir ~file ~format theories in
-    let profile, strategy =
-      Proofs.load_proofs ~local:(Calibration.default env) file in
-    let dumper = match mode with
-      | `Force | `Update | `Minimize -> Some (Proofs.create file profile)
-      | `Replay -> None in
+    let local = Calibration.default env in
+    let profile, strategy = Proofs.load ~local file in
+    let buffer = (* the proof strategy must be kept to stabilize crc files *)
+      if (mode = `Replay)
+      then None
+      else Some (Proofs.create file profile strategy) in
     let context = match log with `Context n -> n | _ -> (-1) in
     let* proofs =
       Fibers.all @@ List.map
-        (prove_theory ~file ~context mode profile dumper strategy)
+        (prove_theory ~goals ~file ~context mode profile buffer strategy)
         (Session.theories session)
     in
     Session.save session ;
-    Option.iter Proofs.dump dumper ;
+    Option.iter (Proofs.save ~force:true) buffer ;
     let henv =
       if axioms then
         Some (Axioms.init env)
@@ -288,7 +295,7 @@ type outcome = {
   unfixed : string list ;
 }
 
-let prove_files ~(env:Config.env) ~mode ~session ~log ~axioms ~files =
+let prove_files ~(env:Config.env) ~mode ~session ~log ~axioms ~files ~goals =
   begin
     let time = env.config.time in
     let maxdepth = env.config.depth in
@@ -301,7 +308,7 @@ let prove_files ~(env:Config.env) ~mode ~session ~log ~axioms ~files =
     let log : results = match log with
       | `Default -> if List.length files > 1 then `Modules else `Theories
       | #results as l -> l in
-    List.iter (process ~env ~mode ~session ~log ~axioms ~unsuccess) files ;
+    List.iter (process ~env ~mode ~session ~log ~axioms ~unsuccess ~goals) files ;
     Hammer.run {
       env ;
       client = Client.connect env ;

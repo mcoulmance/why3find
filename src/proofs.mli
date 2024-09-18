@@ -23,25 +23,25 @@
 (* --- Proof Files                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
-module M = Why3.Wstdlib.Mstr
+open Calibration
+open Why3.Wstdlib
 
-type profile = Calibration.profile
-type theories = Crc.crc M.t M.t
+(** Contains CRCs for theories and tasks of a single mlw file.
+    The map is indexed first by theory name then by  task name. *)
+type proofs = Crc.crc Mstr.t Mstr.t
 
-val proofs_file : string -> string
+val filename : string -> string
 (** Returns the proofs file associated with the given mlw file *)
 
-val load_proofs : ?local:profile -> string -> profile * theories
-(**
-   Load the content of the proofs file associated with the given mlw file.
-   If a [~local] profile is provided, the returned profile also inherits from
-   it in addition to the one present in the file.
-*)
+val load : ?local:profile -> string -> profile * proofs
+(** Load the content of the proofs file associated with the given mlw file. If a
+    [~local] profile is provided, the returned profile also inherits from it in
+    addition to the one present in the file. *)
 
-type dumper
+(** Collection of proofs to be saved *)
+type buffer
 
-val create : string -> profile -> dumper
-
-val add : Session.theory -> string -> Crc.crc -> dumper -> unit
-
-val dump : dumper -> unit
+val create : string -> profile -> proofs -> buffer
+val add : Session.theory -> Session.goal -> Crc.crc -> buffer -> unit
+val init : Session.theory -> Session.goal list -> Crc.crc Mstr.t -> buffer -> unit
+val save : ?force:bool -> buffer -> unit

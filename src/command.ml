@@ -96,10 +96,11 @@ let () =
     let times = Unix.times () in
     let tend = Unix.gettimeofday () in
     Utils.flush ();
-    Debug.debug ~flag:print_timings "@[<v>%a@,CPU time: %f@,Real time: %f@]"
-      Timer.print_timings ()
-      (times.tms_utime +. times.tms_stime)
-      (tend -. tstart);
+    Debug.debug ~flag:print_timings
+      "%t%-20s %6f@\n%-20s %6f"
+      Timer.print_timings
+      "CPU time" (times.tms_utime +. times.tms_stime)
+      "Real time" (tend -. tstart) ;
   in
   at_exit (fun () -> try handler () with _ -> ())
 
@@ -530,8 +531,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
                 retval := 1;
             | Tactic { children; _ } -> List.iter check_crc children in
           let check f =
-            let _, theories = Proofs.load_proofs f in
-            Proofs.M.(iter (fun _ -> iter (fun _ -> check_crc))) theories
+            let iter = Why3.Wstdlib.Mstr.iter in
+            iter (fun _ -> iter (fun _ -> check_crc)) @@ snd @@ Proofs.load f
           in
           Wenv.allfiles check "."
         end ;
@@ -603,6 +604,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
 let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
     begin fun argv ->
       let files = ref [] in
+      let goals = ref [] in
       let ide = ref false in
       let session = ref false in
       let log = ref `Default in
@@ -617,6 +619,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
           Wenv.options () @
           Runner.options @
           [
+            "-g", Arg.String (add goals), "<name> goals selection";
             "-f", Arg.Unit (set mode `Force), "force rebuild proofs";
             "-u", Arg.Unit (set mode `Update), "update proofs (default)";
             "-r", Arg.Unit (set mode `Replay), "replay proofs (no update)";
@@ -648,8 +651,9 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       let env = Wenv.init config in
       let files = if !files = [] then ["."] else !files in
       let files = Wenv.argfiles @@ List.rev files in
+      let goals = List.rev !goals in
       let result = Prove.prove_files
-          ~env ~mode:!mode ~session ~log:!log ~axioms:!axioms ~files in
+          ~env ~mode:!mode ~session ~log:!log ~axioms:!axioms ~files ~goals in
       let n = List.length result.unfixed in
       if n > 0 then
         begin
@@ -987,7 +991,7 @@ let () = register ~name:"install" ~args:"PKG PATH..."
               src pkg ;
           allsrc := false ;
           Wenv.allfiles (install ~kind:"(source)") src ;
-          let proofs = Proofs.proofs_file src in
+          let proofs = Proofs.filename src in
           if Sys.file_exists proofs then
             install ~kind:"(proof)" proofs ;
         end in
