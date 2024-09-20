@@ -47,16 +47,16 @@ let progress msg =
          let msg = Buffer.contents buffer in
          let len = String.length msg in
          if 3 + len <= width then
-           Format.printf "> %s\027[K\r@?" msg
+           Printf.printf "> %s\027[K\r%!" msg
          else
-           Format.printf "> %s…\027[K\r@?" @@
+           Printf.printf "> %s…\027[K\r%!" @@
            String.sub msg 0 (max 0 (width - 3))
     ) (Format.formatter_of_buffer buffer) msg
 
 let flush () =
   Format.pp_print_flush Format.std_formatter () ;
   Format.pp_print_flush Format.err_formatter () ;
-  if escape_codes Unix.stdout then Format.printf "\r\027[K"
+  if escape_codes Unix.stdout then Printf.printf "\r\027[K%!"
 
 open Format
 

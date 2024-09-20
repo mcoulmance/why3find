@@ -97,7 +97,7 @@ let () =
     let tend = Unix.gettimeofday () in
     Utils.flush ();
     Debug.debug ~flag:print_timings
-      "%t%-20s %6f@\n%-20s %6f"
+      "@[<v>%t@,%-20s %10f@,%-20s %10f@]"
       Timer.print_timings
       "CPU time" (times.tms_utime +. times.tms_stime)
       "Real time" (tend -. tstart) ;

@@ -33,6 +33,7 @@ let pp_error pp = pp Format.err_formatter
 let summarize pp = Queue.push pp summary ; pp_error pp
 
 let output level pp =
+  Utils.flush ();
   match level with
   | `Message -> Format.printf "@[<hov>%t@]@." pp
   | `Warning ->
