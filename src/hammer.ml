@@ -30,6 +30,7 @@ type henv = {
   env : Config.env ;
   time : float ;
   client : Client.client option ;
+  level : int ;
   maxdepth : int ;
   allprovers : Prover.prover Prover.Mdesc.t ;
   patterns : string list ;
@@ -158,8 +159,10 @@ let apply h tac cs : strategy = fun n ->
 (* -------------------------------------------------------------------------- *)
 
 let hammer0 h : strategy =
-  let time = h.time *. 0.2 in
-  sequence (fun prv -> prove h.env prv time) h.provers
+  if h.level > 0 then
+    let time = h.time *. 0.2 in
+    sequence (fun prv -> prove h.env prv time) h.provers
+  else fail
 
 let hammer13 h time : strategy = fun n ->
   let cancel = Fibers.signal () in
@@ -171,13 +174,15 @@ let hammer13 h time : strategy = fun n ->
   try List.find (fun r -> not @@ Crc.is_stuck r) results
   with Not_found -> Crc.stuck ~goal:n.goal ()
 
-let hammer1 h = hammer13 h h.time
-let hammer3 h = hammer13 h (2.0 *. h.time)
+let hammer1 h = if h.level > 1 then hammer13 h h.time else fail
+let hammer3 h = if h.level > 3 then hammer13 h (2.0 *. h.time) else fail
 
 let hammer2 h : strategy =
-  sequence
-    (fun tr -> apply h tr Crc.none)
-    h.tactics
+  if h.level > 2 then
+    sequence
+      (fun tr -> apply h tr Crc.none)
+      h.tactics
+  else fail
 
 let hammer henv =
   hammer0 henv >>>

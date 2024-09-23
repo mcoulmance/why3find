@@ -43,6 +43,7 @@ type outcome = {
 val prove_files :
   env:Config.env ->
   mode:mode ->
+  hammer:int ->
   session:bool ->
   log:log ->
   axioms:bool ->

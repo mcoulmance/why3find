@@ -262,6 +262,7 @@
     -i run Why3 IDE on failed proof (implies -s)
     -s save why3 session
     -a report axioms and parameters
+    -H [0-4] hammer strategy level (default 4)
     --host HOST Proof Server host (default: none)
     --port PORT Proof Server port (default: 5555)
     --server URL Proof Server address (default: "tcp://HOST:PORT")
