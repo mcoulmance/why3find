@@ -25,19 +25,26 @@
 
 import { workspace, commands, ExtensionContext } from 'vscode';
 import * as Client from './lspclient';
+import * as Proof from './proofview';
 
 export function activate(context: ExtensionContext): void {
 
 	// Register commands.
 	context.subscriptions.push(
-		commands.registerCommand('why3lsp.start', Client.start),
-		commands.registerCommand('why3lsp.stop', Client.stop),
+		commands.registerCommand('why3.lsp.start', Client.start),
+		commands.registerCommand('why3.lsp.stop', Client.stop),
+		commands.registerCommand('why3.proof.show', Proof.show),
 	);
 
 	// Start the client. This will also launch the server
 	Client.start();
+
+	// Create the proof panel.
+	Proof.activate(context);
+
 }
 
 export function deactivate(): void {
 	Client.deactivate();
+	Proof.deactivate();
 }

@@ -56,12 +56,17 @@
     },
     "commands": [
       {
-        "command": "why3lsp.start",
-        "title": "Start the Why3 LSP Server (restart if running)"
+        "command": "why3.lsp.start",
+        "title": "Restart the Why3 LSP Server"
       },
       {
-        "command": "why3lsp.stop",
-        "title": "Stop the Why3 LSP Server (if running)"
+        "command": "why3.lsp.stop",
+        "title": "Stop the Why3 LSP Server"
+      },
+      {
+        "command": "why3.proof.show",
+        "title": "Open the Why3 Proof Tree Editor",
+        "shortTitle": "Proof Tree"
       }
     ]
   },
