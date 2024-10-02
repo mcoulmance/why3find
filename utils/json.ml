@@ -116,11 +116,19 @@ let is_nonnull = function `Null -> false | _ -> true
 
 let int n  = `Int n
 let string s = `String s
-let assoc fts = `Assoc (List.filter (fun (_,v) -> is_nonnull v) fts)
-let list js = `List (List.filter is_nonnull js)
+
+let assoc ?(keepnull=false) fts =
+  if keepnull then `Assoc fts
+  else `Assoc (List.filter (fun (_,v) -> is_nonnull v) fts)
+
+let list ?(keepnull=false) js =
+  if keepnull then `List js
+  else `List (List.filter is_nonnull js)
+
 let option_map f = function None -> `Null | Some a -> f a
-let list_map f xs = `List
+
+let list_map ?(keepnull=false) f xs = `List
     (List.filter_map
-       (fun x -> let v = f x in if is_nonnull v then Some v else None) xs)
+       (fun x -> let v = f x in if keepnull || is_nonnull v then Some v else None) xs)
 
 (* -------------------------------------------------------------------------- *)
