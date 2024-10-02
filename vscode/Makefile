@@ -29,10 +29,13 @@ build: version
 	rm -fr out
 	$(YARN) install
 	$(YARN) typecheck
+
+build: lint
 	$(YARN) bundle
 
 package: build
 	$(YARN) vsce ls
+	$(MAKE) -C proofview package
 	$(YARN) package
 
 # -- Installing & Cleaning
@@ -40,9 +43,10 @@ package: build
 .PHONY: clean install uninstall
 
 clean:
+	$(MAKE) -C proofview clean
 	rm -fr out node_modules *.vsix .version
 
-install:
+install: package
 	code --install-extension why3-platform-*.vsix
 
 uninstall:

@@ -5,7 +5,10 @@ VERSION
 dune
 node_modules
 src
+out
+proofview
 Makefile
 yarn.lock
 tsconfig.json
-out/*.map
+!out/main.js
+!proofview/out/main.js

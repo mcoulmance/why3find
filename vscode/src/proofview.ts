@@ -50,11 +50,11 @@ function htmlContent(
   if (production) {
     const nonce = getNonce();
     const src = webview.asWebviewUri(Uri.joinPath(
-      context.extensionUri, "view", "out", "main.js"
+      context.extensionUri, "proofview", "out", "main.js"
     ));
     csp.push(`connect-src https://*`);
-    csp.push(`script-src nonce-${nonce}`);
-    scr.push(`<script nonce="${nonce}" src="${src}"></script>`);
+    csp.push(`script-src 'nonce-${nonce}'`);
+    scr.push(`<script type="module" nonce="${nonce}" src="${src}"></script>`);
   } else {
     csp.push(`connect-src https://* ws://${localhost}`);
     csp.push(`script-src 'unsafe-inline' https://* http://${localhost}`);
