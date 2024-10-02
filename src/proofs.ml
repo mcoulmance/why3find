@@ -35,10 +35,10 @@ let jmap cc js =
   Json.jiter (fun fd js -> m := M.add fd (cc js) !m) js ; !m
 
 (* Map to Json converter *)
-let map cc m =
-  Json.assoc @@ List.rev @@ M.fold (fun a e js -> (a, cc e) :: js) m []
+let map ?keepnull cc m =
+  Json.assoc ?keepnull @@ List.rev @@ M.fold (fun a e js -> (a, cc e) :: js) m []
 
-let jproofs : proofs -> Json.t = map (map Crc.to_json)
+let jproofs : proofs -> Json.t = map (map  ~keepnull:true Crc.to_json)
 
 let filename file =
   Filename.concat (Filename.chop_extension file) "proof.json"
