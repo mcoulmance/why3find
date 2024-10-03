@@ -322,7 +322,7 @@ let scoped = ref false
 let pp_typename fmt id =
   Id.pp_qid fmt @@ Namespace.find ~lib:!lib id !types
 let pp_name fmt (id : Why3.Ident.ident) =
-  Format.pp_print_string fmt id.id_string
+  Format.pp_print_string fmt (Id.of_infix id.id_string)
 let pp_scoped fmt (id : Why3.Ident.ident) =
   if !scoped then
     let _,_,qid = Id.path id in Id.pp_qid fmt qid
