@@ -410,9 +410,17 @@ let pp_vdecl fmt (pv : Why3.Ity.pvsymbol) =
   let vs = pv.pv_vs in
   Format.fprintf fmt "%a : %a" pp_scoped vs.vs_name pp_type vs.vs_ty
 
-let pp_varg fmt (pv : Why3.Ity.pvsymbol) =
-  if pv.pv_ghost then Format.fprintf fmt "(ghost %a)" pp_rty pv.pv_ity
+let pp_varg ~ghost fmt (pv : Why3.Ity.pvsymbol) =
+  if not ghost && pv.pv_ghost
+  then Format.fprintf fmt "(ghost %a)" pp_rty pv.pv_ity
   else pp_pty fmt pv.pv_ity
+
+let pp_kind fmt (kind : Why3.Expr.rs_kind) =
+  match kind with
+  | RKnone | RKlocal -> ()
+  | RKfunc -> Format.pp_print_string fmt " function"
+  | RKpred -> Format.pp_print_string fmt " predicate"
+  | RKlemma -> Format.pp_print_string fmt " lemma"
 
 let pp_decl fmt (d : Id.decl) =
   match d with
@@ -451,17 +459,14 @@ let pp_decl fmt (d : Id.decl) =
     Format.fprintf fmt "@[<hov 2>val %a@]" pp_vdecl x
   | Id.Let r ->
     begin
-      Format.fprintf fmt "@[<hov 2>val" ;
-      if Why3.Expr.rs_ghost r then Format.fprintf fmt " ghost" ;
-      begin match Why3.Expr.rs_kind r with
-        | RKnone | RKlocal -> ()
-        | RKfunc -> Format.fprintf fmt " function"
-        | RKpred -> Format.fprintf fmt " predicate"
-        | RKlemma -> Format.fprintf fmt " lemma"
-      end ;
-      Format.fprintf fmt " %a" pp_scoped r.rs_name ;
+      Format.fprintf fmt "@[<hov 2>val " ;
+      let kind = Why3.Expr.rs_kind r in
+      let ghost = Why3.Expr.rs_ghost r in
+      if ghost && kind <> RKlemma then Format.fprintf fmt "ghost " ;
+      pp_scoped fmt r.rs_name ;
+      pp_kind fmt kind ;
       let args = r.rs_cty.cty_args in
-      List.iter (Format.fprintf fmt "@ %a" pp_varg) args ;
+      List.iter (Format.fprintf fmt "@ %a" (pp_varg ~ghost)) args ;
       Format.fprintf fmt "@ : %a@]" pp_rty r.rs_cty.cty_result
     end
   | Id.Exn x ->
