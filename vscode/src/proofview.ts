@@ -40,42 +40,41 @@ function htmlContent(
   context: ExtensionContext,
   webview: Webview,
 ): string {
-  const port = "5173";
-  const localhost = `localhost:${port}`;
-  const production = context.extensionMode == vscode.ExtensionMode.Production;
-  const csp : string[] = []; // Content Security Policy
-  const scr : string[] = []; // Scripts
+  // const port = "5173";
+  // const localhost = `localhost:${port}`;
+  //const production = context.extensionMode == vscode.ExtensionMode.Production;
+  const csp: string[] = []; // Content Security Policy
+  const scr: string[] = []; // Scripts
   csp.push("default-src 'none'");
 
-  if (production) {
-    const nonce = getNonce();
-    const src = webview.asWebviewUri(Uri.joinPath(
-      context.extensionUri, "proofview", "out", "main.js"
-    ));
-    csp.push(`connect-src https://*`);
-    csp.push(`script-src 'nonce-${nonce}'`);
-    scr.push(`<script type="module" nonce="${nonce}" src="${src}"></script>`);
-  } else {
-    csp.push(`connect-src https://* ws://${localhost}`);
-    csp.push(`script-src 'unsafe-inline' https://* http://${localhost}`);
-    scr.push(`<script type="module" src="http://localhost:${port}/src/index.tsx"></script>`);
-  }
-
-  // const reactRefresh = /*html*/ `
-  //   <script type="module">
-  //     import RefreshRuntime from "http://${localhost}/@react-refresh"
-  //     RefreshRuntime.injectIntoGlobalHook(window)
-  //     window.$RefreshReg$ = () => {}
-  //     window.$RefreshSig$ = () => (type) => type
-  //     window.__vite_plugin_react_preamble_installed__ = true
-  //   </script>`;
-  //const reactRefreshHash = "sha256-YmMpkm5ow6h+lfI3ZRp0uys+EUCt6FOyLkJERkfVnTY=";
+  // if (production) {
+  const nonce = getNonce();
+  const src = webview.asWebviewUri(Uri.joinPath(
+    context.extensionUri, "proofview", "out", "main.js"
+  ));
+  csp.push(`connect-src https://*`);
+  csp.push(`script-src 'nonce-${nonce}'`);
+  scr.push(`<script type="module" nonce="${nonce}" src="${src}"></script>`);
+  // } else {
+  //   csp.push(`connect-src https://* ws://${localhost}`);
+  //   csp.push(`script-src 'unsafe-inline' https://* http://${localhost}`);
+  //   scr.push(`
+  //     <script type="module">
+  //      import RefreshRuntime from "http://${localhost}/@react-refresh"
+  //      RefreshRuntime.injectIntoGlobalHook(window)
+  //      window.$RefreshReg$ = () => {}
+  //      window.$RefreshSig$ = () => (type) => type
+  //      window.__vite_plugin_react_preamble_installed__ = true
+  //     </script>
+  //   `);
+  //   scr.push(`<script type="module" src="http://${localhost}/src/index.tsx"></script>`);
+  // }
 
   return /*html*/ `<!DOCTYPE html>
   <html lang="en">
     <head>
       <meta charset="UTF-8" />
-      <meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}">
+      <meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>VSCode React Starter</title>
     </head>

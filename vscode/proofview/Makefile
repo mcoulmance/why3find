@@ -12,10 +12,10 @@ start:
 lint:
 	yarn typecheck
 
-build: lint
-	yarn build
-
-package:
+build:
 	yarn install
 	yarn typecheck
 	yarn build
+
+package:
+	yarn bundle
