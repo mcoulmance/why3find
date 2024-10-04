@@ -26,12 +26,14 @@
 import { rm } from 'fs/promises';
 import { Socket, connect } from 'net';
 import { ChildProcess, spawn } from 'child_process';
-import { Disposable, OutputChannel, window, workspace } from 'vscode';
+import { OutputChannel, window, workspace } from 'vscode';
 
 import {
+	DocumentUri,
 	LanguageClient,
 	LanguageClientOptions,
-	ServerOptions,
+	NotificationType,
+	RequestType,
 	StreamInfo
 } from 'vscode-languageclient/node';
 
@@ -111,6 +113,48 @@ function launchServer(): Promise<StreamInfo> {
 }
 
 /* -------------------------------------------------------------------------- */
+/* --- Status Notification (Custom)                                       --- */
+/* -------------------------------------------------------------------------- */
+
+export interface Status {
+  pending: number ;
+  running: number ;
+}
+
+let onStatusCallback : ((s:Status) => void) | undefined ;
+const StatusNotif = new NotificationType<Status>("why3/status");
+
+export function onStatus(fn: (s:Status) => void): void
+{
+	onStatusCallback = fn;
+}
+
+/* -------------------------------------------------------------------------- */
+/* --- Interrupt & Prove Request (Custom)                                 --- */
+/* -------------------------------------------------------------------------- */
+
+export interface ProveParams {
+	uri: DocumentUri,
+	goal?: string,
+	hlevel?: number,
+}
+
+const InterruptRequest = new RequestType<void,void,void>("why3/interrupt");
+const ProveRequest = new RequestType<ProveParams,void,void>("why3/prove");
+
+export async function interrupt(): Promise<void> {
+	if (client) {
+		await client.sendRequest(InterruptRequest, null);
+	}
+}
+
+export async function prove(prm: ProveParams): Promise<void> {
+	if (client) {
+		await client.sendRequest(ProveRequest, prm);
+	}
+}
+
+/* -------------------------------------------------------------------------- */
 /* --- LSP Entry Points                                                   --- */
 /* -------------------------------------------------------------------------- */
 
@@ -122,6 +166,7 @@ export function deactivate() {
 export async function stop(): Promise<void> {
 	if (client) {
 		output?.appendLine('[VSCode] Stop LSP Client');
+
 		const toStop = client;
 		client = undefined;
 		await toStop.stop();
@@ -162,6 +207,9 @@ export async function start(): Promise<void> {
 		launchServer,
 		clientOptions
 	);
+	client.onNotification(StatusNotif,(s) => {
+		if (onStatusCallback) onStatusCallback(s);
+	});
 
 	// Start LSP
 	output?.appendLine('[VSCode] Launch LSP Client');

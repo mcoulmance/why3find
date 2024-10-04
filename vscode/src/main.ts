@@ -33,6 +33,7 @@ export function activate(context: ExtensionContext): void {
 	context.subscriptions.push(
 		commands.registerCommand('why3.lsp.start', Client.start),
 		commands.registerCommand('why3.lsp.stop', Client.stop),
+		commands.registerCommand('why3.lsp.interrupt', Client.interrupt),
 		commands.registerCommand('why3.proof.show', Proof.show),
 	);
 
