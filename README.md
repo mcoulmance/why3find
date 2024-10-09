@@ -147,7 +147,6 @@ the package root with option `--root DIR`.
 The common options are given below:
 
     --root DIR            # Specifies the package root directory
-    --extra-config CFG    # Extra why3 configuration file
     -p|--package PKG      # Package to depend on
     -P|--prover PRV       # Provers to be used
     -T|--tactic TAC       # Tactics to be used

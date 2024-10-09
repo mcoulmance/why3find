@@ -27,7 +27,6 @@ type pkg = {
   name: string ;
   path: string ;
   depends: string list ;
-  configs: string list ;
   drivers: string list ;
   extracted: bool ;
 }
@@ -51,13 +50,16 @@ let find pkg =
         if Sys.file_exists meta then
           let open Json in
           let js = of_file meta in
+          if jfield "configs" js |> jstringlist <> [] then
+            Log.warning "Support for extra config files was removed in \
+                         why3find 1.1.@ If you need this feature, please \
+                         report this at %%PKG_ISSUES%%.";
           let depends = jfield "depends" js |> jstringlist in
-          let configs = jfield "configs" js |> jstringlist in
           let drivers = jfield "drivers" js |> jstringlist in
           let extracted = jfield "extracted" js |> jbool in
-          { name = pkg ; path ; depends ; configs ; drivers ; extracted }
+          { name = pkg ; path ; depends ; drivers ; extracted }
         else
-          { name = pkg ; path ; depends = [] ; configs = [] ; drivers = [] ;
+          { name = pkg ; path ; depends = [] ; drivers = [] ;
             extracted = false }
   in lookup pkg Global.Sites.packages
 
@@ -87,7 +89,6 @@ let install pkg =
   Json.to_file meta @@ `Assoc (
     List.filter nonempty [
       "depends", list pkg.depends ;
-      "configs", list pkg.configs ;
       "drivers", list pkg.drivers ;
       "extracted", `Bool pkg.extracted ;
     ])

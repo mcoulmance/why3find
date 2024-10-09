@@ -24,7 +24,6 @@
 type config = {
   time : float ;
   depth : int ;
-  configs : string list ;
   packages : string list ;
   provers : string list ;
   tactics : string list ;

@@ -9,7 +9,6 @@
   {
     "time": 1,
     "depth": 2,
-    "configs": [],
     "packages": [],
     "provers": [ "alt-ergo" ],
     "tactics": [ "split_vc", "inline_goal" ],
