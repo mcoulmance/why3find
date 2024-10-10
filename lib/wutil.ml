@@ -55,12 +55,8 @@ let load_theories (env : Why3.Env.env) file =
     | None,Some _ -> (+1)
     | Some la, Some lb -> Why3.Loc.compare la lb
   in
-  try
-    let tmap,format = Why3.Env.(read_file base_language env file) in
-    Wstdlib.Mstr.bindings tmap |> List.map snd |> List.sort byloc , format
-  with error ->
-    Log.emit "%s" (Printexc.to_string error) ;
-    exit 2
+  let tmap,format = Why3.Env.(read_file base_language env file) in
+  Wstdlib.Mstr.bindings tmap |> List.map snd |> List.sort byloc , format
 
 (* -------------------------------------------------------------------------- *)
 (* --- Iterators                                                          --- *)
