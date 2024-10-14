@@ -1,5 +1,6 @@
 module S
   function op int int : int
+  axiom assoc : forall x y z. op (op x y) z = op x (op y z)
   axiom com : forall x y. op x y = op y x
 end
 
