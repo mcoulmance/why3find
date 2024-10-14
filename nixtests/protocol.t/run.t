@@ -1,6 +1,6 @@
   $ export WHY3CONFIG=why3.conf
 
-  $ why3find config --detect -m \
+  $ why3find config --detect --master \
   >   | sed 's/[0-9]*ms/REDACTED/g; s/n=[0-9]*/REDACTED/g'
   warning: cannot read config file why3.conf:
     why3.conf: No such file or directory

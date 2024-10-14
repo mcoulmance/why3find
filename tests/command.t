@@ -200,8 +200,8 @@
     -c force cache update
     -j JOBS max parallel provers
     --log-prover-results FILE log the prover results in the given file
-    -m calibrate provers (master)
-    -v evaluate prover velocity (local)
+    --master calibrate provers (master)
+    --velocity evaluate prover velocity (local)
     --quiet do not list final configuration
     --reset configure from scratch
     --default import available provers

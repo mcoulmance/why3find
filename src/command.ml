@@ -418,8 +418,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           Wenv.options () @
           Runner.options @
           [
-            "-m", Arg.Set calibrate, "calibrate provers (master)";
-            "-v", Arg.Set velocity, "evaluate prover velocity (local)";
+            "--master", Arg.Set calibrate, "calibrate provers (master)";
+            "--velocity", Arg.Set velocity, "evaluate prover velocity (local)";
             "--quiet", Arg.Clear list, "do not list final configuration";
             "--reset", Arg.Set reset, "configure from scratch";
             "--default", Arg.Set default, "import available provers";
