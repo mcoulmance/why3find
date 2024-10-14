@@ -13,13 +13,9 @@
   "bar.mlw", line 3, characters 8-13: proof failed
   Goal Add.assoc: ✘
     Add.assoc
-  Warning: prover non-existing@1.0 not found (why3)
-  Warning: prover non-existing@1.0 not configured (project)
   "bar.mlw", line 4, characters 8-11: proof failed
   Goal Add.com: ✘
     Add.com
-  Warning: prover non-existing@1.0 not found (why3)
-  Warning: prover non-existing@1.0 not configured (project)
   "bar.mlw", line 3, characters 8-13: proof failed
   Goal Mul.assoc: ✘
     Mul.assoc
@@ -34,22 +30,14 @@
   Warning: prover bar not found (why3)
   Warning: prover non-existing@1.0 not found (why3)
   Warning: prover non-existing@1.0 not configured (project)
-  Warning: prover non-existing@1.0 not found (why3)
-  Warning: prover non-existing@1.0 not configured (project)
-  Warning: prover non-existing@1.0 not found (why3)
-  Warning: prover non-existing@1.0 not configured (project)
   Warning: prover alt-ergo@2.4.2 not configured (project)
   Error: 2 unproved files
-  Emitted 9 warnings, 1 error
+  Emitted 5 warnings, 1 error
   [1]
 
   $ why3find config --check
   Warning: prover foo not found (why3)
   Warning: prover bar not found (why3)
-  Warning: prover non-existing@1.0 not found (why3)
-  Warning: prover non-existing@1.0 not configured (project)
-  Warning: prover non-existing@1.0 not found (why3)
-  Warning: prover non-existing@1.0 not configured (project)
   Warning: prover non-existing@1.0 not found (why3)
   Warning: prover non-existing@1.0 not configured (project)
   Warning: prover alt-ergo@2.4.2 not configured (project)
@@ -61,10 +49,6 @@
   Warning: prover bar not found (why3)
   Warning: prover non-existing@1.0 not found (why3)
   Warning: prover non-existing@1.0 not configured (project)
-  Warning: prover non-existing@1.0 not found (why3)
-  Warning: prover non-existing@1.0 not configured (project)
-  Warning: prover non-existing@1.0 not found (why3)
-  Warning: prover non-existing@1.0 not configured (project)
   Warning: prover alt-ergo@2.4.2 not configured (project)
-  Emitted 9 warnings
+  Emitted 5 warnings
   [1]

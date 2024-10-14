@@ -193,11 +193,17 @@ let default env =
   find_default env "cvc4" @
   find_default env "cvc5"
 
+let warn_prover_not_found =
+  Why3.Wstdlib.Hstr.memo 5 (Log.warning "prover %s not found (why3)")
+
+let warn_prover_not_configured =
+  Why3.Wstdlib.Hstr.memo 5 (Log.warning "prover %s not configured (project)")
+
 let select ~patterns all =
   let find pattern =
     try Some (find_exn ~pattern all) with
     | InvalidPattern s -> Log.warning "invalid prover pattern %s" s; None
-    | Not_found -> Log.warning "prover %s not found (why3)" pattern; None in
+    | Not_found -> warn_prover_not_found pattern; None in
   List.filter_map find patterns
 
 let check_and_get_prover ~patterns all pr =
@@ -209,8 +215,9 @@ let check_and_get_prover ~patterns all pr =
   then prover (* either the prover is available or we already complained *)
   else
     begin
+      let s = Format.asprintf "%a@?" pp_desc pr in
       if prover = None then
-        Log.warning "prover %a not found (why3)" pp_desc pr;
-      Log.warning "prover %a not configured (project)" pp_desc pr;
+        warn_prover_not_found s;
+      warn_prover_not_configured s;
       None
     end
