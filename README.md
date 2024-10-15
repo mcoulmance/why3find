@@ -334,8 +334,8 @@ parameter `n` on both machines. This velocity is then used to convert local
 times into reference times _wrt_ to the master machine or _vice et versa_. The
 `why3find` commands related to prover calibration are :
 
-    $ why3find config -m     # Calibrate provers on the master machine
-    $ why3find config -v     # Evaluate velocity of provers on a local machine
+    $ why3find config --master       # Calibrate provers on the master machine
+    $ why3find config --velocity     # Evaluate velocity of provers on a local machine
 
 It is highly recommended to update all proofs on the *master* machine with
 `why3find prove -f` after modifying the proof calibration. Usually, you
