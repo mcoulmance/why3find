@@ -84,10 +84,19 @@ let save_config p config =
   let p = Filename.concat p conf_file in
   Json.to_file p @@ config_to_json config
 
+type wenv = {
+  config : Why3.Whyconf.config ;
+  env : Why3.Env.env ;
+}
+
+let create_wenv ?(loadpath=[]) config =
+  let loadpath = loadpath @ Why3.Whyconf.(loadpath @@ get_main config) in
+  let env = Why3.Env.create_env loadpath in
+  { config ; env }
+
 type env = {
   config : config ;
-  wconfig : Why3.Whyconf.config ;
-  wenv : Why3.Env.env ;
+  wenv : wenv ;
   pkgs : Meta.pkg list ;
 }
 
@@ -95,7 +104,5 @@ let create_env ?(root=".") ~config () =
   let pkgs = Meta.find_all config.packages in
   let pkg_path = List.map (fun m -> m.Meta.path) pkgs in
   let wconfig = Why3.Whyconf.init_config ~extra_config:[] None in
-  let wmain = Why3.Whyconf.get_main wconfig in
-  let wpath = Why3.Whyconf.loadpath wmain in
-  let wenv = Why3.Env.create_env (root :: pkg_path @ wpath) in
-  { config ; wconfig ; wenv ; pkgs }
+  let wenv = create_wenv ~loadpath:(root :: pkg_path) wconfig in
+  { config ; wenv ; pkgs }

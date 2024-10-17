@@ -257,7 +257,7 @@ let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess ~goals file =
         exit 2
       end ;
     let dir, lib = Wutil.filepath file in
-    let theories, format = Wutil.load_theories env.Wenv.wenv file in
+    let theories, format = Wutil.load_theories env.Wenv.wenv.env file in
     let session = Session.create ~session ~dir ~file ~format theories in
     let local = Calibration.default env in
     let profile, strategy = Proofs.load ~local file in
@@ -301,8 +301,8 @@ let prove_files ~(env:Config.env) ~mode ~hammer ~session ~log ~axioms ~files
     let time = env.config.time in
     let maxdepth = env.config.depth in
     let patterns = env.config.provers in
-    let tactics = Tactic.select env.wenv env.config.tactics in
-    let allprovers = Prover.all env.wconfig env.wenv in
+    let tactics = Tactic.select env.wenv.env env.config.tactics in
+    let allprovers = Prover.all env.wenv in
     let provers = Prover.select ~patterns allprovers in
     let unsuccess = ref [] in
     let minimize = (mode = `Minimize) in
@@ -325,7 +325,7 @@ let prove_files ~(env:Config.env) ~mode ~hammer ~session ~log ~axioms ~files
     {
       provers ; tactics ;
       time = max 1 (int_of_float (0.5 +. time)) ;
-      mem = Runner.memlimit (Why3.Whyconf.get_main env.wconfig) ;
+      mem = Runner.memlimit (Why3.Whyconf.get_main env.wenv.config) ;
       unfixed = List.rev !unsuccess ;
     }
   end

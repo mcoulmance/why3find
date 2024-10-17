@@ -91,7 +91,7 @@ let rec sequence (f : 'a -> strategy) (xs : 'a list) : strategy =
 (* -------------------------------------------------------------------------- *)
 
 let prove env ?client ?cancel prover timeout : strategy = fun n ->
-  let wmain = Why3.Whyconf.get_main env.Config.wconfig in
+  let wmain = Why3.Whyconf.get_main env.Config.wenv.config in
   let name = Session.goal_name n.goal in
   let* alpha = Calibration.velocity wmain n.profile prover in
   let to_profile = Runner.map (fun t -> t /. alpha) in
@@ -152,7 +152,7 @@ let rec subgoals ({ profile ; replay ; depth } as n) i goals hints =
 let apply h tac ?(hint : hint option) : strategy = fun n ->
   if n.depth > h.maxdepth then stuck n else
     let id = Tactic.name tac in
-    match Session.apply h.env.Config.wenv id n.goal with
+    match Session.apply h.env.Config.wenv.env id n.goal with
     | None -> stuck n
     | Some gs ->
       let hs =
@@ -219,7 +219,7 @@ let replay ~hint h n =
       if Tactic.equal t (fst hint) then
         apply h t ~hint n
       else
-        match Session.apply h.env.Config.wenv (Tactic.name t) n.goal with
+        match Session.apply h.env.Config.wenv.env (Tactic.name t) n.goal with
         | None -> iter ts
         | Some _ ->
           Log.warning "Goal %S: tactic '%a' shadowed by '%a'"
@@ -248,7 +248,7 @@ let process h : strategy = fun n ->
       else
         update_prover h p t n
     | Tactic { id ; children } ->
-      match Tactic.lookup h.env.wenv id with
+      match Tactic.lookup h.env.wenv.env id with
       | Some tac ->
         let hint = tac, children in
         if n.replay then

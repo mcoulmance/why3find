@@ -450,7 +450,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
         else Config.config_of_json rawconfig in
       let config = Wenv.add_options config in
       let env = Wenv.init config in
-      let allprovers = Prover.all env.wconfig env.wenv in
+      let allprovers = Prover.all env.wenv in
       (* --- List Provers -------------- *)
       if !list_provers || !list_tactics then
         begin
@@ -537,7 +537,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           in
           Wenv.allfiles check "."
         end ;
-      let wmain = Why3.Whyconf.get_main env.wconfig in
+      let wmain = Why3.Whyconf.get_main env.wenv.config in
       List.iter (check_custom_drivers wmain) provers ;
       (* --- New Configuration --------- *)
       let newprofile = match profile with None -> config.profile | _ -> profile in
@@ -712,11 +712,11 @@ let () = register ~name:"print" ~args:"[OPTIONS] PATH..."
       let files = if !files = [] then ["."] else !files in
       let files = Wenv.argfiles ~exts:[".md";".mlw"] @@ List.rev files in
       let config = Wenv.load_config () in
-      let Wenv.{ wenv = env } = Wenv.init config in
+      let Wenv.{ wenv; _ } = Wenv.init config in
       List.iter
         begin fun file ->
           let lib = snd @@ Wutil.filepath file in
-          Wutil.load_theories env file |> fst |>
+          Wutil.load_theories wenv.env file |> fst |>
           List.iter
             begin fun (thy : Why3.Theory.theory) ->
               let fullpath = lib @ [thy.th_name.id_string] in

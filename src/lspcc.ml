@@ -45,7 +45,7 @@ let set_source ~filename env src refs types symbols =
   }
 
 let find_decl (source:source) id =
-  let env = source.env.wenv in
+  let env = source.env.wenv.env in
   let src = source.src in
   Docref.find_decl env src id
 
@@ -123,7 +123,7 @@ let preprocess filename diagnostics =
     let config = Config.load_config root in
     let loadplugins = load_plugins () in
     let env = Wenv.init ~root ~loadplugins config in
-    let wenv = env.wenv in
+    let wenv = env.wenv.env in
     let henv = Axioms.init env in
     let lib = library ~root ~filename in
     let parser = Docref.source ~wenv ~henv ~lib ~root ~filename in
