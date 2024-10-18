@@ -204,6 +204,19 @@ let replay_prover h p t =
 
 let update_prover h p t = replay_prover h p t >>> hammer h
 
+let replay ~id ~hint h n =
+  let rec iter = function
+    | [] -> stuck n
+    | t::ts ->
+      let idt = Tactic.name t in
+      if idt = id then
+        apply h t hint n
+      else
+        match Session.apply h.env.Config.wenv id n.goal with
+        | None -> iter ts
+        | Some _ -> stuck n
+  in iter h.tactics
+
 let reduce ?hint h =
   hammer1 h >>>
   hammer2 ?hint h >>>
@@ -229,7 +242,7 @@ let process h : strategy = fun n ->
         match Tactic.lookup h.env.wenv id with
         | Some _ ->
           if n.replay then
-            hammer2 ~hint h n
+            replay ~id ~hint h n
           else
           if h.minimize then
             reduce ~hint h n
