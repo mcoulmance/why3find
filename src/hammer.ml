@@ -218,7 +218,7 @@ let reduce h id cs =
 
 let process h : strategy = fun n ->
   try
-    match n.hint.state with
+    match n.hint.status with
     | Stuck -> if n.replay then stuck n else hammer h n
     | Prover(p,t) ->
       if n.replay then

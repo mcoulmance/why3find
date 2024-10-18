@@ -23,7 +23,7 @@
 (* --- Proof Certificates                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
-type state = private
+type status = private
   | Stuck
   | Prover of Prover.prover_desc * float
   | Tactic of {
@@ -37,17 +37,17 @@ type state = private
 
 and crc = private {
   goal : Session.goal option ;
-  state : state ;
+  status : status ;
 }
 
-val none : state
+val none : status
 val stuck : ?goal:Session.goal -> unit -> crc
 val prover : ?goal:Session.goal -> Prover.prover_desc -> float -> crc
 val tactic : ?goal:Session.goal -> string -> crc list -> crc
 
 (** Iterates over all goals in the CRC.
     Tactic nodes are visite first, followed by their children. *)
-val iter : (Session.goal -> state -> unit) -> crc -> unit
+val iter : (Session.goal -> status -> unit) -> crc -> unit
 
 type verdict = [ `Valid of int | `Failed of int | `Partial of int * int ]
 val verdict : crc -> verdict

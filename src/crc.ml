@@ -23,7 +23,7 @@
 (* --- Proof Certificates                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
-type state =
+type status =
   | Stuck
   | Prover of Prover.prover_desc * float
   | Tactic of {
@@ -37,46 +37,46 @@ type state =
 
 and crc = {
   goal : Session.goal option ; (* not saved in JSON *)
-  state : state ;
+  status : status ;
 }
 
 let none = Stuck
-let stuck ?goal () = { goal ; state = Stuck }
-let prover ?goal p f = { goal ; state = Prover(p,f) }
+let stuck ?goal () = { goal ; status = Stuck }
+let prover ?goal p f = { goal ; status = Prover(p,f) }
 
-let get_stuck { state } = match state with
+let get_stuck { status } = match status with
   | Stuck -> 1
   | Prover _ -> 0
   | Tactic { stuck } -> stuck
 
-let get_proved { state } = match state with
+let get_proved { status } = match status with
   | Stuck -> 0
   | Prover _ -> 1
   | Tactic { proved } -> proved
 
-let get_time { state } = match state with
+let get_time { status } = match status with
   | Stuck -> 0.0
   | Prover(_,t) -> t
   | Tactic { time } -> time
 
-let get_depth { state } = match state with
+let get_depth { status } = match status with
   | Stuck | Prover _ -> 0
   | Tactic { depth } -> succ depth
 
-let size { state } = match state with
+let size { status } = match status with
   | Stuck | Prover _ -> 1
   | Tactic { stuck ; proved } -> stuck + proved
 
-let is_stuck { state } = match state with
+let is_stuck { status } = match status with
   | Stuck -> true
   | Prover _ | Tactic _ -> false
 
-let is_complete { state } = match state with
+let is_complete { status } = match status with
   | Stuck -> false
   | Prover _ -> true
   | Tactic { stuck } -> stuck = 0
 
-let is_unknown { state } = match state with
+let is_unknown { status } = match status with
   | Stuck -> true
   | Prover _ -> false
   | Tactic { stuck ; proved } -> stuck > 0 && proved = 0
@@ -91,8 +91,8 @@ let tactic ?goal id children =
   let proved = get_proved_all children in
   let time = get_time_all children in
   let depth = get_depth_all children in
-  if stuck > 0 && proved = 0 then { goal ; state = Stuck } else
-    { goal; state = Tactic { id ; children ; stuck ; proved ; depth ; time } }
+  if stuck > 0 && proved = 0 then { goal ; status = Stuck } else
+    { goal; status = Tactic { id ; children ; stuck ; proved ; depth ; time } }
 
 type verdict = [ `Valid of int | `Failed of int | `Partial of int * int ]
 
@@ -122,7 +122,7 @@ let pretty fmt crc =
 (* --- JSON                                                               --- *)
 (* -------------------------------------------------------------------------- *)
 
-let rec to_json (a : crc) : Json.t = match a.state with
+let rec to_json (a : crc) : Json.t = match a.status with
   | Stuck -> `Null
   | Prover(p,t) ->
     `Assoc [ "prover", `String (Prover.desc_to_string p) ; "time", `Float t]
@@ -162,7 +162,7 @@ let window t0 t1 =
 
 let rec merge a b =
   let goal = match a.goal with None -> b.goal | g -> g in
-  match a.state, b.state with
+  match a.status, b.status with
   | Prover(p0,t0), Prover(p1,t1) when p0 = p1 && window t0 t1 -> a
   | Tactic { id = f ; children = xs } ,
     Tactic { id = g ; children = ys }
@@ -188,7 +188,7 @@ let (^=) r t = r := max !r t
 
 let rec node_stats a b =
   begin
-    match a.state, b.state with
+    match a.status, b.status with
 
     | Stuck, Stuck ->
       incr unchanged ;
@@ -282,9 +282,9 @@ let print_stats () =
 (* --- iter                                                               --- *)
 (* -------------------------------------------------------------------------- *)
 
-let rec iter (f : Session.goal -> state -> unit) c =
-  Option.iter (fun g -> f g c.state) c.goal ;
-  match c.state with
+let rec iter (f : Session.goal -> status -> unit) c =
+  Option.iter (fun g -> f g c.status) c.goal ;
+  match c.status with
   | Stuck | Prover _ -> ()
   | Tactic { children } -> List.iter (iter f) children
 
@@ -292,7 +292,7 @@ let rec iter (f : Session.goal -> state -> unit) c =
 (* --- Dump                                                               --- *)
 (* -------------------------------------------------------------------------- *)
 
-let rec dump fmt { state } = match state with
+let rec dump fmt { status } = match status with
   | Stuck -> Format.fprintf fmt "@{<red>Unknown@}"
   | Prover(p,t) -> Format.fprintf fmt "%s (%a)" (Prover.desc_name p) Utils.pp_time t
   | Tactic { id ; children } ->
