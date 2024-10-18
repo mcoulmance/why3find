@@ -39,8 +39,8 @@
   <h1><a id="_1">Main Document</a></h1>
   <p>This package contains one [unique](a.index.html) library, which consists of:</p>
   <ul>
-  <li>Theory <code class="src"><a title="a.A" href="a.A.html#">a.A</a></code></li>
-  <li>Module <code class="src"><a title="a.B" href="a.B.html#">a.B</a></code></li>
+  <li>Theory <code class="src"><a title="a.A" href="a.A.html">a.A</a></code></li>
+  <li>Module <code class="src"><a title="a.B" href="a.B.html">a.B</a></code></li>
   </ul>
   <p>Please, read the doc!</p>
   </div>

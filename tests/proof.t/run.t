@@ -38,9 +38,9 @@
   <pre class="src">
   <span class="keyword">module</span> <span class="scope">B</span><a href="clones.proof.html#B" title="1 logic parameter, 1 hypothesis, 0 instance found" class="icon small warning icofont-warning-alt"></a><a href="clones.proof.html#B" title="Valid (one goal)" class="icon valid icofont-check"></a>
     <span class="keyword">use</span> int.<a title="int.Int" href="https://www.why3.org/stdlib/int.html#Int_">Int</a>
-    <span class="keyword">clone</span> <a title="clones.A" href="clones.A.html#">A</a><span class="section">{<span class="section-toggle">#</span><span class="section-text">
+    <span class="keyword">clone</span> <a title="clones.A" href="clones.A.html">A</a><span class="section">{<span class="section-toggle">#</span><span class="section-text">
       <span class="comment section-toggle">begin</span>
-        <span class="comment">(* cloned <a name="clone-8" href="clones.A.html#">clones.A</a> *)</span>
+        <span class="comment">(* cloned <a name="clone-8" href="clones.A.html">clones.A</a> *)</span>
       <span class="comment section-toggle">end</span>
     </span>}</span><span class="section">{<span class="section-toggle">…</span><span class="section-text">
       <span class="comment section-toggle">begin</span>

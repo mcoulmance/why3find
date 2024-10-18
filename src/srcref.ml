@@ -196,7 +196,6 @@ let process_reference env s =
     let _, id = Docref.reference ~wenv ~src ~current s in
     let id = Id.resolve ~lib:src.lib id in
     let pos = Token.position env.input in
-    Format.eprintf "REF %a %a@." Range.pp_range (lexrange pos) Id.pp_title id ;
     env.refs <- Rangemap.add (lexrange pos) (Ref id) env.refs ;
   with
   | Not_found -> Token.error env.input "unknown reference"

@@ -73,9 +73,9 @@
   <span class="keyword">module</span> <span class="scope">B</span><a href="bar.proof.html#B" title="1 logic parameter" class="icon small remark icofont-question-circle"></a><a href="bar.proof.html#B" title="Failed (no proof)" class="icon failed icofont-error"></a>
     <span class="keyword">use</span> int.<a title="int.Int" href="https://www.why3.org/stdlib/int.html#Int_">Int</a>
   
-    <span class="keyword">clone</span> foo.<a title="foo.A" href="foo.A.html#">A</a><span class="section">{<span class="section-toggle">#</span><span class="section-text">
+    <span class="keyword">clone</span> foo.<a title="foo.A" href="foo.A.html">A</a><span class="section">{<span class="section-toggle">#</span><span class="section-text">
       <span class="comment section-toggle">begin</span>
-        <span class="comment">(* cloned <a name="clone-4" href="foo.A.html#">foo.A</a> *)</span>
+        <span class="comment">(* cloned <a name="clone-4" href="foo.A.html">foo.A</a> *)</span>
       <span class="comment section-toggle">end</span>
     </span>}</span><span class="section">{<span class="section-toggle">…</span><span class="section-text">
       <span class="comment section-toggle">begin</span>
