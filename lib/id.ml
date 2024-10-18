@@ -225,12 +225,12 @@ let pp_aname fmt r = pp_anchor fmt r.id_qid
 let pp_ahref ~current ~package_url fmt r =
   match r.id_pkg with
   | `Local ->
-    let local = match current with
-      | Some m when m = r.id_mod -> true
-      | _ -> false
-    in
-    if not local then pp_htmlfile fmt r ;
-    pp_selector fmt r.id_qid
+    let is_decl = r.id_qid <> [] in
+    let is_extern = not (is_decl && current = Some r.id_mod) in
+    begin
+      if is_extern then pp_htmlfile fmt r ;
+      if is_decl then pp_selector fmt r.id_qid ;
+    end
   | `Package m ->
     begin
       match package_url with

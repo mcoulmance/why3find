@@ -52,9 +52,9 @@
     <span class="keyword">use</span> int.<a title="int.Int" href="https://www.why3.org/stdlib/int.html#Int_">Int</a>
     <span class="keyword">use</span> list.<a title="list.List" href="https://www.why3.org/stdlib/list.html#List_">List</a>
     <span class="keyword">let</span> <span class="keyword">constant</span> <a id="zero">zero</a> = 0
-    <span class="keyword">clone</span> <span class="keyword">export</span> <a title="a.A" href="a.A.html#">A</a><span class="section">{<span class="section-toggle">#</span><span class="section-text">
+    <span class="keyword">clone</span> <span class="keyword">export</span> <a title="a.A" href="a.A.html">A</a><span class="section">{<span class="section-toggle">#</span><span class="section-text">
       <span class="comment section-toggle">begin</span>
-        <span class="comment">(* cloned <a name="clone-4" href="a.A.html#">a.A</a> *)</span>
+        <span class="comment">(* cloned <a name="clone-4" href="a.A.html">a.A</a> *)</span>
       <span class="comment section-toggle">end</span>
     </span>}</span><span class="section">{<span class="section-toggle">…</span><span class="section-text">
       <span class="comment section-toggle">begin</span>
@@ -83,7 +83,7 @@
   <header><a href="index.html">index</a> — <code>library <a href="a.index.html">a</a></code> — <code>module E</code></header>
   <pre class="src">
   <span class="keyword">module</span> <span class="scope">E</span><a href="a.proof.html#E" title="Valid (no goals)" class="icon remark icofont-check"></a>
-    <span class="keyword">use</span> <a title="a.B" href="a.B.html#">B</a>
+    <span class="keyword">use</span> <a title="a.B" href="a.B.html">B</a>
     <span class="keyword">use</span> list.<a title="list.List" href="https://www.why3.org/stdlib/list.html#List_">List</a>
     <span class="keyword">let</span> <a id="single">single</a> (x : int) : int = <a title="a.B.assoc" href="a.B.html#assoc">assoc</a> (<a title="list.List.Cons" href="https://www.why3.org/stdlib/list.html#Cons_8">Cons</a> x <a title="list.List.Nil" href="https://www.why3.org/stdlib/list.html#Nil_8">Nil</a>)
   <span class="keyword">end</span>
@@ -106,7 +106,7 @@
   <header><a href="index.html">index</a> — <code>library <a href="b.index.html">b</a></code> — <code>module C</code></header>
   <pre class="src">
   <span class="keyword">module</span> <span class="scope">C</span><a href="b.proof.html#C" title="Valid (no goals)" class="icon remark icofont-check"></a>
-    <span class="keyword">use</span> a.<a title="a.B" href="a.B.html#">B</a>
+    <span class="keyword">use</span> a.<a title="a.B" href="a.B.html">B</a>
     <span class="keyword">use</span> list.<a title="list.List" href="https://www.why3.org/stdlib/list.html#List_">List</a>
     <span class="keyword">let</span> <a id="single">single</a> (x : int) : int = <a title="a.B.assoc" href="a.B.html#assoc">assoc</a> (<a title="list.List.Cons" href="https://www.why3.org/stdlib/list.html#Cons_8">Cons</a> x <a title="list.List.Nil" href="https://www.why3.org/stdlib/list.html#Nil_8">Nil</a>)
   <span class="keyword">end</span>
