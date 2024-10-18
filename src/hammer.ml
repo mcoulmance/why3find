@@ -223,7 +223,7 @@ let reduce ?hint h =
   hammer3 h
 
 let tactic ~hint h =
-  hammer2 ~hint h >>> reduce h
+  hammer2 ~hint h >>> hammer h
 
 let explore h n =
   if n.replay then stuck n else hammer h n
