@@ -20,7 +20,8 @@
 /* ************************************************************************ */
 
 import * as vscode from "vscode";
-import { ExtensionContext, Uri, Webview, WebviewPanel } from "vscode";
+import { ExtensionContext, Webview, WebviewPanel, Disposable } from "vscode";
+import * as Client from './client';
 
 /* -------------------------------------------------------------------------- */
 /* ---  Proof Tree HTML Content                                           --- */
@@ -40,35 +41,17 @@ function htmlContent(
   context: ExtensionContext,
   webview: Webview,
 ): string {
-  // const port = "5173";
-  // const localhost = `localhost:${port}`;
-  //const production = context.extensionMode == vscode.ExtensionMode.Production;
   const csp: string[] = []; // Content Security Policy
   const scr: string[] = []; // Scripts
   csp.push("default-src 'none'");
 
-  // if (production) {
   const nonce = getNonce();
-  const src = webview.asWebviewUri(Uri.joinPath(
+  const src = webview.asWebviewUri(vscode.Uri.joinPath(
     context.extensionUri, "proofview", "out", "main.js"
   ));
   csp.push(`connect-src https://*`);
   csp.push(`script-src 'nonce-${nonce}'`);
   scr.push(`<script type="module" nonce="${nonce}" src="${src}"></script>`);
-  // } else {
-  //   csp.push(`connect-src https://* ws://${localhost}`);
-  //   csp.push(`script-src 'unsafe-inline' https://* http://${localhost}`);
-  //   scr.push(`
-  //     <script type="module">
-  //      import RefreshRuntime from "http://${localhost}/@react-refresh"
-  //      RefreshRuntime.injectIntoGlobalHook(window)
-  //      window.$RefreshReg$ = () => {}
-  //      window.$RefreshSig$ = () => (type) => type
-  //      window.__vite_plugin_react_preamble_installed__ = true
-  //     </script>
-  //   `);
-  //   scr.push(`<script type="module" src="http://${localhost}/src/index.tsx"></script>`);
-  // }
 
   return /*html*/ `<!DOCTYPE html>
   <html lang="en">
@@ -89,31 +72,46 @@ function htmlContent(
 /* ---  Proof Tree WebView Panel                                          --- */
 /* -------------------------------------------------------------------------- */
 
-const viewType = 'why3findProofTree';
-let context: ExtensionContext | undefined;
 let panel: WebviewPanel | undefined;
-
-export function activate(ctxt: ExtensionContext): void { context = ctxt; }
+let context: ExtensionContext | undefined;
 
 function create(): void {
+
+  // Context
   if (!context) return;
+  panel?.dispose();
+
+  // Create Panel
   panel = vscode.window.createWebviewPanel(
-    viewType, "Why3 Proof Tree", vscode.ViewColumn.Two,
+    'why3findProofTree',
+    'Why3 Proof Tree',
+    vscode.ViewColumn.Two,
     {
       enableScripts: true,
+      retainContextWhenHidden: true,
       localResourceRoots: [context.extensionUri],
     }
   );
   panel.webview.html = htmlContent(context, panel.webview);
+
+  // Client Notifications
+  // Client.onStatus((data: Client.Status) => {
+  //   panel?.webview.postMessage({ command: 'status', data });
+  // }, undefined, context.subscriptions);
+
+  // Panel Callbacks
+  // panel.webview.onDidReceiveMessage(msg => {
+  //   switch (msg.command) {
+  //     case 'interrupt':
+  //       Client.interrupt();
+  //       break;
+  //   }
+  // }, undefined, context.subscriptions);
+
+  // Panel Disposed
   panel.onDidDispose(() => {
     panel = undefined;
-  }, null, context.subscriptions);
-}
-
-export function deactivate(): void {
-  panel?.dispose();
-  context = undefined;
-  panel = undefined;
+  }, undefined, context.subscriptions);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -121,10 +119,18 @@ export function deactivate(): void {
 /* -------------------------------------------------------------------------- */
 
 export function show(): void {
-  if (panel)
-    panel.reveal();
-  else
-    create();
+  if (panel) panel.reveal();
+  else create();
+}
+
+export function activate(ctxt: ExtensionContext): void {
+  context = ctxt;
+}
+
+export function deactivate(): void {
+  panel?.dispose();
+  panel = undefined;
+  context = undefined;
 }
 
 /* -------------------------------------------------------------------------- */
