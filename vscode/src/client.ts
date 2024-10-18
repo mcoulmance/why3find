@@ -26,7 +26,14 @@
 import { rm } from 'fs/promises';
 import { Socket, connect } from 'net';
 import { ChildProcess, spawn } from 'child_process';
-import { OutputChannel, window, workspace } from 'vscode';
+
+import {
+	EventEmitter,
+	ExtensionContext,
+	OutputChannel,
+	window,
+	workspace,
+} from 'vscode';
 
 import {
 	DocumentUri,
@@ -34,7 +41,7 @@ import {
 	LanguageClientOptions,
 	NotificationType,
 	RequestType,
-	StreamInfo
+	StreamInfo,
 } from 'vscode-languageclient/node';
 
 /* -------------------------------------------------------------------------- */
@@ -117,17 +124,15 @@ function launchServer(): Promise<StreamInfo> {
 /* -------------------------------------------------------------------------- */
 
 export interface Status {
-  pending: number ;
-  running: number ;
+  pending?: number ;
+  running?: number ;
+  failed?: number ;
 }
 
-let onStatusCallback : ((s:Status) => void) | undefined ;
-const StatusNotif = new NotificationType<Status>("why3/status");
+const StatusNotification = new NotificationType<Status>("why3/status");
+const StatusEmitter = new EventEmitter<Status>();
 
-export function onStatus(fn: (s:Status) => void): void
-{
-	onStatusCallback = fn;
-}
+export const onStatus = StatusEmitter.event
 
 /* -------------------------------------------------------------------------- */
 /* --- Interrupt & Prove Request (Custom)                                 --- */
@@ -158,20 +163,15 @@ export async function prove(prm: ProveParams): Promise<void> {
 /* --- LSP Entry Points                                                   --- */
 /* -------------------------------------------------------------------------- */
 
-export function deactivate() {
-	disconnectFromServer();
-	shutdownServer();
-};
-
 export async function stop(): Promise<void> {
 	if (client) {
 		output?.appendLine('[VSCode] Stop LSP Client');
-
 		const toStop = client;
 		client = undefined;
 		await toStop.stop();
 		disconnectFromServer();
 		shutdownServer();
+		StatusEmitter.fire({});
 		await rm(SOCKADDR, { force: true });
 	}
 }
@@ -207,11 +207,20 @@ export async function start(): Promise<void> {
 		launchServer,
 		clientOptions
 	);
-	client.onNotification(StatusNotif,(s) => {
-		if (onStatusCallback) onStatusCallback(s);
-	});
+	client.onNotification(StatusNotification,StatusEmitter.fire);
 
 	// Start LSP
 	output?.appendLine('[VSCode] Launch LSP Client');
 	await client.start();
 }
+
+/* -------------------------------------------------------------------------- */
+/* --- Extension Registration                                             --- */
+/* -------------------------------------------------------------------------- */
+
+export function deactivate() {
+	disconnectFromServer();
+	shutdownServer();
+};
+
+/* -------------------------------------------------------------------------- */

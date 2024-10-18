@@ -23,9 +23,10 @@
 /* --- Why3 Platform Extension                                            --- */
 /* -------------------------------------------------------------------------- */
 
-import { workspace, commands, ExtensionContext } from 'vscode';
-import * as Client from './lspclient';
-import * as Proof from './proofview';
+import { window, commands, ExtensionContext } from 'vscode';
+import * as Client from './client';
+import * as Status from './status';
+import * as Proof from './proof';
 
 export function activate(context: ExtensionContext): void {
 
@@ -36,6 +37,9 @@ export function activate(context: ExtensionContext): void {
 		commands.registerCommand('why3.lsp.interrupt', Client.interrupt),
 		commands.registerCommand('why3.proof.show', Proof.show),
 	);
+
+	// Register Status Bar.
+	Status.activate(context);
 
 	// Start the client. This will also launch the server
 	Client.start();
