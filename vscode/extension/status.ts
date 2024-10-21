@@ -32,26 +32,27 @@ import {
 } from "vscode";
 
 import * as Client from './client';
+import * as Hub from './hub';
 
 /* -------------------------------------------------------------------------- */
 /* --- Updating Status Bar Item                                           --- */
 /* -------------------------------------------------------------------------- */
 
-let status : StatusBarItem | undefined;
+let statusBar : StatusBarItem | undefined;
 
 const StatusFailures = new ThemeColor('statusBarItem.warningBackground');
 
 function updateStatus(s: Client.Status): void {
-	if (!status) return;
+	if (!statusBar) return;
 	const { pending = 0, running = 0, failed = 0} = s;
-	status.text = `$(debug-alt-small) ${pending} / ${running}` ;
-	status.command = 'why3.proof.show' ;
-	status.tooltip = [
+	statusBar.text = `$(debug-alt-small) ${pending} / ${running}` ;
+	statusBar.command = 'why3.proof.show' ;
+	statusBar.tooltip = [
 		running && `Why3 Running provers : ${running}`,
 		`Why3 Pending tasks : ${pending}`,
 		failed && `Why3 Failed tasks : ${failed}`,
 	].filter(s => s).join('\n');
-	status.backgroundColor = failed ? StatusFailures : undefined ;
+	statusBar.backgroundColor = failed ? StatusFailures : undefined ;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -60,19 +61,19 @@ function updateStatus(s: Client.Status): void {
 
 export function activate(ctxt : ExtensionContext) : void
 {
-	if (status) status.dispose();
-	status = window.createStatusBarItem(StatusBarAlignment.Left);
+	if (statusBar) statusBar.dispose();
+	statusBar = window.createStatusBarItem(StatusBarAlignment.Left);
 	ctxt.subscriptions.push(
-        status,
-        Client.onStatus(updateStatus)
+        statusBar,
+        Hub.onMessage('status',updateStatus),
     );
-	status.show();
+	statusBar.show();
 	updateStatus({});
 }
 
 export function deactivate() {
-	if (status) status.dispose();
-	status = undefined;
+	if (statusBar) statusBar.dispose();
+	statusBar = undefined;
 };
 
 /* -------------------------------------------------------------------------- */

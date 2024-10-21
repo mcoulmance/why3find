@@ -43,6 +43,8 @@ import {
 	StreamInfo,
 } from 'vscode-languageclient/node';
 
+import * as Hub from './hub';
+
 /* -------------------------------------------------------------------------- */
 /* --- Child Process Management                                           --- */
 /* -------------------------------------------------------------------------- */
@@ -129,9 +131,6 @@ export interface Status {
 }
 
 const StatusNotification = new NotificationType<Status>("why3/status");
-const StatusEmitter = new EventEmitter<Status>();
-
-export const onStatus = StatusEmitter.event
 
 /* -------------------------------------------------------------------------- */
 /* --- Interrupt & Prove Request (Custom)                                 --- */
@@ -170,7 +169,7 @@ export async function stop(): Promise<void> {
 		await toStop.stop();
 		disconnectFromServer();
 		shutdownServer();
-		StatusEmitter.fire({});
+		Hub.postMessage<Status>('status',{ });
 		await rm(SOCKADDR, { force: true });
 	}
 }
@@ -206,7 +205,9 @@ export async function start(): Promise<void> {
 		launchServer,
 		clientOptions
 	);
-	client.onNotification(StatusNotification,StatusEmitter.fire);
+	client.onNotification(StatusNotification,(s: Status) => {
+		Hub.postMessage<Status>('status',s);
+	});
 
 	// Start LSP
 	output?.appendLine('[VSCode] Launch LSP Client');

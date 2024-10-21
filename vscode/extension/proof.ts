@@ -21,7 +21,7 @@
 
 import * as vscode from "vscode";
 import { ExtensionContext, Webview, WebviewPanel, Disposable } from "vscode";
-import * as Client from './client';
+import * as Hub from './hub';
 
 /* -------------------------------------------------------------------------- */
 /* ---  Proof Tree HTML Content                                           --- */
@@ -75,6 +75,11 @@ function htmlContent(
 let panel: WebviewPanel | undefined;
 let context: ExtensionContext | undefined;
 
+// Hub messages to be forwarded to Panel
+const commands: string[] = [
+  'status'
+];
+
 function create(): void {
 
   // Context
@@ -94,19 +99,22 @@ function create(): void {
   );
   panel.webview.html = htmlContent(context, panel.webview);
 
-  // Client Notifications
-  // Client.onStatus((data: Client.Status) => {
-  //   panel?.webview.postMessage({ command: 'status', data });
-  // }, undefined, context.subscriptions);
+  // Panel Outgoing Messages
+  const disposes = context.subscriptions;
+  const webview = panel.webview;
+  commands.forEach(command => {
+    disposes.push(
+      Hub.onMessage(command, data => {
+        webview.postMessage({ command, data });
+      }));
+  });
 
-  // Panel Callbacks
-  // panel.webview.onDidReceiveMessage(msg => {
-  //   switch (msg.command) {
-  //     case 'interrupt':
-  //       Client.interrupt();
-  //       break;
-  //   }
-  // }, undefined, context.subscriptions);
+  // Panel Incoming Messages
+  context.subscriptions.push(
+    panel.webview.onDidReceiveMessage(msg => {
+      Hub.postMessage(msg.command, msg.data);
+    })
+  );
 
   // Panel Disposed
   panel.onDidDispose(() => {
