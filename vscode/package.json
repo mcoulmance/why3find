@@ -95,7 +95,7 @@
     "build": "tsc -b",
     "watch": "tsc -b -w",
     "typecheck": "tsc --noEmit",
-    "bundle": "esbuild ./src/main.ts --bundle --platform=node --external:vscode --minify --outfile=./out/main.js",
+    "bundle": "esbuild ./extension/main.ts --bundle --platform=node --external:vscode --minify --outfile=./out/main.js",
     "package": "vsce package --yarn"
   },
   "devDependencies": {

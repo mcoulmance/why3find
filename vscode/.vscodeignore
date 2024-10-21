@@ -4,8 +4,8 @@
 VERSION
 dune
 node_modules
-src
 out
+extension
 proofview
 Makefile
 yarn.lock
