@@ -1,3 +1,5 @@
+{ }:
+
 let
   sources = import ./sources.nix {};
   ocamlOverlay = oself: osuper: {

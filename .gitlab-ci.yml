@@ -1,6 +1,18 @@
+lint:
+  script:
+    - nix/git-check.sh
+    - nix-shell nix/lint-shell.nix --run "make lint headers"
+    - out="$(git status --ignored --porcelain)"
+    - if ! test -z "$out"; then
+        echo "The following files are not indented correctly or do not have the correct header:";
+        echo "$out";
+        exit 1;
+      fi
+  tags:
+    - pub-nix
+
 build:
   script:
-    - nix/git-check.sh # path?
     - nix-build nix/pkgs.nix -A why3find
     - cat result/coverage.txt
   coverage: '/Coverage: \d+\.\d+\%/'
