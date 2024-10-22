@@ -20,26 +20,25 @@
 /* ************************************************************************ */
 
 import React from "react"
-import { createRoot } from 'react-dom/client';
 
-function Counter() : JSX.Element {
-  const [ n, setN ] = React.useState(0);
-  const onAdd = () => setN(n+1);
-  const onReset = () => setN(0);
+import { Label, Button } from './toolkit';
+
+function Contents(): JSX.Element {
+  const onClick = () => console.log('Clicked');
   return (
     <div>
-      <button>Proofs {n}</button>
-      <button onClick={onAdd}>ADD</button>
-      <button onClick={onReset}>RESET</button>
+      <Label title='Example Label'>Some label</Label>
+      <Button title='Example Button' label='Button' onClick={onClick}/>
     </div>
   );
 }
 
+import { createRoot } from 'react-dom/client';
 const container = document.getElementById('root');
 const root = createRoot(container!);
+
 root.render(
   <React.StrictMode>
-    <h1>Hello Why3 Amazing World</h1>
-    <Counter />
+    <Contents />
   </React.StrictMode>
 );
