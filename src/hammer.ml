@@ -126,6 +126,14 @@ let prove env ?client ?cancel prover timeout : strategy = fun n ->
   | Valid t -> Crc.prover ~goal:n.goal prover.Prover.desc (Utils.round t)
   | _ -> Crc.stuck ~goal:n.goal ()
 
+
+(* -------------------------------------------------------------------------- *)
+(* --- Tactic Hint                                                        --- *)
+(* -------------------------------------------------------------------------- *)
+
+type hint = Tactic.tactic * Crc.crc list
+let pp_hint fmt (h : hint) = Tactic.pretty fmt (fst h)
+
 (* -------------------------------------------------------------------------- *)
 (* --- Try Transformation on Node                                         --- *)
 (* -------------------------------------------------------------------------- *)
@@ -141,7 +149,7 @@ let rec subgoals ({ profile ; replay ; depth } as n) i goals hints =
     let idename = Printf.sprintf "%s.%d" n.idename i in
     schedule profile ~replay ~depth:(succ depth) ~idename g h :: subgoals n (i+1) gs hs
 
-let apply h tac hint : strategy = fun n ->
+let apply h tac ?(hint : hint option) : strategy = fun n ->
   if n.depth > h.maxdepth then stuck n else
     let id = Tactic.name tac in
     match Session.apply h.env.Config.wenv id n.goal with
@@ -149,8 +157,8 @@ let apply h tac hint : strategy = fun n ->
     | Some gs ->
       let hs =
         match hint with
-        | Tactic h when h.id = id -> h.children
-        | Stuck | Prover _ | Tactic _ -> []
+        | Some(t,hs) when Tactic.equal t tac -> hs
+        | _ -> []
       in Crc.tactic ~goal:n.goal id @+ Fibers.all @@ subgoals n 0 gs hs
 
 (* -------------------------------------------------------------------------- *)
@@ -176,11 +184,9 @@ let hammer13 h time : strategy = fun n ->
 let hammer1 h = if h.level > 1 then hammer13 h h.time else fail
 let hammer3 h = if h.level > 3 then hammer13 h (2.0 *. h.time) else fail
 
-let hammer2 ?(hint=Crc.none) h : strategy =
-  if h.level > 2 then
-    sequence
-      (fun tr -> apply h tr hint)
-      h.tactics
+let hammer2 ?hint h : strategy =
+  if h.level > 2
+  then sequence (apply h ?hint) h.tactics
   else fail
 
 let hammer henv =
@@ -203,25 +209,21 @@ let replay_prover h p t =
 
 let update_prover h p t = replay_prover h p t >>> hammer h
 
-let is_tactic t = function
-  | Tactic { id } -> Tactic.has_name t id
-  | _ -> false
-
 let replay ~hint h n =
   let rec iter = function
     | [] ->
       Log.warning "Goal %S: tactic '%a' not in strategy"
-        n.idename Crc.pp_status hint ;
+        n.idename pp_hint hint ;
       stuck n
     | t::ts ->
-      if is_tactic t hint then
-        apply h t hint n
+      if Tactic.equal t (fst hint) then
+        apply h t ~hint n
       else
         match Session.apply h.env.Config.wenv (Tactic.name t) n.goal with
         | None -> iter ts
         | Some _ ->
           Log.warning "Goal %S: tactic '%a' shadowed by '%a'"
-            n.idename Crc.pp_status hint Tactic.pretty t ;
+            n.idename pp_hint hint Tactic.pretty t ;
           stuck n
   in iter h.tactics
 
@@ -245,9 +247,10 @@ let process h : strategy = fun n ->
         replay_prover h p t n
       else
         update_prover h p t n
-    | Tactic { id } as hint ->
+    | Tactic { id ; children } ->
       match Tactic.lookup h.env.wenv id with
-      | Some _ ->
+      | Some tac ->
+        let hint = tac, children in
         if n.replay then
           replay ~hint h n
         else

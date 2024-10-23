@@ -24,7 +24,7 @@
 type tactic
 
 val name : tactic -> string
-val has_name : tactic -> string -> bool
+val equal : tactic -> tactic -> bool
 val pretty : Format.formatter -> tactic -> unit
 
 val lookup : Why3.Env.env -> string -> tactic option
