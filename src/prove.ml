@@ -62,7 +62,7 @@ let prove_theory ~goals ~file ~context mode profile buffer strategy theory =
                (Session.goal_loc task) ;
              Format.printf "@[<v2>Goal @{<red>%s@}: %a@]@." goal Crc.pretty crc ;
              Crc.iter
-               (fun g (s : Crc.state) ->
+               (fun g (s : Crc.status) ->
                   match s with Prover _ | Tactic _ -> () | Stuck ->
                     if Utils.tty && context >= 0 then
                       Vc.dump ~file ~context (Session.goal_task g)

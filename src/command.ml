@@ -501,7 +501,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       if !check then
         begin
           let rec check_crc crc =
-            match crc.Crc.state with
+            match crc.Crc.status with
             | Stuck -> ()
             | Prover (p, _) ->
               if Prover.check_and_get_prover ~patterns allprovers p = None then

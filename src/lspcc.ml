@@ -263,7 +263,7 @@ let add k a =
   M.add k (try succ @@ M.find k a with Not_found -> 1) a
 
 let rec provers m (crc : Crc.crc) =
-  match crc.state with
+  match crc.status with
   | Stuck -> ()
   | Prover (p, _) ->
     m := add (Prover.desc_name p) !m
