@@ -68,8 +68,11 @@ val get_depth_all :  crc list -> int
 val is_stuck : crc -> bool
 val is_unknown : crc -> bool
 val is_complete : crc -> bool
+
 val pretty : Format.formatter -> crc -> unit
+val pp_status : Format.formatter -> status -> unit
 val pp_result : Format.formatter -> stuck:int -> proved:int -> unit
+
 val dump : Format.formatter -> crc -> unit
 
 val merge : crc -> crc -> crc

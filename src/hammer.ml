@@ -209,14 +209,20 @@ let is_tactic t = function
 
 let replay ~hint h n =
   let rec iter = function
-    | [] -> stuck n
+    | [] ->
+      Log.warning "Goal %S: tactic '%a' not in strategy"
+        n.idename Crc.pp_status hint ;
+      stuck n
     | t::ts ->
       if is_tactic t hint then
         apply h t hint n
       else
         match Session.apply h.env.Config.wenv (Tactic.name t) n.goal with
         | None -> iter ts
-        | Some _ -> stuck n
+        | Some _ ->
+          Log.warning "Goal %S: tactic '%a' shadowed by '%a'"
+            n.idename Crc.pp_status hint Tactic.pretty t ;
+          stuck n
   in iter h.tactics
 
 let reduce ?hint h =

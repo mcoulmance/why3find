@@ -113,6 +113,11 @@ let pp_result fmt ~stuck:s ~proved:p =
   if p = 0 then Utils.pp_ko fmt
   else Format.fprintf fmt "%t (%d/%d)" Utils.pp_ko p (s+p)
 
+let pp_status fmt = function
+  | Tactic { id } -> Format.pp_print_string fmt id
+  | Prover(p,_) -> Format.pp_print_string fmt @@ Prover.desc_name p
+  | Stuck -> Format.pp_print_string fmt "stuck"
+
 let pretty fmt crc =
   let s = get_stuck crc in
   let p = get_proved crc in
