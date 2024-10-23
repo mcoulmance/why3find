@@ -1,0 +1,9 @@
+{
+  "time": 1,
+  "depth": 4,
+  "packages": [],
+  "provers": [ "alt-ergo" ],
+  "tactics": [ "compute_in_goal", "split_vc" ],
+  "drivers": [],
+  "warnoff": []
+}
