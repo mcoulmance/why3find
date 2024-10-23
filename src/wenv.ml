@@ -25,15 +25,18 @@
 
 let prefix = ref ""
 let chdir = ref ""
+let moved = ref false
 
 let move_to_root () =
-  if !chdir <> "" then
-    Utils.chdir !chdir
-  else
+  if not !moved then
     begin
-      match Utils.locate Config.conf_file with
-      | Some(dir,path) -> Utils.chdir dir ; prefix := path
-      | None -> ()
+      moved := true;
+      if !chdir <> "" then
+        Utils.chdir !chdir
+      else
+        match Utils.locate Config.conf_file with
+        | Some(dir,path) -> Utils.chdir dir ; prefix := path
+        | None -> ()
     end
 
 (* -------------------------------------------------------------------------- *)
