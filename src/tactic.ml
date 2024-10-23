@@ -23,6 +23,7 @@
 
 type tactic = Tac of string [@@ ocaml.unboxed]
 let name = function Tac id -> id
+let has_name t id = String.equal (name t) id
 let pretty fmt = function Tac id -> Format.pp_print_string fmt id
 
 let is_tactic = function

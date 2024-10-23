@@ -141,18 +141,17 @@ let rec subgoals ({ profile ; replay ; depth } as n) i goals hints =
     let idename = Printf.sprintf "%s.%d" n.idename i in
     schedule profile ~replay ~depth:(succ depth) ~idename g h :: subgoals n (i+1) gs hs
 
-let children tr = function
-  | Tactic { id ; children } when id = tr -> children
-  | Stuck | Prover _ | Tactic _ -> []
-
 let apply h tac hint : strategy = fun n ->
   if n.depth > h.maxdepth then stuck n else
     let id = Tactic.name tac in
     match Session.apply h.env.Config.wenv id n.goal with
     | None -> stuck n
     | Some gs ->
-      let hs = children id hint in
-      Crc.tactic ~goal:n.goal id @+ Fibers.all @@ subgoals n 0 gs hs
+      let hs =
+        match hint with
+        | Tactic h when h.id = id -> h.children
+        | Stuck | Prover _ | Tactic _ -> []
+      in Crc.tactic ~goal:n.goal id @+ Fibers.all @@ subgoals n 0 gs hs
 
 (* -------------------------------------------------------------------------- *)
 (* --- Hammer Strategy                                                    --- *)
@@ -204,15 +203,18 @@ let replay_prover h p t =
 
 let update_prover h p t = replay_prover h p t >>> hammer h
 
-let replay ~id ~hint h n =
+let is_tactic t = function
+  | Tactic { id } -> Tactic.has_name t id
+  | _ -> false
+
+let replay ~hint h n =
   let rec iter = function
     | [] -> stuck n
     | t::ts ->
-      let idt = Tactic.name t in
-      if idt = id then
+      if is_tactic t hint then
         apply h t hint n
       else
-        match Session.apply h.env.Config.wenv id n.goal with
+        match Session.apply h.env.Config.wenv (Tactic.name t) n.goal with
         | None -> iter ts
         | Some _ -> stuck n
   in iter h.tactics
@@ -238,19 +240,17 @@ let process h : strategy = fun n ->
       else
         update_prover h p t n
     | Tactic { id } as hint ->
-      begin
-        match Tactic.lookup h.env.wenv id with
-        | Some _ ->
-          if n.replay then
-            replay ~id ~hint h n
-          else
-          if h.minimize then
-            reduce ~hint h n
-          else
-            tactic ~hint h n
-        | None ->
-          explore h n
-      end
+      match Tactic.lookup h.env.wenv id with
+      | Some _ ->
+        if n.replay then
+          replay ~hint h n
+        else
+        if h.minimize then
+          reduce ~hint h n
+        else
+          tactic ~hint h n
+      | None ->
+        explore h n
   with exn ->
     Log.emit "Process Error (%s)" @@ Printexc.to_string exn ;
     stuck n
