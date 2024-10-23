@@ -11,4 +11,5 @@ Makefile
 yarn.lock
 tsconfig.json
 !out/main.js
+!proofview/out/style.css
 !proofview/out/main.js

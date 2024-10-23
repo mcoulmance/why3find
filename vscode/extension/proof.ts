@@ -42,16 +42,20 @@ function htmlContent(
   webview: Webview,
 ): string {
   const csp: string[] = []; // Content Security Policy
-  const scr: string[] = []; // Scripts
   csp.push("default-src 'none'");
 
   const nonce = getNonce();
-  const src = webview.asWebviewUri(vscode.Uri.joinPath(
-    context.extensionUri, "proofview", "out", "main.js"
-  ));
   csp.push(`connect-src https://*`);
   csp.push(`script-src 'nonce-${nonce}'`);
-  scr.push(`<script type="module" nonce="${nonce}" src="${src}"></script>`);
+  csp.push(`style-src 'nonce-${nonce}'`);
+  csp.push(`font-src data:`);
+
+  const asset = (name: string): vscode.Uri =>
+    webview.asWebviewUri(vscode.Uri.joinPath(
+      context.extensionUri, "proofview", "out", name
+    ));
+  const main = asset("main.js");
+  const style = asset("style.css");
 
   return /*html*/ `<!DOCTYPE html>
   <html lang="en">
@@ -59,11 +63,12 @@ function htmlContent(
       <meta charset="UTF-8" />
       <meta http-equiv="Content-Security-Policy" content="${csp.join("; ")}" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="stylesheet" type="text/css" nonce="${nonce}" href="${style}" />
       <title>VSCode React Starter</title>
     </head>
     <body>
       <div id="root"></div>
-      ${scr.join('\n')}
+      <script type="module" nonce="${nonce}" src="${main}"></script>
     </body>
   </html>`
 }

@@ -23,6 +23,8 @@
 
 import * as React from 'react';
 import './style.css';
+import '@vscode/codicons/dist/codicon.css';
+import '@vscode/codicons/dist/codicon.ttf';
 
 type ClassName = undefined | false | string ;
 
@@ -31,10 +33,28 @@ function classes(...names : ClassName[]): string {
 }
 
 /* -------------------------------------------------------------------------- */
+/* ---  Icon                                                              --- */
+/* -------------------------------------------------------------------------- */
+
+export interface IconProps {
+    name?: string;
+}
+
+export function Icon(props: IconProps): JSX.Element | null {
+    const { name } = props;
+    if (!!name) {
+        const className = `vsicon codicon codicon-${name}`;
+        return <span className={className} />;
+    }
+    return null;
+}
+
+/* -------------------------------------------------------------------------- */
 /* ---  Label                                                             --- */
 /* -------------------------------------------------------------------------- */
 
 export interface LabelProps {
+    icon?: string;
     label?: string;
     title?: string;
     children?: React.ReactNode;
@@ -42,10 +62,10 @@ export interface LabelProps {
 
 export function Label(props: LabelProps): JSX.Element {
     return (
-        <label
-            className='vstext vslabel'
-            title={props.title}
-        >{props.label}{props.children}</label>
+        <div className='vstext vslabel' title={props.title} >
+            <Icon name={props.icon} />
+            <label>{props.label}{props.children}</label>
+        </div>
     );
 }
 
@@ -54,6 +74,7 @@ export function Label(props: LabelProps): JSX.Element {
 /* -------------------------------------------------------------------------- */
 
 export interface ButtonProps {
+    icon?: string;
     label?: string;
     title?: string;
     display?: boolean;
@@ -63,17 +84,14 @@ export interface ButtonProps {
 
 export function Button(props: ButtonProps): JSX.Element {
     const { display=true, enabled=true } = props;
-    const className = classes(
-        'vstext', 'vsbutton',
-        !display && 'vsnone',
-    );
+    const className = classes('vstext', 'vsbutton', !display && 'vsnone' );
     return (
         <button
             className={className}
             title={props.title}
             disabled={!enabled}
             onClick={props.onClick}
-        >{props.label}</button>
+        ><Icon name={props.icon} />{props.label}</button>
     );
 }
 

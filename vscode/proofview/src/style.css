@@ -26,6 +26,14 @@ body {
     display: none;
 }
 
+.vsicon {
+    font-size: 14px !important;
+    position: relative;
+    top: 2px;
+    margin-left: 4px;
+    margin-right: 4px;
+}
+
 .vstext {
     font-family: sans-serif;
     user-select: none;
@@ -34,6 +42,7 @@ body {
 }
 
 .vslabel {
+    display: inline-block;
     margin: 2px;
     padding: 2px;
 }

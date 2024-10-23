@@ -29,9 +29,9 @@ export default defineConfig({
   build: {
     outDir: "out",
     lib: {
-      entry: resolve(__dirname,"src/index.tsx"),
+      entry: resolve(__dirname, "src/index.tsx"),
       fileName: "main",
-      formats: [ "es" ]
+      formats: ["es"]
     }
   },
   define: {
