@@ -86,13 +86,15 @@ let get_depth_all = List.fold_left (fun h c -> max h @@ get_depth c) 0
 let get_stuck_all = List.fold_left (fun n c -> n + get_stuck c) 0
 let get_proved_all = List.fold_left (fun n c -> n + get_proved c) 0
 
-let tactic ?goal id children =
+let make goal id children =
   let stuck = get_stuck_all children in
   let proved = get_proved_all children in
   let time = get_time_all children in
   let depth = get_depth_all children in
   if stuck > 0 && proved = 0 then { goal ; status = Stuck } else
     { goal; status = Tactic { id ; children ; stuck ; proved ; depth ; time } }
+
+let tactic ?goal tac children = make goal (Tactic.name tac) children
 
 type verdict = [ `Valid of int | `Failed of int | `Partial of int * int ]
 
@@ -145,14 +147,14 @@ let rec of_json (js : Json.t) : crc =
       let t = List.assoc "time" fds |> Json.jfloat in
       prover (Prover.desc_of_string p) t
     | `Assoc fds when List.mem_assoc "tactic" fds ->
-      let f = List.assoc "tactic" fds |> Json.jstring in
+      let tr = List.assoc "tactic" fds |> Json.jstring in
       let xs = List.assoc "children" fds |> Json.jlist in
-      tactic f (List.map of_json xs)
+      make None tr (List.map of_json xs)
     | `Assoc fds when List.mem_assoc "transf" fds ->
       (* Deprecated *)
-      let f = List.assoc "transf" fds |> Json.jstring in
+      let tr = List.assoc "transf" fds |> Json.jstring in
       let xs = List.assoc "children" fds |> Json.jlist in
-      tactic f (List.map of_json xs)
+      make None tr (List.map of_json xs)
     | _ -> stuck ()
   with _ -> stuck ()
 
@@ -172,7 +174,7 @@ let rec merge a b =
   | Tactic { id = f ; children = xs } ,
     Tactic { id = g ; children = ys }
     when f = g && List.length xs = List.length ys ->
-    tactic ?goal f (List.map2 merge xs ys)
+    make goal f (List.map2 merge xs ys)
   | _ -> b
 
 (* -------------------------------------------------------------------------- *)

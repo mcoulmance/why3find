@@ -43,7 +43,7 @@ and crc = private {
 val none : status
 val stuck : ?goal:Session.goal -> unit -> crc
 val prover : ?goal:Session.goal -> Prover.desc -> float -> crc
-val tactic : ?goal:Session.goal -> string -> crc list -> crc
+val tactic : ?goal:Session.goal -> Tactic.tactic -> crc list -> crc
 
 (** Iterates over all goals in the CRC.
     Tactic nodes are visite first, followed by their children. *)

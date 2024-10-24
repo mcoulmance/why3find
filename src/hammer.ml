@@ -150,15 +150,14 @@ let rec subgoals ({ profile ; replay ; depth } as n) i goals hints =
 
 let apply h tac ?(hint : hint option) : strategy = fun n ->
   if n.depth > h.maxdepth then stuck n else
-    let id = Tactic.name tac in
-    match Session.apply h.env.Config.wenv.env id n.goal with
+    match Session.apply h.env.Config.wenv.env tac n.goal with
     | None -> stuck n
     | Some gs ->
       let hs =
         match hint with
         | Some(t,hs) when Tactic.equal t tac -> hs
         | _ -> []
-      in Crc.tactic ~goal:n.goal id @+ Fibers.all @@ subgoals n 0 gs hs
+      in Crc.tactic ~goal:n.goal tac @+ Fibers.all @@ subgoals n 0 gs hs
 
 (* -------------------------------------------------------------------------- *)
 (* --- Hammer Strategy                                                    --- *)
@@ -218,7 +217,7 @@ let replay ~hint h n =
       if Tactic.equal t (fst hint) then
         apply h t ~hint n
       else
-        match Session.apply h.env.Config.wenv.env (Tactic.name t) n.goal with
+        match Session.apply h.env.Config.wenv.env t n.goal with
         | None -> iter ts
         | Some _ ->
           Log.warning "Goal %S: tactic '%a' shadowed by '%a'"
