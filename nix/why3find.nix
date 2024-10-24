@@ -2,11 +2,8 @@
   gitignoreSource,
   dune_3,
   dune-site,
-  headache,
-  ocp-indent,
   alt-ergo,
   bisect_ppx,
-  menhir,
   menhirLib,
   mlmpfr,
   ppxlib,
@@ -30,15 +27,12 @@ buildDunePackage {
     cp why3find.opam why3find.opam.old
   '';
 
-  nativeBuildInputs = [ why3 ] ;
-
   buildInputs = [
     dune_3
     dune-site
     alt-ergo
     bisect_ppx
     mlmpfr
-    menhir
     menhirLib
     ppxlib
     why3
@@ -50,16 +44,13 @@ buildDunePackage {
 
   doCheck = true;
 
-  nativeCheckInputs = [ headache ocp-indent alt-ergo bisect_ppx jq cvc4 ] ;
+  nativeCheckInputs = [ why3 alt-ergo bisect_ppx jq cvc4 ] ;
 
   checkPhase = ''
     BISECT_FILE=$(pwd)/bisect \
     dune build -p why3find -j1 --force --instrument-with bisect_ppx @runtest @nixtests
     bisect-ppx-report cobertura report.xml
     bisect-ppx-report summary | sed -e 's/.*(\(1\?[0-9]\{2\}\.[0-9]\+%\))/Coverage: \1/' > coverage.txt
-
-    # Check indentation, headers and why3find.opam
-    ./nix/check.sh
   '' ;
 
   postInstall = ''

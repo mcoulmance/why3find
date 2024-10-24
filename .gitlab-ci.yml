@@ -1,7 +1,32 @@
+stages:
+  - lint
+  - build
+  - test
+
+lint:
+  script:
+    - nix/git-check.sh
+    - nix-shell nix/lint-shell.nix --run "make lint headers"
+    - out="$(git status --ignored --porcelain)"
+    - if ! test -z "$out"; then
+        echo "The following files are not indented correctly or do not have the correct header:";
+        echo "$out";
+        exit 1;
+      fi
+  stage: lint
+  tags:
+    - pub-nix
+
 build:
   script:
-    - nix/git-check.sh # path?
-    - nix-build nix/pkgs.nix -A why3find
+    - nix-build nix/pkgs.nix -A ocamlPackages.why3find-build
+  stage: build
+  tags:
+    - pub-nix
+
+test:
+  script:
+    - nix-build nix/pkgs.nix -A ocamlPackages.why3find-test
     - cat result/coverage.txt
   coverage: '/Coverage: \d+\.\d+\%/'
   artifacts:
@@ -9,6 +34,9 @@ build:
       coverage_report:
         coverage_format: cobertura
         path: result/report.xml
+  stage: test
+  needs:
+    - build
   tags:
     - pub-nix
 
@@ -17,6 +45,7 @@ variables:
 
 .opam_template: &opam_template
   image: 'ocaml/opam:ubuntu-20.04-ocaml-$OCAML'
+  stage: build
   tags:
     - docker
 
@@ -56,6 +85,7 @@ opam-minimal:
 
 vscode:
   image: node:lts-buster
+  stage: build
   cache:
     paths:
       - vscode/node_modules/

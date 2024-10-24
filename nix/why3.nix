@@ -19,7 +19,6 @@
 , re
 , num
 , lablgtk3-sourceview3
-, coqPackages
 , rubber
 , hevea
 , emacs
@@ -55,9 +54,6 @@ stdenv.mkDerivation rec {
     # S-expression output for why3pp
     ppx_deriving
     ppx_sexp_conv
-    # Coq Support
-    coqPackages.coq
-    coqPackages.flocq
   ];
 
   propagatedBuildInputs = [ camlzip num re sexplib ];
