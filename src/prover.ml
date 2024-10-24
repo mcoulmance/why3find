@@ -25,7 +25,7 @@ open Why3
 (* --- Provers                                                            --- *)
 (* -------------------------------------------------------------------------- *)
 
-type prover_desc = {
+type desc = {
   name : string ;
   version : string ;
 }
@@ -75,12 +75,12 @@ let compare_desc p q =
     compare_version p.version q.version
 
 module Mdesc = Extmap.Make (struct
-    type t = prover_desc
+    type t = desc
     let compare = compare_desc
   end)
 
 type prover = {
-  desc : prover_desc ;
+  desc : desc ;
   config : Whyconf.config_prover ;
   driver : Driver.driver ;
   digest : string ;

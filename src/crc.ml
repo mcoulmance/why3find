@@ -25,7 +25,7 @@
 
 type status =
   | Stuck
-  | Prover of Prover.prover_desc * float
+  | Prover of Prover.desc * float
   | Tactic of {
       id : string ;
       children : crc list ;

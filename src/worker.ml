@@ -27,7 +27,7 @@
 (* --- Proof Task                                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
-type goal = { prover : Prover.prover_desc ; digest : string }
+type goal = { prover : Prover.desc ; digest : string }
 
 (* -------------------------------------------------------------------------- *)
 (* --- Worker State                                                       --- *)

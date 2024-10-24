@@ -249,7 +249,7 @@ type gauge = {
   mutable alpha : float Fibers.t option ;
 }
 
-type profile = (Prover.prover_desc,gauge Fibers.t) Hashtbl.t
+type profile = (Prover.desc,gauge Fibers.t) Hashtbl.t
 
 let create () = Hashtbl.create 0
 

@@ -41,7 +41,7 @@ let options = [
   "--trace",Arg.Set trace,"Trace server protocol";
 ]
 
-type goal = { prover : Prover.prover_desc ; digest : string }
+type goal = { prover : Prover.desc ; digest : string }
 type task = {
   goal : goal ;
   prv : Prover.prover ;
