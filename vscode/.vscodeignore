@@ -1,5 +1,8 @@
 .vscode
 .gitignore
+.version
+VERSION
+dune
 node_modules
 src
 Makefile

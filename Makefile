@@ -57,7 +57,7 @@ test-coverage:
 install-vscode:
 	make
 	make install
-	make -C vscode
+	make -C vscode package
 	make -C vscode install
 
 # --------------------------------------------------------------------------
