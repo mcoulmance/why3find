@@ -60,6 +60,8 @@ type wenv = private {
   env : Why3.Env.env ;
 }
 
+module WenvWhtbl : Why3.Weakhtbl.S with type key = wenv
+
 val create_wenv : ?loadpath:string list -> Why3.Whyconf.config -> wenv
 (** Create a why3 environment from the given why3 config.
     If present, the parameter [loadpath] is added to the loadpath defined

@@ -450,13 +450,13 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
         else Config.config_of_json rawconfig in
       let config = Wenv.add_options config in
       let env = Wenv.init config in
-      let allprovers = Prover.all env.wenv in
       (* --- List Provers -------------- *)
       if !list_provers || !list_tactics then
         begin
           if !list_tactics then
             begin
               Format.printf "Available Provers:@." ;
+              let allprovers = Prover.all env.wenv in
               if Prover.Mdesc.is_empty allprovers then
                 Format.printf "  (none, use --detect)@." ;
               Prover.Mdesc.iter (fun dp _ ->
@@ -485,7 +485,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       let time = config.time in
       let patterns, provers =
         if !default || !detect then
-          let provers = Prover.default env in
+          let provers = Prover.default env.wenv in
           let patterns =
             if !relax then List.map Prover.name provers else
               List.map Prover.fullname provers
@@ -495,7 +495,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           let config = config.provers in
           let patterns =
             if !relax then List.map Prover.pattern_name config else config in
-          let provers = Prover.select ~patterns allprovers in
+          let provers = Prover.select env.wenv ~patterns in
           let patterns =
             if !strict then List.map Prover.fullname provers else
             if !relax then List.map Prover.name provers else
@@ -528,7 +528,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
             match crc.Crc.status with
             | Stuck -> ()
             | Prover (p, _) ->
-              if Prover.check_and_get_prover ~patterns allprovers p = None then
+              if Prover.check_and_get_prover env.wenv ~patterns p = None then
                 retval := 1;
             | Tactic { children; _ } -> List.iter check_crc children in
           let check f =

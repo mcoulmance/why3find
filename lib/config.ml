@@ -89,6 +89,11 @@ type wenv = {
   env : Why3.Env.env ;
 }
 
+module WenvWhtbl = Why3.Weakhtbl.Make (struct
+    type t = wenv
+    let tag w = Why3.Env.env_tag w.env
+  end)
+
 let create_wenv ?(loadpath=[]) config =
   let loadpath = loadpath @ Why3.Whyconf.(loadpath @@ get_main config) in
   let env = Why3.Env.create_env loadpath in

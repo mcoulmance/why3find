@@ -93,22 +93,19 @@ val pmatch : pattern:string -> desc -> bool
 (** {1 Retrieving available provers} *)
 
 val all : Config.wenv -> prover Mdesc.t
-(** Returns the set of all available provers from the Why3 environment. *)
+(** Returns the set of all available provers for the given Why3 environment. *)
 
-val select : patterns:string list -> prover Mdesc.t -> prover list
-(** Selects the subset of provers that match the [patterns] from the second
-    argument, which is intended to be the map returned by {!all}.
+val select : Config.wenv -> patterns:string list -> prover list
+(** Selects the provers that match one of the [patterns].
     For each [pattern] in order, if the pattern is invalid or the prover is not
     in the map, a warning is emitted, otherwise one prover is appended to the
     return list, either the one specified or the latest available version in
     case of a version-less pattern. *)
 
-val default : Config.env -> prover list
-(** Returns the set of available "default" provers *)
+val default : Config.wenv -> prover list
+(** Returns the set of available "default" provers. *)
 
-val check_and_get_prover : patterns:string list -> prover Mdesc.t
-(** Returns the prover if present in the map (inteded to be the map returned by
-    {!all}) and selected by the [patterns]. Warn if the prover is not found. We
-    assume the [patterns] have been [select]ed so we don't warn if an
-    unavailable prover match the [patterns] *)
-  -> desc -> prover option
+val check_and_get_prover : Config.wenv -> patterns:string list -> desc
+  -> prover option
+(** Returns the requested prover from the [provers] list. Warn if the
+    prover is not found. *)

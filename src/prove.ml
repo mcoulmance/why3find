@@ -302,8 +302,7 @@ let prove_files ~(env:Config.env) ~mode ~hammer ~session ~log ~axioms ~files
     let maxdepth = env.config.depth in
     let patterns = env.config.provers in
     let tactics = Tactic.select env.wenv.env env.config.tactics in
-    let allprovers = Prover.all env.wenv in
-    let provers = Prover.select ~patterns allprovers in
+    let provers = Prover.select env.wenv ~patterns in
     let unsuccess = ref [] in
     let minimize = (mode = `Minimize) in
     let log : results = match log with
@@ -313,7 +312,7 @@ let prove_files ~(env:Config.env) ~mode ~hammer ~session ~log ~axioms ~files
     Hammer.run {
       env ;
       client = Client.connect env ; level = hammer ;
-      time ; maxdepth ; patterns ; allprovers; provers ; tactics ; minimize ;
+      time ; maxdepth ; patterns ; provers ; tactics ; minimize ;
     } ;
     if Utils.tty then
       begin

@@ -94,8 +94,7 @@ let add_builtins bmap p =
     ) bmap @@ Driver.syntax_map p.Prover.driver
 
 let init (env : Why3find.Config.env) =
-  let allprovers = Prover.all env.wenv in
-  let provers = Prover.select ~patterns:env.config.provers allprovers in
+  let provers = Prover.select env.wenv ~patterns:env.config.provers in
   let builtins = List.fold_left add_builtins Mid.empty provers in
   let drivers = List.concat_map pkg_drivers env.pkgs @ env.config.drivers in
   let main = Whyconf.get_main env.wenv.config in

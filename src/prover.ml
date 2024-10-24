@@ -48,7 +48,7 @@ let desc_of_string s =
     let (name, version) = split_pattern s in
     { name ; version = Option.get version }
   with
-  | Invalid_argument _ | InvalidPattern _->
+  | Invalid_argument _ | InvalidPattern _ ->
     raise (InvalidProverDescription s)
 
 let desc_name p = p.name
@@ -137,8 +137,10 @@ let pmatch ~pattern d =
   name = d.name && (version = None || Option.get version = d.version)
 
 let pattern_name s =
-  let (name, _) = split_pattern s in
-  name
+  try
+    let (name, _) = split_pattern s in
+    name
+  with InvalidPattern _ -> s
 
 let pattern_version s =
   let (_, version) = split_pattern s in
@@ -175,23 +177,25 @@ let all wenv =
   let configs = Whyconf.get_provers wenv.config in
   Whyconf.Mprover.fold folder configs Mdesc.empty
 
+let all = Why3find.Config.WenvWhtbl.memoize 5 all
+
 let filter_prover ~name ?version p =
   p.desc.name = name
   && (version = None || p.desc.version = Option.get version)
 
-let find_exn ~pattern all =
+let find_exn wenv ~pattern =
   let (name, version) = split_pattern pattern in
   let filter _ p = filter_prover ~name ?version p in
-  snd @@ Mdesc.min_binding @@ Mdesc.filter filter all
+  snd @@ Mdesc.min_binding @@ Mdesc.filter filter @@ all wenv
 
-let find_default (env : Why3find.Config.env) name =
-  try [ find_exn ~pattern:name @@ all env.wenv ] with Not_found -> []
+let find_default (wenv : Why3find.Config.wenv) name =
+  try [ find_exn wenv ~pattern:name ] with Not_found -> []
 
-let default env =
-  find_default env "alt-ergo" @
-  find_default env "z3" @
-  find_default env "cvc4" @
-  find_default env "cvc5"
+let default wenv =
+  find_default wenv "alt-ergo" @
+  find_default wenv "z3" @
+  find_default wenv "cvc4" @
+  find_default wenv "cvc5"
 
 let warn_prover_not_found =
   Why3.Wstdlib.Hstr.memo 5 (Log.warning "prover %s not found (why3)")
@@ -199,18 +203,18 @@ let warn_prover_not_found =
 let warn_prover_not_configured =
   Why3.Wstdlib.Hstr.memo 5 (Log.warning "prover %s not configured (project)")
 
-let select ~patterns all =
+let select wenv ~patterns =
   let find pattern =
-    try Some (find_exn ~pattern all) with
+    try Some (find_exn wenv ~pattern) with
     | InvalidPattern s -> Log.warning "invalid prover pattern %s" s; None
     | Not_found -> warn_prover_not_found pattern; None in
   List.filter_map find patterns
 
-let check_and_get_prover ~patterns all pr =
+let check_and_get_prover env ~patterns pr =
   let prmatch pattern =
     try pmatch ~pattern pr with
     | InvalidPattern _ -> false in
-  let prover = Mdesc.find_opt pr all in
+  let prover = Mdesc.find_opt pr @@ all env in
   if List.exists prmatch patterns
   then prover (* either the prover is available or we already complained *)
   else

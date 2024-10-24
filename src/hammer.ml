@@ -32,7 +32,6 @@ type henv = {
   client : Client.client option ;
   level : int ;
   maxdepth : int ;
-  allprovers : Prover.prover Prover.Mdesc.t ;
   patterns : string list ;
   provers : Prover.prover list ;
   tactics : Tactic.tactic list ;
@@ -201,9 +200,9 @@ let hammer henv =
 
 let overhead t = max (t *. 2.0) 1.0
 
-let replay_prover h p t =
+let replay_prover h d t =
   let client = if t > h.time *. 0.2 then h.client else None in
-  match Prover.check_and_get_prover ~patterns:h.patterns h.allprovers p with
+  match Prover.check_and_get_prover h.env.wenv ~patterns:h.patterns d with
   | None -> stuck
   | Some p -> prove h.env ?client p (overhead t)
 
