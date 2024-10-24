@@ -16,7 +16,7 @@
 
 (package
   (name why3find)
-  (version 1.0)
+  (version 1.0.0+dev)
   (synopsis "A Why3 Package Manager")
   (description
     "The why3find utility is designed for managing \

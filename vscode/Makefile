@@ -2,28 +2,45 @@
 # -- VS Code Extension
 # --------------------------------------------------------------------------
 
-.PHONY: all lint watch build clean install uninstall
+.PHONY: all
+all: build
+
+# --- Versionning
+
+.PHONY: version
 
 YARN=yarn --ignore-engines
+VERSION=$(shell cat VERSION)
 
-all: build
+version: .version
+.version: VERSION
+	@$(YARN) version --no-git-tag-version --new-version $(VERSION)
+	@touch .version
+
+# --- Linting & Building
+
+.PHONY: lint build
 
 lint:
 	$(YARN) typecheck
 
-watch:
-	$(YARN) watch
-
-build:
+build: version
 	rm -f *.vsix
 	rm -fr out
 	$(YARN) install
 	$(YARN) typecheck
 	$(YARN) bundle
+
+package: build
+	$(YARN) vsce ls
 	$(YARN) package
 
+# -- Installing & Cleaning
+
+.PHONY: clean install uninstall
+
 clean:
-	rm -fr out node_modules *.vsix
+	rm -fr out node_modules *.vsix .version
 
 install:
 	code --install-extension why3-platform-*.vsix

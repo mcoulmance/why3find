@@ -1,0 +1,5 @@
+(rule
+  (target VERSION)
+  (mode promote)
+  (action
+    (write-file %{target} "%{version:why3find}")))

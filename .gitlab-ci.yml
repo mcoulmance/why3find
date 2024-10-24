@@ -75,7 +75,7 @@ vscode-extension:
     paths:
       - vscode/node_modules/
   script:
-    - make -C vscode
+    - make -C vscode package
   artifacts:
     paths:
       - vscode/why3-platform-*.vsix
