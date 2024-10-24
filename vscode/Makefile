@@ -36,7 +36,7 @@ build: download version lint
 	@echo "------------------------------------------"
 	@rm -f *.vsix
 	@rm -fr out
-	$(YARN) build
+	$(YARN) bundle
 
 view:
 	@echo "------------------------------------------"

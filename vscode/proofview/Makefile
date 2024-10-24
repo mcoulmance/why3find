@@ -6,11 +6,11 @@
 
 all: build
 
-start:
-	yarn start
-
 lint:
 	yarn typecheck
+
+watch:
+	yarn watch
 
 build:
 	yarn install

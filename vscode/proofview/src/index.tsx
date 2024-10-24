@@ -27,7 +27,7 @@ function Contents(): JSX.Element {
   const onClick = () => console.log('Clicked');
   return (
     <div>
-      <Label icon='archive' title='Example Label'>Some label</Label>
+      <Label icon='archive' title='Example Label'>Label</Label>
       <Button icon='archive' title='Example Button' label='Button' onClick={onClick}/>
     </div>
   );

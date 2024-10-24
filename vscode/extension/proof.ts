@@ -37,14 +37,14 @@ function getNonce(): string {
   return text
 }
 
-function htmlContent(
+function htmlContentStatic(
   context: ExtensionContext,
   webview: Webview,
 ): string {
   const csp: string[] = []; // Content Security Policy
-  csp.push("default-src 'none'");
-
   const nonce = getNonce();
+
+  csp.push("default-src 'none'");
   csp.push(`connect-src https://*`);
   csp.push(`script-src 'nonce-${nonce}'`);
   csp.push(`style-src 'nonce-${nonce}'`);
@@ -69,6 +69,45 @@ function htmlContent(
     <body>
       <div id="root"></div>
       <script type="module" nonce="${nonce}" src="${main}"></script>
+    </body>
+  </html>`
+}
+
+/* -------------------------------------------------------------------------- */
+/* ---  HTML Content with Hot Module Reloading                            --- */
+/* -------------------------------------------------------------------------- */
+
+function htmlContentHMR(
+  context: ExtensionContext,
+  webview: Webview,
+): string {
+
+  const port = "5173";
+  const main = `http://localhost:${port}/src/index.tsx`;
+  const refresh = `http://localhost:${port}/@react-refresh`;
+  const codicon = webview.asWebviewUri(vscode.Uri.joinPath(
+    context.extensionUri,
+    "proofview/node_modules/@vscode/codicons/dist/codicon.css"
+  ));
+
+  return /*html*/ `<!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="stylesheet" type="text/css" href="${codicon}" />
+      <title>VSCode React Starter</title>
+    </head>
+    <body>
+      <div id="root"></div>
+      <script type="module">
+        import RefreshRuntime from "${refresh}"
+        RefreshRuntime.injectIntoGlobalHook(window)
+        window.$RefreshReg$ = () => {}
+        window.$RefreshSig$ = () => (type) => type
+        window.__vite_plugin_react_preamble_installed__ = true
+      </script>
+      <script type="module" src="${main}"></script>
     </body>
   </html>`
 }
@@ -102,7 +141,10 @@ function create(): void {
       localResourceRoots: [context.extensionUri],
     }
   );
-  panel.webview.html = htmlContent(context, panel.webview);
+  panel.webview.html =
+    context.extensionMode === vscode.ExtensionMode.Development
+      ? htmlContentHMR(context, panel.webview)
+      : htmlContentStatic(context, panel.webview);
 
   // Panel Outgoing Messages
   const disposes = context.subscriptions;
