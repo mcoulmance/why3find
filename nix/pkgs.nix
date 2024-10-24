@@ -21,6 +21,7 @@ let
     ) super.ocaml-ng;
     inherit (super.callPackage sources."gitignore.nix" {}) gitignoreSource;
     why3 = throw "don't use pkgs.why3 but ocaml-ng.ocamlPackages_4_XX.why3";
+    why3find = self.ocamlPackages.why3find;
   };
   pkgs = import sources.nixpkgs {
     # alt-ergo

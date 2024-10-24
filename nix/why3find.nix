@@ -3,10 +3,8 @@
   dune_3,
   dune-site,
   alt-ergo,
-  bisect_ppx,
   menhirLib,
   mlmpfr,
-  ppxlib,
   why3,
   zmq,
   zeromq,
@@ -22,19 +20,11 @@ buildDunePackage {
 
   src = gitignoreSource ./..;
 
-  preBuild = ''
-    export DUNE_INSTRUMENT_WITH=bisect_ppx
-    cp why3find.opam why3find.opam.old
-  '';
-
   buildInputs = [
     dune_3
     dune-site
-    alt-ergo
-    bisect_ppx
     mlmpfr
     menhirLib
-    ppxlib
     why3
     zeromq
     zmq
@@ -44,17 +34,6 @@ buildDunePackage {
 
   doCheck = true;
 
-  nativeCheckInputs = [ why3 alt-ergo bisect_ppx jq cvc4 ] ;
-
-  checkPhase = ''
-    BISECT_FILE=$(pwd)/bisect \
-    dune build -p why3find -j1 --force --instrument-with bisect_ppx @runtest @nixtests
-    bisect-ppx-report cobertura report.xml
-    bisect-ppx-report summary | sed -e 's/.*(\(1\?[0-9]\{2\}\.[0-9]\+%\))/Coverage: \1/' > coverage.txt
-  '' ;
-
-  postInstall = ''
-    cp report.xml $out
-    cp coverage.txt $out
-  '';
+  # cvc4 is not strictly needed here but is used in @nixtests
+  nativeCheckInputs = [ why3 alt-ergo jq cvc4 ] ;
 }

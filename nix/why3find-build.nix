@@ -1,7 +1,18 @@
-{ why3find }:
+{ why3find,
+  ppxlib,
+  bisect_ppx }:
 
 why3find.overrideAttrs (attrs: {
   name = "why3find-build";
+
+  buildInputs = attrs.buildInputs ++ [ ppxlib bisect_ppx ];
+
+  preBuild = ''
+    export DUNE_INSTRUMENT_WITH=bisect_ppx
+    cp why3find.opam why3find.opam.old
+  '';
+
+  doCheck = true;
 
   checkPhase = ''
     if ! diff -q why3find.opam why3find.opam.old; then
@@ -10,8 +21,8 @@ why3find.overrideAttrs (attrs: {
     fi
   '';
 
-  postInstall = ''
-    tar -cf build.tar.gz .
-    mv build.tar.gz $out
+  installPhase = ''
+    mkdir $out
+    tar -cf $out/build.tar.gz .
   '';
 })
