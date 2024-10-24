@@ -16,6 +16,3 @@ build:
 	yarn install
 	yarn typecheck
 	yarn build
-
-package:
-	yarn bundle

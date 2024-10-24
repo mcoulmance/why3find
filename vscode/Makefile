@@ -19,23 +19,36 @@ version: .version
 
 # --- Linting & Building
 
-.PHONY: lint build
+.PHONY: download lint watch build view package
+
+download:
+	$(YARN) install
 
 lint:
 	$(YARN) typecheck
 
-build: version
-	rm -f *.vsix
-	rm -fr out
-	$(YARN) install
-	$(YARN) typecheck
+watch:
+	$(YARN) watch
 
-build: lint
-	$(YARN) bundle
+build: download version lint
+	@echo "------------------------------------------"
+	@echo "---- Building Extension"
+	@echo "------------------------------------------"
+	@rm -f *.vsix
+	@rm -fr out
+	$(YARN) build
 
-package: build
+view:
+	@echo "------------------------------------------"
+	@echo "---- Building Proof View"
+	@echo "------------------------------------------"
+	$(MAKE) -C proofview build
+
+package: build view
+	@echo "------------------------------------------"
+	@echo "---- Packaging VSCode"
+	@echo "------------------------------------------"
 	$(YARN) vsce ls
-	$(MAKE) -C proofview package
 	$(YARN) package
 
 # -- Installing & Cleaning
@@ -46,7 +59,7 @@ clean:
 	$(MAKE) -C proofview clean
 	rm -fr out node_modules *.vsix .version
 
-install: package
+install:
 	code --install-extension why3-platform-*.vsix
 
 uninstall:
