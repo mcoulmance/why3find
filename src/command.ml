@@ -487,8 +487,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
         if !default || !detect then
           let provers = Prover.default env in
           let patterns =
-            if !strict then List.map Prover.fullname provers else
-              List.map Prover.name provers
+            if !relax then List.map Prover.name provers else
+              List.map Prover.fullname provers
           in
           patterns, provers
         else
