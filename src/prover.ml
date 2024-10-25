@@ -19,7 +19,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-open Why3
+module Whyconf = Why3.Whyconf
+module Driver = Why3.Driver
 
 (* -------------------------------------------------------------------------- *)
 (* --- Provers                                                            --- *)
@@ -74,7 +75,7 @@ let compare_desc p q =
   if c <> 0 then c else
     compare_version p.version q.version
 
-module Mdesc = Extmap.Make (struct
+module Mdesc = Why3.Extmap.Make (struct
     type t = desc
     let compare = compare_desc
   end)
@@ -157,17 +158,13 @@ let load_driver_for_prover =
   Timer.timed3 ~name:"Load driver" Driver.load_driver_for_prover
 
 let load (wenv : Why3find.Config.wenv) (pconfig : Whyconf.config_prover) =
-  try
-    let main = Whyconf.get_main wenv.config in {
-      desc = desc_of_config pconfig ;
-      config = pconfig ;
-      driver = load_driver_for_prover main wenv.env pconfig ;
-      digest = digest_config main pconfig;
-    }
-  with _ ->
-    Log.error "failed to load driver for %s"
-      (Whyconf.prover_parseable_format pconfig.prover) ;
-    exit 2
+  let main = Whyconf.get_main wenv.config in
+  {
+    desc = desc_of_config pconfig ;
+    config = pconfig ;
+    driver = load_driver_for_prover main wenv.env pconfig ;
+    digest = digest_config main pconfig;
+  }
 
 let all wenv =
   let folder _ c m =
@@ -198,10 +195,12 @@ let default wenv =
   find_default wenv "cvc5"
 
 let warn_prover_not_found =
-  Why3.Wstdlib.Hstr.memo 5 (Log.warning "prover %s not found (why3)")
+  Why3.Wstdlib.Hstr.memo 5
+    (fun s -> Log.warning "prover %s not found (why3)" s)
 
 let warn_prover_not_configured =
-  Why3.Wstdlib.Hstr.memo 5 (Log.warning "prover %s not configured (project)")
+  Why3.Wstdlib.Hstr.memo 5
+    (fun s -> Log.warning "prover %s not configured (project)" s)
 
 let select wenv ~patterns =
   let find pattern =

@@ -23,6 +23,7 @@
 (* --- Logging Facilities                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
+let is_log_on = ref false
 let warnings = ref 0
 let errors = ref 0
 let summary = Queue.create ()
@@ -45,7 +46,13 @@ let output level pp =
     Format.kdprintf summarize
       "@[<hov>@{<bold>@{<bright red>Error:@}@} %t@]@." pp
 
-let emit ?(level=`Message) msg = Format.kdprintf (output level) msg
+let set_log b =
+  is_log_on := b
+
+let emit ?(level=`Message) msg =
+  if !is_log_on
+  then Format.kdprintf (output level) msg
+  else Format.ifprintf Format.std_formatter msg
 
 let message format =
   emit ~level:`Message format
@@ -57,21 +64,22 @@ let error format =
   emit ~level:`Error format
 
 let summary () =
-  let wrn = !warnings in
-  if wrn > 0 then
-    begin
-      Utils.flush ();
-      if not Utils.tty || Utils.overflows () then
-        begin
-          Format.printf "Summary:@.";
-          Queue.iter pp_error summary ;
-        end ;
-      Format.printf "Emitted %d warning%a" wrn Utils.pp_s wrn ;
-      let err = !errors in
-      if err > 0 then
-        Format.printf ", %d error%a" err Utils.pp_s err ;
-      Format.printf "@."
-    end
+  if !is_log_on then
+    let wrn = !warnings in
+    if wrn > 0 then
+      begin
+        Utils.flush ();
+        if not Utils.tty || Utils.overflows () then
+          begin
+            Format.printf "Summary:@.";
+            Queue.iter pp_error summary ;
+          end ;
+        Format.printf "Emitted %d warning%a" wrn Utils.pp_s wrn ;
+        let err = !errors in
+        if err > 0 then
+          Format.printf ", %d error%a" err Utils.pp_s err ;
+        Format.printf "@."
+      end
 
 let exit_summary () =
   try summary () with _ -> ()
