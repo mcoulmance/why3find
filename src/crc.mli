@@ -59,6 +59,7 @@ val get_stuck :  crc -> int
 val get_proved : crc -> int
 val get_time :   crc -> float
 val get_depth :  crc -> int
+val size :       crc -> int
 
 val get_stuck_all :  crc list -> int
 val get_proved_all : crc list -> int
@@ -78,8 +79,5 @@ val dump : Format.formatter -> crc -> unit
 val merge : crc -> crc -> crc
 val of_json : Json.t -> crc
 val to_json : crc -> Json.t
-
-val stats : crc -> crc -> unit
-val print_stats : unit -> unit
 
 (* -------------------------------------------------------------------------- *)

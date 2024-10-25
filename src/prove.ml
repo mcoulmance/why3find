@@ -28,6 +28,118 @@ module Th = Why3.Theory
 open Fibers.Monad
 
 (* -------------------------------------------------------------------------- *)
+(* --- Proof Statistics                                                   --- *)
+(* -------------------------------------------------------------------------- *)
+
+let fixed = ref 0
+let broken = ref 0
+let updated = ref 0
+let minimized = ref 0
+let unchanged = ref 0
+let nproved = ref 0
+let nstuck = ref 0
+
+let adepth = ref 0
+let bdepth = ref 0
+let atime = ref 0.0
+let btime = ref 0.0
+
+let (+=) r n = r := !r + n
+let (^=) r t = r := max !r t
+
+let rec node_stats (a : Crc.crc) (b : Crc.crc) =
+  begin
+    match a.status, b.status with
+
+    | Stuck, Stuck ->
+      incr unchanged ;
+      incr nstuck ;
+
+    | Stuck, _ ->
+      (if Crc.is_complete b then fixed else updated) += Crc.size b ;
+      nstuck += Crc.get_stuck b ;
+      nproved += Crc.get_proved b ;
+
+    | _, Stuck ->
+      incr (if Crc.is_complete a then broken else updated) ;
+      incr nstuck ;
+
+    | Prover _, Prover _ ->
+      incr (if a = b then unchanged else updated) ;
+      incr nproved ;
+
+    | Tactic _ , Prover _ ->
+      incr (if Crc.is_complete a then minimized else fixed) ;
+      incr nproved ;
+
+    | Tactic { id = f0 ; children = cs0 } ,
+      Tactic { id = f1 ; children = cs1 }
+      when f0 = f1 && List.length cs0 = List.length cs1 ->
+      List.iter2 node_stats cs0 cs1
+
+    | _ ->
+      let r =
+        match Crc.is_complete a, Crc.is_complete b with
+        | true, true | false, false -> updated
+        | true, false -> broken
+        | false, true -> fixed
+      in
+      r += Crc.size b ;
+      nstuck += Crc.get_stuck b ;
+      nproved += Crc.get_proved b ;
+
+  end
+
+let stats a b =
+  begin
+    node_stats a b ;
+    adepth ^= Crc.get_depth a ;
+    bdepth ^= Crc.get_depth b ;
+    atime ^= Crc.get_time a ;
+    btime ^= Crc.get_time b ;
+  end
+
+let print_stats () =
+  begin
+    Utils.flush () ;
+    Format.printf "Proofs %t"
+      (Crc.pp_result ~proved:!nproved ~stuck:!nstuck) ;
+    if !fixed + !broken + !minimized + !updated = 0 then
+      if !nproved >0 then
+        Format.printf " (unchanged)@\n"
+      else
+        Format.printf " (none)@\n"
+    else
+      begin
+        Format.print_newline () ;
+        if !unchanged > 0 then
+          Format.printf " - unchanged: %d@\n" !unchanged ;
+        if !fixed > 0 then
+          Format.printf " - fixed: @{<green>%d@}@\n" !fixed ;
+        if !minimized > 0 then
+          Format.printf " - minimized: @{<green>%d@}@\n" !minimized ;
+        if !updated > 0 then
+          Format.printf " - updated: @{<orange>%d@}@\n" !updated ;
+        if !broken > 0 then
+          Format.printf " - broken: @{<red>%d@}@\n" !broken ;
+      end ;
+    Format.printf "Provers %a%t@." Utils.pp_time !btime
+      (fun fmt ->
+         let d = !btime -. !atime in
+         if abs_float d > 0.01 then
+           Format.fprintf fmt " (%a)" Utils.pp_delta d ;
+         if !bdepth > 0 || !adepth > 0 then
+           begin
+             Format.fprintf fmt " (depth: %d" !bdepth ;
+             let d = !bdepth - !adepth in
+             if d < 0 then Format.fprintf fmt ", %d)" d else
+             if d > 0 then Format.fprintf fmt ", +%d)" d else
+               Format.fprintf fmt ")"
+           end
+      ) ;
+  end
+
+(* -------------------------------------------------------------------------- *)
 (* --- Proof Driver                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -53,7 +165,7 @@ let prove_theory ~goals ~file ~context mode profile buffer strategy theory =
              (if mode = `Force then Crc.stuck () else hint)
          in
          Option.iter (Proofs.add theory task crc) buffer;
-         if Utils.tty then Crc.stats hint crc ;
+         if Utils.tty then stats hint crc ;
          if not (Crc.is_complete crc) then
            begin
              Utils.flush () ;
@@ -318,7 +430,7 @@ let prove_files ~(env:Config.env) ~mode ~hammer ~session ~log ~axioms ~files
       begin
         Utils.flush () ;
         Runner.print_stats () ;
-        Crc.print_stats () ;
+        print_stats () ;
         if axioms then print_axioms_stats () ;
       end ;
     {
