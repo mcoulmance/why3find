@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "vite",
     "typecheck": "tsc --noEmit",
-    "watch": "vite",
     "build": "vite build"
   },
   "dependencies": {

@@ -5,7 +5,9 @@
 .PHONY: all
 all: build
 
+# --------------------------------------------------------------------------
 # --- Versionning
+# --------------------------------------------------------------------------
 
 .PHONY: version
 
@@ -17,41 +19,68 @@ version: .version
 	@$(YARN) version --no-git-tag-version --new-version $(VERSION)
 	@touch .version
 
-# --- Linting & Building
+# --------------------------------------------------------------------------
+# --- Linting
+# --------------------------------------------------------------------------
 
-.PHONY: download lint watch build view package
-
-download:
-	$(YARN) install
-
+.PHONY: lint
 lint:
 	$(YARN) typecheck
+	$(YARN) --cwd proofview typecheck
 
-watch:
-	$(YARN) watch
+# --------------------------------------------------------------------------
+# --- Debugging
+# --------------------------------------------------------------------------
 
-build: download version lint
+.PHONY: start
+start:
+	@echo "------------------------------------------"
+	@echo "---- Running Servers"
+	@echo "------------------------------------------"
+	@($(YARN) start &)
+	@($(YARN) --cwd proofview start &)
+	@echo "------------------------------------------"
+	@echo "Servers Running… (Hit f5)"
+
+# --------------------------------------------------------------------------
+# --- Building
+# --------------------------------------------------------------------------
+
+.PHONY: build-extension
+build-extension:
 	@echo "------------------------------------------"
 	@echo "---- Building Extension"
 	@echo "------------------------------------------"
-	@rm -f *.vsix
-	@rm -fr out
-	$(YARN) bundle
+	$(YARN) install
+	$(YARN) typecheck
+	$(YARN) build
 
-view:
+.PHONY: build-extension
+build-view:
 	@echo "------------------------------------------"
 	@echo "---- Building Proof View"
 	@echo "------------------------------------------"
-	$(MAKE) -C proofview build
+	$(YARN) --cwd proofview install
+	$(YARN) --cwd proofview typecheck
+	$(YARN) --cwd proofview build
+
+.PHONY: build package
+
+build: build-extension build-view
+	@echo "------------------------------------------"
 
 package: build view
 	@echo "------------------------------------------"
 	@echo "---- Packaging VSCode"
 	@echo "------------------------------------------"
+	@rm -f *.vsix
 	$(YARN) vsce ls
 	$(YARN) package
+	@echo "------------------------------------------"
 
+# --------------------------------------------------------------------------
 # -- Installing & Cleaning
+# --------------------------------------------------------------------------
 
 .PHONY: clean install uninstall
 
@@ -64,3 +93,5 @@ install:
 
 uninstall:
 	code --uninstall-extension undefined_publisher.why3-platform
+
+# --------------------------------------------------------------------------

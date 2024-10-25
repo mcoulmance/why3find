@@ -112,10 +112,9 @@
     }
   },
   "scripts": {
-    "build": "tsc -b",
-    "watch": "tsc -b -w",
+    "start": "tsc -b -w",
     "typecheck": "tsc --noEmit",
-    "bundle": "esbuild ./extension/main.ts --bundle --platform=node --external:vscode --minify --outfile=./out/main.js",
+    "build": "esbuild ./extension/main.ts --bundle --platform=node --external:vscode --minify --outfile=./out/main.js",
     "package": "vsce package --yarn"
   },
   "devDependencies": {
