@@ -157,7 +157,7 @@ let digest_config = Timer.timed2 ~name:"Digest prover" digest_config
 let load_driver_for_prover =
   Timer.timed3 ~name:"Load driver" Driver.load_driver_for_prover
 
-let load (wenv : Why3find.Config.wenv) (pconfig : Whyconf.config_prover) =
+let load (wenv : Config.wenv) (pconfig : Whyconf.config_prover) =
   let main = Whyconf.get_main wenv.config in
   {
     desc = desc_of_config pconfig ;
@@ -174,7 +174,7 @@ let all wenv =
   let configs = Whyconf.get_provers wenv.config in
   Whyconf.Mprover.fold folder configs Mdesc.empty
 
-let all = Why3find.Config.WenvWhtbl.memoize 5 all
+let all = Config.WenvWhtbl.memoize 5 all
 
 let filter_prover ~name ?version p =
   p.desc.name = name
@@ -185,7 +185,7 @@ let find_exn wenv ~pattern =
   let filter _ p = filter_prover ~name ?version p in
   snd @@ Mdesc.min_binding @@ Mdesc.filter filter @@ all wenv
 
-let find_default (wenv : Why3find.Config.wenv) name =
+let find_default (wenv : Config.wenv) name =
   try [ find_exn wenv ~pattern:name ] with Not_found -> []
 
 let default wenv =
