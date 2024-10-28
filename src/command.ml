@@ -116,13 +116,14 @@ let exec
     ?(drivers)
     ?(prefix=[])
     ?(pkgs=[])
+    ?(why3_warn_off=[])
     ?(skip=0)
     argv =
   let args = ref [] in
   let pkgs = ref pkgs in
   let drivers = ref drivers in
   let why3_debug_flags = ref [] in
-  let why3_warn_off = ref [] in
+  let why3_warn_off = ref why3_warn_off in
   let p = ref skip in
   while !p < Array.length argv do
     begin
@@ -641,10 +642,11 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
           if not !ide then exit 1 ;
           let file = List.hd result.unfixed in
           let pkgs = env.config.packages in
+          let why3_warn_off = env.config.warnoff in
           let Prove.{ provers ; time ; mem ; tactics } = result in
           let cfg = Hammer.config ~tactics ~provers ~time ~mem in
           Format.printf "Fixing %s@." file ;
-          exec ~prefix:["ide"] ~pkgs [| "--extra-config" ; cfg ; file |]
+          exec ~prefix:["ide"] ~pkgs ~why3_warn_off [| "--extra-config" ; cfg ; file |]
         end
     end
 
