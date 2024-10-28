@@ -165,7 +165,7 @@ let apply h tac ?(hint : hint option) : strategy = fun n ->
 
 let hammer0 h : strategy =
   if h.level > 0 then
-    let time = h.time *. 0.2 in
+    let time = max (h.time *. 0.2) 0.3 in
     sequence (fun prv -> prove h.env prv time) h.provers
   else fail
 
@@ -188,10 +188,10 @@ let hammer2 ?hint h : strategy =
   else fail
 
 let hammer henv =
-  hammer0 henv >>>
-  hammer1 henv >>>
-  hammer2 henv >>>
-  hammer3 henv
+  hammer0 henv >>> (* level -H 1 *)
+  hammer1 henv >>> (* level -H 2 *)
+  hammer2 henv >>> (* level -H 3 *)
+  hammer3 henv     (* level -H 4 *)
 
 (* -------------------------------------------------------------------------- *)
 (* --- Node Processing                                                    --- *)
