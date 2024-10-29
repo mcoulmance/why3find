@@ -260,12 +260,12 @@ let save_config (env : Why3find.Config.env) =
   let j = !jobs in
   if j > 0 then
     let open Why3 in
-    let file = Whyconf.get_conf_file env.wconfig in
+    let file = Whyconf.get_conf_file env.wenv.config in
     if file <> "" then
-      let main = Whyconf.get_main env.wconfig in
+      let main = Whyconf.get_main env.wenv.config in
       let time = Whyconf.timelimit main in
       let mem = Whyconf.memlimit main in
-      let config = Whyconf.User.set_limits ~time ~mem ~j env.wconfig in
+      let config = Whyconf.User.set_limits ~time ~mem ~j env.wenv.config in
       Whyconf.save_config config ;
       Format.printf "Why3 config saved to %s@." file
 

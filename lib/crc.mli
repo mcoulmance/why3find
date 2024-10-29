@@ -25,7 +25,7 @@
 
 type status = private
   | Stuck
-  | Prover of Prover.prover_desc * float
+  | Prover of Prover.desc * float
   | Tactic of {
       id : string ;
       children : crc list ;
@@ -42,8 +42,8 @@ and crc = private {
 
 val none : status
 val stuck : ?goal:Session.goal -> unit -> crc
-val prover : ?goal:Session.goal -> Prover.prover_desc -> float -> crc
-val tactic : ?goal:Session.goal -> string -> crc list -> crc
+val prover : ?goal:Session.goal -> Prover.desc -> float -> crc
+val tactic : ?goal:Session.goal -> Tactic.tactic -> crc list -> crc
 
 (** Iterates over all goals in the CRC.
     Tactic nodes are visite first, followed by their children. *)
@@ -59,6 +59,7 @@ val get_stuck :  crc -> int
 val get_proved : crc -> int
 val get_time :   crc -> float
 val get_depth :  crc -> int
+val size :       crc -> int
 
 val get_stuck_all :  crc list -> int
 val get_proved_all : crc list -> int
@@ -78,8 +79,5 @@ val dump : Format.formatter -> crc -> unit
 val merge : crc -> crc -> crc
 val of_json : Json.t -> crc
 val to_json : crc -> Json.t
-
-val stats : crc -> crc -> unit
-val print_stats : unit -> unit
 
 (* -------------------------------------------------------------------------- *)

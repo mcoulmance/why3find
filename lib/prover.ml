@@ -19,13 +19,14 @@
 (*                                                                        *)
 (**************************************************************************)
 
-open Why3
+module Whyconf = Why3.Whyconf
+module Driver = Why3.Driver
 
 (* -------------------------------------------------------------------------- *)
 (* --- Provers                                                            --- *)
 (* -------------------------------------------------------------------------- *)
 
-type prover_desc = {
+type desc = {
   name : string ;
   version : string ;
 }
@@ -48,7 +49,7 @@ let desc_of_string s =
     let (name, version) = split_pattern s in
     { name ; version = Option.get version }
   with
-  | Invalid_argument _ | InvalidPattern _->
+  | Invalid_argument _ | InvalidPattern _ ->
     raise (InvalidProverDescription s)
 
 let desc_name p = p.name
@@ -74,13 +75,13 @@ let compare_desc p q =
   if c <> 0 then c else
     compare_version p.version q.version
 
-module Mdesc = Extmap.Make (struct
-    type t = prover_desc
+module Mdesc = Why3.Extmap.Make (struct
+    type t = desc
     let compare = compare_desc
   end)
 
 type prover = {
-  desc : prover_desc ;
+  desc : desc ;
   config : Whyconf.config_prover ;
   driver : Driver.driver ;
   digest : string ;
@@ -137,8 +138,10 @@ let pmatch ~pattern d =
   name = d.name && (version = None || Option.get version = d.version)
 
 let pattern_name s =
-  let (name, _) = split_pattern s in
-  name
+  try
+    let (name, _) = split_pattern s in
+    name
+  with InvalidPattern _ -> s
 
 let pattern_version s =
   let (_, version) = split_pattern s in
@@ -154,63 +157,63 @@ let digest_config = Timer.timed2 ~name:"Digest prover" digest_config
 let load_driver_for_prover =
   Timer.timed3 ~name:"Load driver" Driver.load_driver_for_prover
 
-let load wconfig wenv (pconfig : Whyconf.config_prover) =
-  try
-    let main = Whyconf.get_main wconfig in {
-      desc = desc_of_config pconfig ;
-      config = pconfig ;
-      driver = load_driver_for_prover main wenv pconfig ;
-      digest = digest_config main pconfig;
-    }
-  with _ ->
-    Log.error "failed to load driver for %s"
-      (Whyconf.prover_parseable_format pconfig.prover) ;
-    exit 2
+let load (wenv : Config.wenv) (pconfig : Whyconf.config_prover) =
+  let main = Whyconf.get_main wenv.config in
+  {
+    desc = desc_of_config pconfig ;
+    config = pconfig ;
+    driver = load_driver_for_prover main wenv.env pconfig ;
+    digest = digest_config main pconfig;
+  }
 
-let all wconfig wenv =
+let all wenv =
   let folder _ c m =
     if c.Whyconf.prover.prover_altern = "" && not c.Whyconf.interactive
-    then let p = load wconfig wenv c in Mdesc.add p.desc p m
+    then let p = load wenv c in Mdesc.add p.desc p m
     else m in
-  let configs = Whyconf.get_provers wconfig in
+  let configs = Whyconf.get_provers wenv.config in
   Whyconf.Mprover.fold folder configs Mdesc.empty
+
+let all = Config.WenvWhtbl.memoize 5 all
 
 let filter_prover ~name ?version p =
   p.desc.name = name
   && (version = None || p.desc.version = Option.get version)
 
-let find_exn ~pattern all =
+let find_exn wenv ~pattern =
   let (name, version) = split_pattern pattern in
   let filter _ p = filter_prover ~name ?version p in
-  snd @@ Mdesc.min_binding @@ Mdesc.filter filter all
+  snd @@ Mdesc.min_binding @@ Mdesc.filter filter @@ all wenv
 
-let find_default (env : Why3find.Config.env) name =
-  try [ find_exn ~pattern:name @@ all env.wconfig env.wenv ] with Not_found -> []
+let find_default (wenv : Config.wenv) name =
+  try [ find_exn wenv ~pattern:name ] with Not_found -> []
 
-let default env =
-  find_default env "alt-ergo" @
-  find_default env "z3" @
-  find_default env "cvc4" @
-  find_default env "cvc5"
+let default wenv =
+  find_default wenv "alt-ergo" @
+  find_default wenv "z3" @
+  find_default wenv "cvc4" @
+  find_default wenv "cvc5"
 
 let warn_prover_not_found =
-  Why3.Wstdlib.Hstr.memo 5 (Log.warning "prover %s not found (why3)")
+  Why3.Wstdlib.Hstr.memo 5
+    (fun s -> Log.warning "prover %s not found (why3)" s)
 
 let warn_prover_not_configured =
-  Why3.Wstdlib.Hstr.memo 5 (Log.warning "prover %s not configured (project)")
+  Why3.Wstdlib.Hstr.memo 5
+    (fun s -> Log.warning "prover %s not configured (project)" s)
 
-let select ~patterns all =
+let select wenv ~patterns =
   let find pattern =
-    try Some (find_exn ~pattern all) with
+    try Some (find_exn wenv ~pattern) with
     | InvalidPattern s -> Log.warning "invalid prover pattern %s" s; None
     | Not_found -> warn_prover_not_found pattern; None in
   List.filter_map find patterns
 
-let check_and_get_prover ~patterns all pr =
+let check_and_get_prover env ~patterns pr =
   let prmatch pattern =
     try pmatch ~pattern pr with
     | InvalidPattern _ -> false in
-  let prover = Mdesc.find_opt pr all in
+  let prover = Mdesc.find_opt pr @@ all env in
   if List.exists prmatch patterns
   then prover (* either the prover is available or we already complained *)
   else

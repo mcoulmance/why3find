@@ -49,8 +49,7 @@ val save : Config.config -> unit
 
 type env = Config.env = private {
   config : Config.config ;
-  wconfig : Why3.Whyconf.config ;
-  wenv : Why3.Env.env ;
+  wenv : Config.wenv ;
   pkgs : Meta.pkg list ;
 }
 

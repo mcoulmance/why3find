@@ -17,7 +17,7 @@
    - cvc4@1.8         REDACTED REDACTED (master)
   Configuration:
    - runner: 2 jobs, 1.0s
-   - provers: alt-ergo(2.4.2), cvc4(1.8)
+   - provers: alt-ergo@2.4.2, cvc4@1.8
    - tactics: split_vc (depth 4)
   Why3find config saved to $TESTCASE_ROOT/why3find.json
 

@@ -27,7 +27,7 @@
 (* --- Proof Task                                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
-type goal = { prover : Prover.prover_desc ; digest : string }
+type goal = { prover : Prover.desc ; digest : string }
 
 (* -------------------------------------------------------------------------- *)
 (* --- Worker State                                                       --- *)
@@ -209,8 +209,8 @@ let flush worker handler =
 let connect ~server ~polling =
   let wconfig = Why3.Whyconf.init_config None in
   let wmain = Why3.Whyconf.get_main wconfig in
-  let wenv = Why3.Env.create_env @@ Why3.Whyconf.loadpath wmain in
-  let prvs = Prover.all wconfig wenv in
+  let wenv = Config.create_wenv wconfig in
+  let prvs = Prover.all wenv in
   let jobs = Runner.maxjobs wmain in
   Utils.flush () ;
   Prover.(Mdesc.iter (fun _ -> Format.printf "Prover %a@." pp_prover) prvs) ;

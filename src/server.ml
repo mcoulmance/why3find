@@ -23,7 +23,7 @@
 (* --- Server                                                             --- *)
 (* -------------------------------------------------------------------------- *)
 
-type goal = { prover : Prover.prover_desc ; digest : string }
+type goal = { prover : Prover.desc ; digest : string }
 type emitter = { identity : string ; time : float }
 
 let (@=) a b = a.identity = b.identity
@@ -41,7 +41,7 @@ type worker = {
   mutable worker: emitter ;
   mutable busy: int;
   mutable cores: int;
-  mutable provers: Prover.prover_desc list;
+  mutable provers: Prover.desc list;
 }
 
 (* -------------------------------------------------------------------------- *)

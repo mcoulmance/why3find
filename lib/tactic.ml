@@ -32,12 +32,12 @@ let is_tactic = function
 
 let warn_tactic_not_found =
   Why3.Wstdlib.Hstr.memo 5 @@
-  Log.warning "Tactic %s not found (skipped)"
+  fun s -> Log.warning "Tactic %s not found (skipped)" s
 
 let warn_not_a_tactic =
   Why3.Wstdlib.Hstr.memo 5 @@
-  Log.warning "Transformation %s is not a tactic@ \
-               (requires arguments, skipped)"
+  fun s -> Log.warning "Transformation %s is not a tactic@ \
+                        (requires arguments, skipped)" s
 
 let lookup (env : Why3.Env.env) tr =
   try

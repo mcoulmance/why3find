@@ -25,7 +25,7 @@
 
 type status =
   | Stuck
-  | Prover of Prover.prover_desc * float
+  | Prover of Prover.desc * float
   | Tactic of {
       id : string ;
       children : crc list ;
@@ -86,13 +86,15 @@ let get_depth_all = List.fold_left (fun h c -> max h @@ get_depth c) 0
 let get_stuck_all = List.fold_left (fun n c -> n + get_stuck c) 0
 let get_proved_all = List.fold_left (fun n c -> n + get_proved c) 0
 
-let tactic ?goal id children =
+let make goal id children =
   let stuck = get_stuck_all children in
   let proved = get_proved_all children in
   let time = get_time_all children in
   let depth = get_depth_all children in
   if stuck > 0 && proved = 0 then { goal ; status = Stuck } else
     { goal; status = Tactic { id ; children ; stuck ; proved ; depth ; time } }
+
+let tactic ?goal tac children = make goal (Tactic.name tac) children
 
 type verdict = [ `Valid of int | `Failed of int | `Partial of int * int ]
 
@@ -145,14 +147,14 @@ let rec of_json (js : Json.t) : crc =
       let t = List.assoc "time" fds |> Json.jfloat in
       prover (Prover.desc_of_string p) t
     | `Assoc fds when List.mem_assoc "tactic" fds ->
-      let f = List.assoc "tactic" fds |> Json.jstring in
+      let tr = List.assoc "tactic" fds |> Json.jstring in
       let xs = List.assoc "children" fds |> Json.jlist in
-      tactic f (List.map of_json xs)
+      make None tr (List.map of_json xs)
     | `Assoc fds when List.mem_assoc "transf" fds ->
       (* Deprecated *)
-      let f = List.assoc "transf" fds |> Json.jstring in
+      let tr = List.assoc "transf" fds |> Json.jstring in
       let xs = List.assoc "children" fds |> Json.jlist in
-      tactic f (List.map of_json xs)
+      make None tr (List.map of_json xs)
     | _ -> stuck ()
   with _ -> stuck ()
 
@@ -172,116 +174,8 @@ let rec merge a b =
   | Tactic { id = f ; children = xs } ,
     Tactic { id = g ; children = ys }
     when f = g && List.length xs = List.length ys ->
-    tactic ?goal f (List.map2 merge xs ys)
+    make goal f (List.map2 merge xs ys)
   | _ -> b
-
-let fixed = ref 0
-let broken = ref 0
-let updated = ref 0
-let minimized = ref 0
-let unchanged = ref 0
-let nproved = ref 0
-let nstuck = ref 0
-
-let adepth = ref 0
-let bdepth = ref 0
-let atime = ref 0.0
-let btime = ref 0.0
-
-let (+=) r n = r := !r + n
-let (^=) r t = r := max !r t
-
-let rec node_stats a b =
-  begin
-    match a.status, b.status with
-
-    | Stuck, Stuck ->
-      incr unchanged ;
-      incr nstuck ;
-
-    | Stuck, _ ->
-      (if is_complete b then fixed else updated) += size b ;
-      nstuck += get_stuck b ;
-      nproved += get_proved b ;
-
-    | _, Stuck ->
-      incr (if is_complete a then broken else updated) ;
-      incr nstuck ;
-
-    | Prover _, Prover _ ->
-      incr (if a = b then unchanged else updated) ;
-      incr nproved ;
-
-    | Tactic _ , Prover _ ->
-      incr (if is_complete a then minimized else fixed) ;
-      incr nproved ;
-
-    | Tactic { id = f0 ; children = cs0 } ,
-      Tactic { id = f1 ; children = cs1 }
-      when f0 = f1 && List.length cs0 = List.length cs1 ->
-      List.iter2 node_stats cs0 cs1
-
-    | _ ->
-      let r =
-        match is_complete a, is_complete b with
-        | true, true | false, false -> updated
-        | true, false -> broken
-        | false, true -> fixed
-      in
-      r += size b ;
-      nstuck += get_stuck b ;
-      nproved += get_proved b ;
-
-  end
-
-let stats a b =
-  begin
-    node_stats a b ;
-    adepth ^= get_depth a ;
-    bdepth ^= get_depth b ;
-    atime ^= get_time a ;
-    btime ^= get_time b ;
-  end
-
-let print_stats () =
-  begin
-    Utils.flush () ;
-    Format.printf "Proofs %t"
-      (pp_result ~proved:!nproved ~stuck:!nstuck) ;
-    if !fixed + !broken + !minimized + !updated = 0 then
-      if !nproved >0 then
-        Format.printf " (unchanged)@\n"
-      else
-        Format.printf " (none)@\n"
-    else
-      begin
-        Format.print_newline () ;
-        if !unchanged > 0 then
-          Format.printf " - unchanged: %d@\n" !unchanged ;
-        if !fixed > 0 then
-          Format.printf " - fixed: @{<green>%d@}@\n" !fixed ;
-        if !minimized > 0 then
-          Format.printf " - minimized: @{<green>%d@}@\n" !minimized ;
-        if !updated > 0 then
-          Format.printf " - updated: @{<orange>%d@}@\n" !updated ;
-        if !broken > 0 then
-          Format.printf " - broken: @{<red>%d@}@\n" !broken ;
-      end ;
-    Format.printf "Provers %a%t@." Utils.pp_time !btime
-      (fun fmt ->
-         let d = !btime -. !atime in
-         if abs_float d > 0.01 then
-           Format.fprintf fmt " (%a)" Utils.pp_delta d ;
-         if !bdepth > 0 || !adepth > 0 then
-           begin
-             Format.fprintf fmt " (depth: %d" !bdepth ;
-             let d = !bdepth - !adepth in
-             if d < 0 then Format.fprintf fmt ", %d)" d else
-             if d > 0 then Format.fprintf fmt ", +%d)" d else
-               Format.fprintf fmt ")"
-           end
-      ) ;
-  end
 
 (* -------------------------------------------------------------------------- *)
 (* --- iter                                                               --- *)

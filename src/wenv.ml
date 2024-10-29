@@ -275,8 +275,7 @@ let load_config () =
 
 type env = Config.env = private {
   config : Config.config ;
-  wconfig : Why3.Whyconf.config ;
-  wenv : Why3.Env.env ;
+  wenv : Config.wenv ;
   pkgs : Meta.pkg list ;
 }
 
@@ -289,7 +288,7 @@ let init ?root ?(loadplugins=true) config =
   begin
     let wenv = Config.create_env ?root ~config () in
     if loadplugins then
-      Why3.Whyconf.load_plugins @@ Why3.Whyconf.get_main wenv.wconfig;
+      Why3.Whyconf.load_plugins @@ Why3.Whyconf.get_main wenv.wenv.config;
     Debug.init_why3_debug ();
     List.iter disable_warning config.warnoff;
     wenv

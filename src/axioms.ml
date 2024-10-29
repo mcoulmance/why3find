@@ -75,8 +75,8 @@ type henv = {
 (* --- Builtin & Extracted Environments                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
-let ocaml64 =
-  Filename.concat Config.datadir @@
+let ocaml64 main =
+  Filename.concat (Why3.Whyconf.datadir main) @@
   Filename.concat "extraction_drivers" @@
   "ocaml64.drv"
 
@@ -93,13 +93,12 @@ let add_builtins bmap p =
        | Some xs, Some (m,_) -> Some ((p,m) :: xs)
     ) bmap @@ Driver.syntax_map p.Prover.driver
 
-let init (wenv : Why3find.Config.env) =
-  let allprovers = Prover.all wenv.wconfig wenv.wenv in
-  let provers = Prover.select ~patterns:wenv.config.provers allprovers in
+let init (env : Why3find.Config.env) =
+  let provers = Prover.select env.wenv ~patterns:env.config.provers in
   let builtins = List.fold_left add_builtins Mid.empty provers in
-  let drivers = List.concat_map pkg_drivers wenv.pkgs @ wenv.config.drivers in
-  let main = Whyconf.get_main wenv.wconfig in
-  let pdriver = Pdriver.load_driver main wenv.wenv ocaml64 drivers in
+  let drivers = List.concat_map pkg_drivers env.pkgs @ env.config.drivers in
+  let main = Whyconf.get_main env.wenv.config in
+  let pdriver = Pdriver.load_driver main env.wenv.env (ocaml64 main) drivers in
   let externals = Mid.map fst pdriver.drv_syntax in
   { builtins ; externals ; signatures = Hid.create 0 }
 

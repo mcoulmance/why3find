@@ -41,7 +41,7 @@ let options = [
   "--trace",Arg.Set trace,"Trace server protocol";
 ]
 
-type goal = { prover : Prover.prover_desc ; digest : string }
+type goal = { prover : Prover.desc ; digest : string }
 type task = {
   goal : goal ;
   prv : Prover.prover ;
@@ -71,7 +71,7 @@ let resolve () =
 let connect (env : Config.env) =
   Option.map
     begin fun address ->
-      let wmain = Why3.Whyconf.get_main env.wconfig in
+      let wmain = Why3.Whyconf.get_main env.wenv.config in
       let context = Zmq.Context.create () in
       let socket = Zmq.Socket.(create context dealer) in
       let profile = Calibration.create () in

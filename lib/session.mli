@@ -63,6 +63,6 @@ val result : goal ->
   Call_provers.prover_result ->
   unit
 
-val apply : Env.env -> string -> goal -> goal list option
+val apply : Env.env -> Tactic.tactic -> goal -> goal list option
 
 (* -------------------------------------------------------------------------- *)

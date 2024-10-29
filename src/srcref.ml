@@ -144,7 +144,7 @@ let pop env =
 let add_symbol env id =
   try
     let kind : Lspserver.kind =
-      match Docref.find_decl env.env.wenv env.src id with
+      match Docref.find_decl env.env.wenv.env env.src id with
       | Type _ -> `TypeParameter
       | Logic _ -> `Function
       | Var _ -> `Variable
@@ -193,7 +193,7 @@ let process_clone_token env token =
 let process_reference env s =
   try
     let { src ; current ; env = { wenv }} = env in
-    let _, id = Docref.reference ~wenv ~src ~current s in
+    let _, id = Docref.reference ~wenv:wenv.env ~src ~current s in
     let id = Id.resolve ~lib:src.lib id in
     let pos = Token.position env.input in
     env.refs <- Rangemap.add (lexrange pos) (Ref id) env.refs ;

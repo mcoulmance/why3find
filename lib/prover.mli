@@ -23,7 +23,7 @@
 
 (** {1 Prover descriptions} *)
 
-type prover_desc
+type desc
 (** The type of prover descriptions, identifying a unique prover version. *)
 
 exception InvalidPattern of string
@@ -31,29 +31,29 @@ exception InvalidProverDescription of string
 (** Raised on invalid pattern or prover description, see below. The argument
     is the erroneous string. *)
 
-val desc_to_string : prover_desc -> string
-val desc_of_string : string -> prover_desc
+val desc_to_string : desc -> string
+val desc_of_string : string -> desc
 (** Converts prover descriptions to and from string. The syntax is the same as
     patterns below, but the version part is mandatory.
     @raise InvalidProverDescription when the string description is invalid. *)
 
-val desc_name : prover_desc -> string
-val desc_version : prover_desc -> string
+val desc_name : desc -> string
+val desc_version : desc -> string
 
-val pp_desc : Format.formatter -> prover_desc -> unit
+val pp_desc : Format.formatter -> desc -> unit
 
-val compare_desc : prover_desc -> prover_desc -> int
+val compare_desc : desc -> desc -> int
 (** Prover descriptions comparison function. Different provers are ordered
     alphabetically by names, and different version of a same prover by
     {b reverse} version order. Thus, when sorting, the latest version come
     {b before} older ones. *)
 
-module Mdesc : Why3.Extmap.S with type key = prover_desc
+module Mdesc : Why3.Extmap.S with type key = desc
 
 (** {1 Provers} *)
 
 type prover = private {
-  desc : prover_desc ;
+  desc : desc ;
   config : Why3.Whyconf.config_prover ;
   driver : Why3.Driver.driver ;
   digest : string ;
@@ -86,29 +86,26 @@ val pp_prover : Format.formatter -> prover -> unit
 val pattern_name : string -> string
 val pattern_version : string -> string option
 
-val pmatch : pattern:string -> prover_desc -> bool
+val pmatch : pattern:string -> desc -> bool
 (** Whether the given pattern match the prover description.
     @raise InvalidPattern when the pattern is invalid. *)
 
 (** {1 Retrieving available provers} *)
 
-val all : Why3.Whyconf.config -> Why3.Env.env -> prover Mdesc.t
-(** Returns the set of all available provers from the Why3 environment. *)
+val all : Config.wenv -> prover Mdesc.t
+(** Returns the set of all available provers for the given Why3 environment. *)
 
-val select : patterns:string list -> prover Mdesc.t -> prover list
-(** Selects the subset of provers that match the [patterns] from the second
-    argument, which is intended to be the map returned by {!all}.
+val select : Config.wenv -> patterns:string list -> prover list
+(** Selects the provers that match one of the [patterns].
     For each [pattern] in order, if the pattern is invalid or the prover is not
     in the map, a warning is emitted, otherwise one prover is appended to the
     return list, either the one specified or the latest available version in
     case of a version-less pattern. *)
 
-val default : Config.env -> prover list
-(** Returns the set of available "default" provers *)
+val default : Config.wenv -> prover list
+(** Returns the set of available "default" provers. *)
 
-val check_and_get_prover : patterns:string list -> prover Mdesc.t
-  -> prover_desc -> prover option
-(** Returns the prover if present in the map (inteded to be the map returned by
-    {!all}) and selected by the [patterns]. Warn if the prover is not found. We
-    assume the [patterns] have been [select]ed so we don't warn if an
-    unavailable prover match the [patterns] *)
+val check_and_get_prover : Config.wenv -> patterns:string list -> desc
+  -> prover option
+(** Returns the requested prover from the [provers] list. Warn if the
+    prover is not found. *)

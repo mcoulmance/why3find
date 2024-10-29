@@ -23,6 +23,9 @@
 (* --- Why3 find main entry point                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
+let () =
+  Log.set_log true
+
 let version () : unit =
   begin
     Format.printf "why3find v%s@." Version.version ;

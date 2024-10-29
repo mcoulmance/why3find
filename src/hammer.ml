@@ -32,7 +32,6 @@ type henv = {
   client : Client.client option ;
   level : int ;
   maxdepth : int ;
-  allprovers : Prover.prover Prover.Mdesc.t ;
   patterns : string list ;
   provers : Prover.prover list ;
   tactics : Tactic.tactic list ;
@@ -91,7 +90,7 @@ let rec sequence (f : 'a -> strategy) (xs : 'a list) : strategy =
 (* -------------------------------------------------------------------------- *)
 
 let prove env ?client ?cancel prover timeout : strategy = fun n ->
-  let wmain = Why3.Whyconf.get_main env.Config.wconfig in
+  let wmain = Why3.Whyconf.get_main env.Config.wenv.config in
   let name = Session.goal_name n.goal in
   let* alpha = Calibration.velocity wmain n.profile prover in
   let to_profile = Runner.map (fun t -> t /. alpha) in
@@ -151,15 +150,14 @@ let rec subgoals ({ profile ; replay ; depth } as n) i goals hints =
 
 let apply h tac ?(hint : hint option) : strategy = fun n ->
   if n.depth > h.maxdepth then stuck n else
-    let id = Tactic.name tac in
-    match Session.apply h.env.Config.wenv id n.goal with
+    match Session.apply h.env.Config.wenv.env tac n.goal with
     | None -> stuck n
     | Some gs ->
       let hs =
         match hint with
         | Some(t,hs) when Tactic.equal t tac -> hs
         | _ -> []
-      in Crc.tactic ~goal:n.goal id @+ Fibers.all @@ subgoals n 0 gs hs
+      in Crc.tactic ~goal:n.goal tac @+ Fibers.all @@ subgoals n 0 gs hs
 
 (* -------------------------------------------------------------------------- *)
 (* --- Hammer Strategy                                                    --- *)
@@ -201,9 +199,9 @@ let hammer henv =
 
 let overhead t = max (t *. 2.0) 1.0
 
-let replay_prover h p t =
+let replay_prover h d t =
   let client = if t > h.time *. 0.2 then h.client else None in
-  match Prover.check_and_get_prover ~patterns:h.patterns h.allprovers p with
+  match Prover.check_and_get_prover h.env.wenv ~patterns:h.patterns d with
   | None -> stuck
   | Some p -> prove h.env ?client p (overhead t)
 
@@ -219,7 +217,7 @@ let replay ~hint h n =
       if Tactic.equal t (fst hint) then
         apply h t ~hint n
       else
-        match Session.apply h.env.Config.wenv (Tactic.name t) n.goal with
+        match Session.apply h.env.Config.wenv.env t n.goal with
         | None -> iter ts
         | Some _ ->
           Log.warning "Goal %S: tactic '%a' shadowed by '%a'"
@@ -248,7 +246,7 @@ let process h : strategy = fun n ->
       else
         update_prover h p t n
     | Tactic { id ; children } ->
-      match Tactic.lookup h.env.wenv id with
+      match Tactic.lookup h.env.wenv.env id with
       | Some tac ->
         let hint = tac, children in
         if n.replay then

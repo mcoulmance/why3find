@@ -450,13 +450,13 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
         else Config.config_of_json rawconfig in
       let config = Wenv.add_options config in
       let env = Wenv.init config in
-      let allprovers = Prover.all env.wconfig env.wenv in
       (* --- List Provers -------------- *)
       if !list_provers || !list_tactics then
         begin
           if !list_tactics then
             begin
               Format.printf "Available Provers:@." ;
+              let allprovers = Prover.all env.wenv in
               if Prover.Mdesc.is_empty allprovers then
                 Format.printf "  (none, use --detect)@." ;
               Prover.Mdesc.iter (fun dp _ ->
@@ -485,17 +485,17 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       let time = config.time in
       let patterns, provers =
         if !default || !detect then
-          let provers = Prover.default env in
+          let provers = Prover.default env.wenv in
           let patterns =
-            if !strict then List.map Prover.fullname provers else
-              List.map Prover.name provers
+            if !relax then List.map Prover.name provers else
+              List.map Prover.fullname provers
           in
           patterns, provers
         else
           let config = config.provers in
           let patterns =
             if !relax then List.map Prover.pattern_name config else config in
-          let provers = Prover.select ~patterns allprovers in
+          let provers = Prover.select env.wenv ~patterns in
           let patterns =
             if !strict then List.map Prover.fullname provers else
             if !relax then List.map Prover.name provers else
@@ -528,7 +528,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
             match crc.Crc.status with
             | Stuck -> ()
             | Prover (p, _) ->
-              if Prover.check_and_get_prover ~patterns allprovers p = None then
+              if Prover.check_and_get_prover env.wenv ~patterns p = None then
                 retval := 1;
             | Tactic { children; _ } -> List.iter check_crc children in
           let check f =
@@ -537,7 +537,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           in
           Wenv.allfiles check "."
         end ;
-      let wmain = Why3.Whyconf.get_main env.wconfig in
+      let wmain = Why3.Whyconf.get_main env.wenv.config in
       List.iter (check_custom_drivers wmain) provers ;
       (* --- New Configuration --------- *)
       let newprofile = match profile with None -> config.profile | _ -> profile in
@@ -712,11 +712,11 @@ let () = register ~name:"print" ~args:"[OPTIONS] PATH..."
       let files = if !files = [] then ["."] else !files in
       let files = Wenv.argfiles ~exts:[".md";".mlw"] @@ List.rev files in
       let config = Wenv.load_config () in
-      let Wenv.{ wenv = env } = Wenv.init config in
+      let Wenv.{ wenv; _ } = Wenv.init config in
       List.iter
         begin fun file ->
           let lib = snd @@ Wutil.filepath file in
-          Wutil.load_theories env file |> fst |>
+          Wutil.load_theories wenv.env file |> fst |>
           List.iter
             begin fun (thy : Why3.Theory.theory) ->
               let fullpath = lib @ [thy.th_name.id_string] in
