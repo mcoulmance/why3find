@@ -52,7 +52,7 @@ let find pkg =
           let js = of_file meta in
           if jfield "configs" js |> jstringlist <> [] then
             Log.warning "Support for extra config files was removed in \
-                         why3find 1.1.@ If you need this feature, please \
+                         why3find 1.1.0.@ If you need this feature, please \
                          report this at %%PKG_ISSUES%%.";
           let depends = jfield "depends" js |> jstringlist in
           let drivers = jfield "drivers" js |> jstringlist in
