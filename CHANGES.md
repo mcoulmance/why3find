@@ -2,7 +2,7 @@
 
 All notable changes to the Why3find Platform will be documented in this file.
 
-## [Unreleased]
+## Unreleased
 
 ### Command Line Interface
 
