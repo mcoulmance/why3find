@@ -450,6 +450,30 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
         else Config.config_of_json rawconfig in
       let config = Wenv.add_options config in
       let env = Wenv.init config in
+      let allprovers = Prover.all env.wconfig env.wenv in
+      (* --- List Provers -------------- *)
+      if !list_provers || !list_tactics then
+        begin
+          if !list_tactics then
+            begin
+              Format.printf "Available Provers:@." ;
+              if Prover.Mdesc.is_empty allprovers then
+                Format.printf "  (none, use --detect)@." ;
+              Prover.Mdesc.iter (fun dp _ ->
+                  Format.printf " - %a@." Prover.pp_desc dp
+                ) allprovers ;
+            end ;
+          if !list_tactics then
+            begin
+              Format.printf "Available Tactics:@." ;
+              Tactic.iter
+                (fun tac pp ->
+                   Format.printf "@[<hov 3> - %s: %a@]@." tac
+                     Why3.Pp.formatted pp
+                ) ;
+            end ;
+          exit 0
+        end;
       (* --- Packages ---- *)
       let pkgs = config.packages in
       if !list && pkgs <> [] then
@@ -459,7 +483,6 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
         end ;
       (* --- Provers ----- *)
       let time = config.time in
-      let allprovers = Prover.all env.wconfig env.wenv in
       let patterns, provers =
         if !default || !detect then
           let provers = Prover.default env in
@@ -530,27 +553,6 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
         } in
       let jconfig = Config.config_to_json newconfig in
       let modified = not @@ Json.equal jconfig rawconfig in
-      (* --- List Provers -------------- *)
-      if !list_provers then
-        begin
-          Format.printf "Available Provers:@." ;
-          if Prover.Mdesc.is_empty allprovers then
-            Format.printf "  (none, use --detect)@." ;
-          Prover.Mdesc.iter (fun dp _ ->
-              Format.printf " - %a@." Prover.pp_desc dp
-            ) allprovers ;
-          if not @@ modified then list := false ;
-        end ;
-      if !list_tactics then
-        begin
-          Format.printf "Available Tactics:@." ;
-          Tactic.iter
-            (fun tac pp ->
-               Format.printf "@[<hov 3> - %s: %a@]@." tac
-                 Why3.Pp.formatted pp
-            ) ;
-          if not @@ modified then list := false ;
-        end ;
       (* --- Printing Final Config -------------- *)
       if !list then
         begin
