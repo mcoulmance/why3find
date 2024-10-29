@@ -10,9 +10,9 @@ development tasks, eg. configuring provers, proving files or interactively
 debugging proofs. In additional, it can be used to build enhanced documentation,
 package and install libraries or setup a distributed solver cloud.
 
-- [Quick Setup](#quick-usage)
+- [Quick Setup](#quick-setup)
 - [VSCode Integration](#vscode-integration)
-- [Why3 Packages](#why3-packages)
+- [Why3 Packages](#packages)
 - [Package Development](#package-development)
 - [Package Configuration](#package-configuration)
 - [Package Proving](#package-proving)
