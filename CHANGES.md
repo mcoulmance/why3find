@@ -48,6 +48,6 @@ All notable changes to the Why3find Platform will be documented in this file.
 
 - Preparing an OCaml API for Why3find (!87)
 
-## [1.0] — 2024-05-15
+## 1.0 — 2024-05-15
 
 - Initial release
