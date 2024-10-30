@@ -421,7 +421,7 @@ let velocity_provers (env : Why3find.Config.env) provers =
            Format.printf " - %-16s n=%d %a (velocity %.1f)@."
              name n Utils.pp_time tl a
          | None ->
-           Format.printf " - %-16s no calibration (use -m)@." name
+           Format.printf " - %-16s no calibration (use --master)@." name
       ) results ;
     Fibers.return () ;
   end

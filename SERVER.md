@@ -23,7 +23,7 @@ named the _Server Database_. This directory is composed of the following files
 and subdirectories:
 
 - `profile.json` contains the prover calibration data (Cf. `why3find config
-  -m`);
+  --master`);
 - `AGE/*` contains the proof cache entries for generation `AGE`, where `AGE=0`
   is the currently active generation and `AGE>0` are older ones.
 
