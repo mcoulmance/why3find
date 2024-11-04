@@ -63,18 +63,14 @@ let name = function
   | Thy th -> thy_name th
   | Sth(_,th) -> (S.theory_name th).id_string
 
-type goal =
+type task =
   | Task of T.task
   | Snode of S.session * S.proofNodeID * T.task
 
-let tasks = List.map (fun t -> Task t)
-let nodes s = List.map (fun n -> Snode(s,n,S.get_task s n))
-
-let split = function
-  | Thy th -> tasks @@ T.split_theory th None None
-  | Sth(s,th) -> nodes s @@ S.theory_goals th
-
-let split = Timer.timed ~name:"Split theories" split
+type goal = {
+  task : task;
+  idename : string;
+}
 
 let proof_name =
   let names = ref Mid.empty in
@@ -91,10 +87,32 @@ let task_name t = proof_name (T.task_goal t).pr_name
 let task_expl t =
   let (_, expl, _) = Why3.Termcode.goal_expl_task ~root:false t in
   expl
-let goal_task = function Task t | Snode(_,_,t) -> t
+
+let goal_of_task t =
+  { task = Task t ; idename = task_name t }
+
+let goal_of_node s n =
+  let t = S.get_task s n in
+  { task = Snode(s,n,t) ; idename = task_name t }
+
+let split = function
+  | Thy th -> List.map goal_of_task @@ T.split_theory th None None
+  | Sth(s,th) -> List.map (goal_of_node s) @@ S.theory_goals th
+
+let child_goal_of_task parent i t =
+  { task = Task t ; idename = Printf.sprintf "%s.%d" parent.idename i }
+
+let child_goal_of_node parent s i n =
+  let t = S.get_task s n in
+  { task = Snode(s,n,t) ; idename = Printf.sprintf "%s.%d" parent.idename i }
+
+let split = Timer.timed ~name:"Split theories" split
+
+let goal_task g = match g.task with Task t | Snode(_,_,t) -> t
 let goal_loc g = (T.task_goal (goal_task g)).pr_name.id_loc
 let goal_name g = task_name @@ goal_task g
 let goal_expl g = task_expl @@ goal_task g
+let goal_idename g = g.idename
 
 let pp_goal fmt g =
   Format.pp_print_string fmt (goal_name g) ;
@@ -104,21 +122,22 @@ let pp_goal fmt g =
 let silent : S.notifier = fun _ -> ()
 
 let result goal prv limit result =
-  match goal with
+  match goal.task with
   | Task _ -> ()
   | Snode(s,n,_) ->
     let _ = S.graft_proof_attempt s n prv ~limit in
     S.update_proof_attempt silent s n prv result ;
     S.update_goal_node silent s n
 
-let apply env tactic = function
+let apply env tactic goal =
+  match goal.task with
   | Task task ->
     begin
       try
         let tr = Tactic.name tactic in
         match Why3.Trans.apply_transform tr env task with
         | [ t' ] when Why3.Task.task_equal task t' -> None
-        | ts -> Some (tasks ts)
+        | ts -> Some (List.mapi (child_goal_of_task goal) ts)
       with _ -> None
     end
   | Snode(s,n,_) ->
@@ -130,7 +149,7 @@ let apply env tactic = function
         let tid = S.graft_transf s n tr [] ts in
         let ns = S.get_sub_tasks s tid in
         if ts = [] then S.update_trans_node silent s tid ;
-        Some (nodes s ns)
+        Some (List.mapi (child_goal_of_node goal s) ns)
       with _ -> None
     end
 

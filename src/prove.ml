@@ -207,7 +207,7 @@ let prove_theory ~goals ~file ~context mode profile buffer strategy theory =
          let replay = (mode = `Replay) in
          let+ crc =
            Crc.merge hint @+
-           Hammer.schedule profile ~replay ~depth:0 ~idename:goal task
+           Hammer.schedule profile ~replay ~depth:0 task
              (if mode = `Force then Crc.stuck () else hint)
          in
          Option.iter (Proofs.add theory task crc) buffer;
