@@ -488,6 +488,7 @@ let call_prover (config : Why3.Whyconf.main)
       in
       if !started then (Timer.stop timer; stop ?name ()) else unschedule () ;
       Option.iter (fun log ->
+          if log = stdout then Utils.flush ();
           Printf.fprintf log "%a\n" (Yojson.pretty_to_channel ~std:false)
             (`Assoc [
                 ("goal", `String (match idename with None -> "<none>" | Some s -> s));
