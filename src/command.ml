@@ -414,6 +414,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       let retval = ref 0 in
       let list_provers = ref false in
       let list_tactics = ref false in
+      let update () = strict := true; relax := true in
       parse_argv argv
         begin
           Wenv.options () @
@@ -429,6 +430,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
             "--list-tactics", Arg.Set list_tactics, "list available tactics";
             "--strict", Arg.Set strict, "commit prover versions";
             "--relax", Arg.Set relax, "relax prover versions";
+            "--update", Arg.Unit update, "update provers to latest version";
             "--check", Arg.Set check,
             "check that proof certificates conform to configuration" ;
           ]
@@ -508,8 +510,6 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
               config in
           patterns, provers
       in
-      if !strict && !relax then
-        Log.warning "--relax ignored because of --strict" ;
       let pnames = configuration patterns provers in
       let profile =
         if !calibrate then
@@ -566,7 +566,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           Format.printf " - runner: %d jobs" jobs ;
           if fast <> 0.2 then Format.printf ", %a" Utils.pp_time fast ;
           Format.printf ", %a@." Utils.pp_time time ;
-          if provers <> [] then
+          if pnames <> [] then
             Format.printf " - @[<hov 2>provers: %a@]@." pp_list pnames ;
         end ;
       if !list && tactics <> [] then
