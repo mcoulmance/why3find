@@ -16,11 +16,14 @@ All notable changes to the Why3find Platform will be documented in this file.
 - New option `--list-tactics` to list available tactics (!96)
 - New option `--strict` to pin provers to their current version (!90)
 - New option `--relax` to un-pin provers from their configured version (!90)
+- New option `--update` to update provers' pins to latest version (!143)
 - New option `--why3-debug` to enable Why3 debug flags (#88, !80)
 - New option `--why3-warn-off` to disable Why3 warnings (#88, !80)
 - Removed option `--extra-config` (no-more supported feature) (!79, !123)
 - New command `why3find lsp` (setup a Language Server Protocol) (!89)
 - Show maximal prover time and tactic depth after proving (!83)
+- `--detect` and `--default` options are now strict and pin the provers to
+  their current version (!137)
 
 ### VSCode Integration
 
