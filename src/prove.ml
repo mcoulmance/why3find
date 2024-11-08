@@ -410,6 +410,7 @@ type outcome = {
 let prove_files ~(env:Config.env) ~mode ~hammer ~session ~log ~axioms ~files
     ~goals =
   begin
+    let fast = env.config.fast in
     let time = env.config.time in
     let maxdepth = env.config.depth in
     let patterns = env.config.provers in
@@ -424,7 +425,7 @@ let prove_files ~(env:Config.env) ~mode ~hammer ~session ~log ~axioms ~files
     Hammer.run {
       env ;
       client = Client.connect env ; level = hammer ;
-      time ; maxdepth ; patterns ; provers ; tactics ; minimize ;
+      fast ; time ; maxdepth ; patterns ; provers ; tactics ; minimize ;
     } ;
     if Utils.tty then
       begin

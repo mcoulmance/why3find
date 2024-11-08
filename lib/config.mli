@@ -22,6 +22,7 @@
 (** {1 Configurations and Environments} *)
 
 type config = {
+  fast : float ;
   time : float ;
   depth : int ;
   packages : string list ;

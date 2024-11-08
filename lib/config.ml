@@ -20,6 +20,7 @@
 (**************************************************************************)
 
 type config = {
+  fast : float ;
   time : float ;
   depth : int ;
   packages : string list ;
@@ -50,6 +51,7 @@ let config_of_json json =
     Log.warning "Support for extra config files was removed in why3find 1.1.0.\
                  @ If you need this feature, please report this at %%PKG_ISSUES%%.";
   {
+    fast = get "fast" ~of_json:Json.jfloat ~default:0.2 json;
     time = get "time" ~of_json:Json.jfloat ~default:1.0 json;
     depth = get "depth" ~of_json:Json.jint ~default:4 json;
     packages = gets "packages" json;
@@ -67,6 +69,7 @@ let lists fd =
 
 let config_to_json config =
   let fields = [
+    "fast", `Float config.fast ;
     "time", `Float config.time ;
     "depth", `Int config.depth ;
     "packages", lists config.packages ;

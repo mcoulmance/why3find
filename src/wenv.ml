@@ -43,6 +43,7 @@ let move_to_root () =
 (* --- Command Line Options                                               --- *)
 (* -------------------------------------------------------------------------- *)
 
+let fast = ref None
 let time = ref None
 let depth = ref None
 let drvs = ref []
@@ -164,21 +165,22 @@ type opt = [
   | `Driver
 ]
 
-let settime s =
-  try setv time (Utils.pa_time s)
+let settime prm s =
+  try setv prm (Utils.pa_time s)
   with Invalid_argument _ -> Utils.failwith "Invalid time (-t %s)" s
 
 let alloptions : (opt * string * Arg.spec * string) list = [
   `All, "--root", Arg.Set_string chdir, "DIR change to directory";
   `All, "--why3-warn-off", Arg.String (add warn), "WRN,… disable why3 warnings";
   `Package, "--package", Arg.String (add pkgs), "±PKG,… add package dependency";
-  `Prover,  "--time", Arg.String settime, "TIME median proof time";
+  `Prover,  "--fast", Arg.String (settime fast), "TIME fast proof time (default 200ms)";
+  `Prover,  "--time", Arg.String (settime time), "TIME median proof time (default 1s)";
   `Prover,  "--depth", Arg.Int (setv depth), "DEPTH proof search limit";
   `Prover,  "--prover", Arg.String (add prvs), "±PRV,… configure provers";
   `Prover,  "--tactic", Arg.String (add tacs), "±TAC,… configure tactics";
   `Driver,  "--driver", Arg.String (add drvs), "±DRV,… configure drivers";
   `Package, "-p", Arg.String (add pkgs), " same as --package";
-  `Prover,  "-t", Arg.String settime, " same as --time";
+  `Prover,  "-t", Arg.String (settime time), " same as --time";
   `Prover,  "-d", Arg.Int (setv depth), " same as --depth";
   `Prover,  "-P", Arg.String (add prvs), " same as --prover";
   `Prover,  "-T", Arg.String (add tacs), " same as --tactic";
@@ -199,6 +201,7 @@ let options ?(packages=false) ?(provers=false) ?(drivers=false) () =
        else None
     ) alloptions
 
+let fast config = getv config.Config.fast fast
 let time config = getv config.Config.time time
 let depth config = getv config.Config.depth depth
 let packages config = gets config.Config.packages pkgs
@@ -260,6 +263,7 @@ let load_raw_config () =
 
 let add_options config =
   Config.{
+    fast = fast config ;
     time = time config ;
     depth = depth config ;
     packages = packages config ;

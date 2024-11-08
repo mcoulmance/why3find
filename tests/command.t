@@ -186,7 +186,8 @@
     --root DIR change to directory
     --why3-warn-off WRN,… disable why3 warnings
     --package ±PKG,… add package dependency
-    --time TIME median proof time
+    --fast TIME fast proof time (default 200ms)
+    --time TIME median proof time (default 1s)
     --depth DEPTH proof search limit
     --prover ±PRV,… configure provers
     --tactic ±TAC,… configure tactics
@@ -233,7 +234,8 @@
     --root DIR change to directory
     --why3-warn-off WRN,… disable why3 warnings
     --package ±PKG,… add package dependency
-    --time TIME median proof time
+    --fast TIME fast proof time (default 200ms)
+    --time TIME median proof time (default 1s)
     --depth DEPTH proof search limit
     --prover ±PRV,… configure provers
     --tactic ±TAC,… configure tactics
