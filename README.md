@@ -240,7 +240,7 @@ user-defined reference time, registered provers and tactics. It consists
 in several _rounds_ tried in sequence until proof completion:
 
 1. Fast sequential provers: each configured prover is tried in _sequence_ with a
-   short timeout (1/5 of the reference time).
+   short timeout (1/5 of the reference time, up to fast-time proof).
 
 2. Parallel provers: all provers are tried in _parallel_ with the reference time
    as timeout.
@@ -265,6 +265,11 @@ The reference time is set to one second by default and can be modified with
 suffix time units (`h`,`min`,`s`,`ms`) can be given, eg. `0.5`, `200ms`, `3min`.
 The reference time is specified relatively to the *master* machine, Cf. prover
 calibration below.
+
+Fast time proof is set to 200ms by default. Use option `why3find config --fast
+TIME` to configure it. Notice that the fast-proving step must wait for _all_
+provers to fail with this fast timeout before entering parallel proving or
+applying strategies. Hence, fast-proof time shall be kept relatively small.
 
 Proof search is pruned after a maximal number of nested levels. The default
 depth is 6 and it can be modified with `-d DEPTH` or configured using `why3find
