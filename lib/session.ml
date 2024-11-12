@@ -108,7 +108,8 @@ let result goal prv limit result =
   | Task _ -> ()
   | Snode(s,n,_) ->
     let _ = S.graft_proof_attempt s n prv ~limit in
-    S.update_proof_attempt silent s n prv result
+    S.update_proof_attempt silent s n prv result ;
+    S.update_goal_node silent s n
 
 let apply env tactic = function
   | Task task ->
@@ -128,6 +129,7 @@ let apply env tactic = function
         let ts = S.apply_trans_to_goal s env ~allow_no_effect tr [] n in
         let tid = S.graft_transf s n tr [] ts in
         let ns = S.get_sub_tasks s tid in
+        if ts = [] then S.update_trans_node silent s tid ;
         Some (nodes s ns)
       with _ -> None
     end
