@@ -484,6 +484,11 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       (* --- Provers ----- *)
       let fast = config.fast in
       let time = config.time in
+      if fast > time then
+        Log.warning
+          "Fast proof time (%a) is larger than mean time (%a).@\n\
+           This may lead to performance loss."
+          Utils.pp_time fast Utils.pp_time time ;
       let patterns, provers =
         if !default || !detect then
           let provers = Prover.default env.wenv in
