@@ -34,6 +34,7 @@ All notable changes to the Why3find Platform will be documented in this file.
 
 ### Bug Fixes
 
+- Optimized fast sequential proof step (Cf. README, !144)
 - Fix documentation links to internal modules (#75, !130)
 - Avoid redundant warnings (#98, !126)
 - Keep stuck goals in proof.json (#102, !121)
