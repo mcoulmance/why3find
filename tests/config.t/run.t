@@ -7,6 +7,7 @@
   Why3find config saved to $TESTCASE_ROOT/why3find.json
   $ cat why3find.json
   {
+    "fast": 0.2,
     "time": 1,
     "depth": 2,
     "packages": [],

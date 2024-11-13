@@ -9,6 +9,7 @@ All notable changes to the Why3find Platform will be documented in this file.
 - Renamed option `-m` into `--master` (#99, !127)
 - Renamed option `-v` into `--velocity` (#99, !127)
 - New option `-H n` to run the proof strategy up to step n (!118)
+- New option `--fast t` to set fast prover timeout (!144)
 - New option `--log-prover-results` to dump JSON prover results (!92)
 - New option `--list-provers` to list available provers (!96)
 - New option `--list-tactics` to list available tactics (!96)
@@ -33,6 +34,7 @@ All notable changes to the Why3find Platform will be documented in this file.
 
 ### Bug Fixes
 
+- Optimized fast sequential proof step (Cf. README, !144)
 - Fix documentation links to internal modules (#75, !130)
 - Avoid redundant warnings (#98, !126)
 - Keep stuck goals in proof.json (#102, !121)

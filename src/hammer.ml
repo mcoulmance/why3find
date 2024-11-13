@@ -28,6 +28,7 @@ open Fibers.Monad
 
 type henv = {
   env : Config.env ;
+  fast : float ;
   time : float ;
   client : Client.client option ;
   level : int ;
@@ -164,9 +165,8 @@ let apply h tac ?(hint : hint option) : strategy = fun n ->
 (* -------------------------------------------------------------------------- *)
 
 let hammer0 h : strategy =
-  if h.level > 0 then
-    let time = h.time *. 0.2 in
-    sequence (fun prv -> prove h.env prv time) h.provers
+  if h.level > 0 && h.fast > 0.0 && List.length h.provers > 1
+  then sequence (fun prv -> prove h.env prv h.fast) h.provers
   else fail
 
 let hammer13 h time : strategy = fun n ->
@@ -188,10 +188,10 @@ let hammer2 ?hint h : strategy =
   else fail
 
 let hammer henv =
-  hammer0 henv >>>
-  hammer1 henv >>>
-  hammer2 henv >>>
-  hammer3 henv
+  hammer0 henv >>> (* level -H 1 *)
+  hammer1 henv >>> (* level -H 2 *)
+  hammer2 henv >>> (* level -H 3 *)
+  hammer3 henv     (* level -H 4 *)
 
 (* -------------------------------------------------------------------------- *)
 (* --- Node Processing                                                    --- *)

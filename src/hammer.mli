@@ -39,6 +39,7 @@ val schedule :
 
 type henv = {
   env : Config.env ;
+  fast : float ;
   time : float ;
   client : Client.client option ;
   level : int ;

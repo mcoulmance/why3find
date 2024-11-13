@@ -482,7 +482,13 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           List.iter (Format.printf " - %s@.") pkgs ;
         end ;
       (* --- Provers ----- *)
+      let fast = config.fast in
       let time = config.time in
+      if fast > time then
+        Log.warning
+          "Fast proof time (%a) is larger than mean time (%a).@\n\
+           This may lead to performance loss."
+          Utils.pp_time fast Utils.pp_time time ;
       let patterns, provers =
         if !default || !detect then
           let provers = Prover.default env.wenv in
@@ -542,8 +548,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       (* --- New Configuration --------- *)
       let newprofile = match profile with None -> config.profile | _ -> profile in
       let newconfig = Config.{
-          time ;
-          depth ;
+          fast ; time ; depth ;
           packages = pkgs ;
           provers = patterns ;
           profile = newprofile ;
@@ -558,8 +563,9 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
         begin
           let jobs = Runner.maxjobs wmain in
           Format.printf "Configuration:@." ;
-          Format.printf " - runner: %d jobs, %a@."
-            jobs Utils.pp_time time ;
+          Format.printf " - runner: %d jobs" jobs ;
+          if fast <> 0.2 then Format.printf ", %a" Utils.pp_time fast ;
+          Format.printf ", %a@." Utils.pp_time time ;
           if provers <> [] then
             Format.printf " - @[<hov 2>provers: %a@]@." pp_list pnames ;
         end ;
