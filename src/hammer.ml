@@ -165,7 +165,7 @@ let apply h tac ?(hint : hint option) : strategy = fun n ->
 (* -------------------------------------------------------------------------- *)
 
 let hammer0 h : strategy =
-  if h.level > 0 && h.fast > 0.0
+  if h.level > 0 && h.fast > 0.0 && List.length h.provers > 1
   then sequence (fun prv -> prove h.env prv h.fast) h.provers
   else fail
 
