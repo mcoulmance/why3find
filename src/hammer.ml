@@ -165,9 +165,8 @@ let apply h tac ?(hint : hint option) : strategy = fun n ->
 (* -------------------------------------------------------------------------- *)
 
 let hammer0 h : strategy =
-  if h.level > 0 && h.fast > 0.0 then
-    let fast = min (h.time *. 0.2) (max h.time h.fast) in
-    sequence (fun prv -> prove h.env prv fast) h.provers
+  if h.level > 0 && h.fast > 0.0
+  then sequence (fun prv -> prove h.env prv h.fast) h.provers
   else fail
 
 let hammer13 h time : strategy = fun n ->

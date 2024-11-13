@@ -240,7 +240,7 @@ user-defined reference time, registered provers and tactics. It consists
 in several _rounds_ tried in sequence until proof completion:
 
 1. Fast sequential provers: each configured prover is tried in _sequence_ with a
-   short timeout (1/5 of the reference time, up to fast-time proof).
+   short timeout (also called the fast-time proof).
 
 2. Parallel provers: all provers are tried in _parallel_ with the reference time
    as timeout.
