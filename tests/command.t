@@ -211,6 +211,7 @@
     --list-tactics list available tactics
     --strict commit prover versions
     --relax relax prover versions
+    --update update provers to latest version
     --check check that proof certificates conform to configuration
     --debug FLAG Activate the given debug flag (eg default)
     --why3-debug FLAG Activate the given Why3 debug flag

@@ -43,6 +43,7 @@
   Warning: prover alt-ergo@2.4.2 not configured (project)
   Configuration:
    - runner: 2 jobs, 1.0s
+   - provers: (?foo), (?bar)
    - tactics: split_vc (depth 4)
   Summary:
   Warning: prover foo not found (why3)
