@@ -28,6 +28,7 @@ type config = {
   tactics : string list ;
   drivers : string list ;
   warnoff : string list ;
+  preprocess : string option ;
   profile : Json.t option ; (* We'll keep it like that for now *)
 }
 
@@ -42,6 +43,11 @@ let load_raw_config p =
 let get ~of_json ~default name json =
   try of_json (Json.jfield_exn name json) with
   | Not_found -> default
+
+let geto ~of_json name json =
+  match Json.jfield_exn name json with
+  | exception Not_found | `Null -> None
+  | js -> Some (of_json js)
 
 let gets name ?(default=[]) json =
   get ~of_json:Json.jstringlist ~default name json
@@ -59,10 +65,15 @@ let config_of_json json =
     tactics = gets "tactics" ~default:["split_vc"] json;
     drivers = gets "drivers" json;
     warnoff = gets "warnoff" json;
+    preprocess = geto "preprocess" ~of_json:Json.jstring json;
     profile = get ~of_json:Option.some ~default:None "profile" json;
   }
 
 let default = config_of_json `Null
+
+let option ~to_json = function
+  | None -> `Null
+  | Some s -> to_json s
 
 let lists fd =
   `List (List.map (fun s -> `String s) fd)
@@ -77,8 +88,10 @@ let config_to_json config =
     "tactics", lists config.tactics ;
     "drivers", lists config.drivers ;
     "warnoff", lists config.warnoff ;
-  ] @ Option.fold ~none:[] ~some:(fun p -> [ "profile", p ]) config.profile in
-  `Assoc fields
+    "preprocess", option ~to_json:Json.string config.preprocess ;
+    "profile", option ~to_json:Fun.id config.profile
+  ] in
+  Json.assoc ~keepnull:false fields
 
 let load_config p =
   config_of_json @@ load_raw_config p

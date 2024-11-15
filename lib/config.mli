@@ -30,6 +30,7 @@ type config = {
   tactics : string list ;
   drivers : string list ;
   warnoff : string list ;
+  preprocess : string option ;
   profile : Json.t option ; (* We'll keep it like that for now *)
 }
 (** The project configuration type *)

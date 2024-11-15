@@ -151,6 +151,7 @@ The common options are given below:
     -P|--prover PRV       # Provers to be used
     -T|--tactic TAC       # Tactics to be used
     -D|--driver DRV       # Extraction driver to be used for OCaml
+    --preprocess TAC      # Preprocessing tactic (see below)
 
 Package, prover, tactic and driver options can be used to specify multiple items
 at a time. Finer management is possible using modifier flags. Flag `+` adds
@@ -234,6 +235,9 @@ a module name or a module and an individual goal. For instance:
 It is possible to select several modules or several goals at a time.
 Notice that proof statistics will then only account for the
 selected goals, and not for the entire file(s).
+
+The *Preprocessing Tactic* is applied to each goal prior to the execution of
+the proof strategy.
 
 *Proving Strategy* for building proof certificates is a heuristic based on
 user-defined reference time, registered provers and tactics. It consists
