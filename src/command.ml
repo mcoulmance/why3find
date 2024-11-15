@@ -596,6 +596,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       let mode = ref `Update in
       let hammer = ref 4 in
       let axioms = ref false in
+      let details = ref false in
       let set m v () = m := v in
       let add r p = r := p :: !r in
       let context n = log := `Context n in
@@ -613,6 +614,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
             "-x", Arg.Unit failed, "show context on failed proof (tty only)";
             "-i", Arg.Set ide, "run Why3 IDE on failed proof (implies -s)";
             "-s", Arg.Set session, "save why3 session";
+            "-l", Arg.Set details, "performance details (cache, prover, tactics)";
             "-a", Arg.Set axioms, "report axioms and parameters";
             "-H", Arg.Set_int hammer, "[0-4] hammer strategy level (default 4)";
           ] @
@@ -642,7 +644,9 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       let files = Wenv.argfiles @@ List.rev files in
       let goals = List.rev !goals in
       let result = Prove.prove_files
-          ~env ~mode ~hammer ~session ~log:!log ~axioms:!axioms ~files ~goals in
+          ~env ~mode ~hammer ~session
+          ~log:!log ~axioms:!axioms ~details:!details
+          ~files ~goals in
       let n = List.length result.unfixed in
       if n > 0 then
         begin

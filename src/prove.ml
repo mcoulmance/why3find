@@ -453,8 +453,9 @@ type outcome = {
   unfixed : string list ;
 }
 
-let prove_files ~(env:Config.env) ~mode ~hammer ~session ~log ~axioms ~files
-    ~goals =
+let prove_files ~(env:Config.env)
+    ~mode ~hammer ~session ~log ~axioms ~details
+    ~files ~goals =
   begin
     let fast = env.config.fast in
     let time = env.config.time in
@@ -473,13 +474,15 @@ let prove_files ~(env:Config.env) ~mode ~hammer ~session ~log ~axioms ~files
       client = Client.connect env ; level = hammer ;
       fast ; time ; maxdepth ; patterns ; provers ; tactics ; minimize ;
     } ;
-    if Utils.tty then
+    Utils.flush () ;
+    if Utils.tty || details then
       begin
-        Utils.flush () ;
         Runner.print_stats () ;
-        print_stats provers tactics ;
-        if axioms then print_axioms_stats () ;
+        print_stats
+          (if details then provers else [])
+          (if details then tactics else []) ;
       end ;
+    if axioms then print_axioms_stats () ;
     {
       provers ; tactics ;
       time = max 1 (int_of_float (0.5 +. time)) ;
