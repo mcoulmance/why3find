@@ -9,6 +9,8 @@ All notable changes to the Why3find Platform will be documented in this file.
 - Renamed option `-m` into `--master` (#99, !127)
 - Renamed option `-v` into `--velocity` (#99, !127)
 - New option `-l` for detailed statistics (!83, !146)
+- New option `--preprocess <tactic>` to apply tactic before starting the proof
+  strategy (!142)
 - New option `-g <name>` to select goal(s) to be proven (!114)
 - New option `-H n` to run the proof strategy up to step n (!118)
 - New option `--fast t` to set fast prover timeout (!144)
