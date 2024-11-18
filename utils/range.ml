@@ -28,14 +28,14 @@ type range = pos * pos
 
 let pp_pos fmt (l,c) = Format.fprintf fmt "line %d, character %d" l (succ c)
 
-let (<<) (l1,c1) (l2,c2) = l1 < l2 || (l1 = l2 && c1 < c2)
-let (<<=) (l1,c1) (l2,c2) = l1 < l2 || (l1 = l2 && c1 <= c2)
-let (<<<) (_,b) (c,_) = b <<= c
+let (<<) ((l1,c1):pos) ((l2,c2):pos) = l1 < l2 || (l1 = l2 && c1 < c2)
+let (<<=) ((l1,c1):pos) ((l2,c2):pos) = l1 < l2 || (l1 = l2 && c1 <= c2)
+let (<<<) ((_,b):range) ((c,_):range) = b <<= c
 
-let start = (1,0)
-let next (l,c) = (l,succ c)
-let prev (l,c) = (l,pred c)
-let newline (l,_) = (succ l,0)
+let start : pos = (1,0)
+let next ((l,c):pos) = (l,succ c)
+let prev ((l,c):pos) = (l,pred c)
+let newline ((l,_):pos) = (succ l,0)
 let after p = function '\n' -> newline p | _ -> next p
 let pp_range fmt ((l,c),(l',d)) =
   if l = l' then
@@ -46,7 +46,7 @@ let pp_range fmt ((l,c),(l',d)) =
 let pp_position fmt ~file r =
   Format.fprintf fmt "file %S, %a" file pp_range r
 
-let empty = (0,0),(0,0)
+let empty : range = (0,0),(0,0)
 let is_empty (a,b) = b <<= a
 
 let inside p (a,b) = a <<= p && p << b
