@@ -258,6 +258,7 @@
     -x show context on failed proof (tty only)
     -i run Why3 IDE on failed proof (implies -s)
     -s save why3 session
+    -l performance details (cache, prover, tactics)
     -a report axioms and parameters
     -H [0-4] hammer strategy level (default 4)
     --host HOST Proof Server host (default: none)

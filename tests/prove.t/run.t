@@ -9,6 +9,10 @@
     External   param int.Int.(+) (stdlib, builtin, extern)
     External   param int.Int.(*) (stdlib, builtin, extern)
     External   param int.Int.(<) (stdlib, builtin, extern)
+  Hypotheses:
+   - parameter: 1
+   - hypothesy: 1
+   - externalized: 5
   $ cat foo/proof.json
   {
     "profile": [ { "prover": "alt-ergo@2.4.2", "size": 16, "time": 0.1852 } ],

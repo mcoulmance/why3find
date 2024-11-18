@@ -47,6 +47,26 @@ let btime = ref 0.0
 let (+=) r n = r := !r + n
 let (^=) r t = r := max !r t
 
+let provers : (string,Stats.stats) Hashtbl.t = Hashtbl.create 0
+let tactics : (string,int ref) Hashtbl.t = Hashtbl.create 0
+
+let rec full_stats (p : Crc.crc) =
+  match p.status with
+  | Stuck -> ()
+  | Prover(p,t) ->
+    let id = Prover.desc_to_string p in
+    let stat =
+      try Hashtbl.find provers id with Not_found ->
+        let s = Stats.create () in
+        Hashtbl.add provers id s ; s
+    in Stats.add stat t
+  | Tactic { id ; children } ->
+    let stat =
+      try Hashtbl.find tactics id with Not_found ->
+        let s = ref 0 in
+        Hashtbl.add tactics id s ; s
+    in incr stat ; List.iter full_stats children
+
 let rec node_stats (a : Crc.crc) (b : Crc.crc) =
   begin
     match a.status, b.status with
@@ -93,13 +113,31 @@ let rec node_stats (a : Crc.crc) (b : Crc.crc) =
 let stats a b =
   begin
     node_stats a b ;
+    full_stats b ;
     adepth ^= Crc.get_depth a ;
     bdepth ^= Crc.get_depth b ;
     atime ^= Crc.get_time a ;
     btime ^= Crc.get_time b ;
   end
 
-let print_stats () =
+let print_time fmt =
+  begin
+    Utils.pp_time fmt !btime ;
+    let d = !btime -. !atime in
+    if abs_float d > 0.01 then
+      Format.fprintf fmt " (%a)" Utils.pp_delta d ;
+  end
+
+let print_depth fmt =
+  if !bdepth > 0 || !adepth > 0 then
+    begin
+      Format.fprintf fmt ", depth: %d" !bdepth ;
+      let d = !bdepth - !adepth in
+      if d < 0 then Format.fprintf fmt " (%d)" d ;
+      if d > 0 then Format.fprintf fmt " (+%d)" d ;
+    end
+
+let print_stats allprovers alltactics =
   begin
     Utils.flush () ;
     Format.printf "Proofs %t"
@@ -123,20 +161,28 @@ let print_stats () =
         if !broken > 0 then
           Format.printf " - broken: @{<red>%d@}@\n" !broken ;
       end ;
-    Format.printf "Provers %a%t@." Utils.pp_time !btime
-      (fun fmt ->
-         let d = !btime -. !atime in
-         if abs_float d > 0.01 then
-           Format.fprintf fmt " (%a)" Utils.pp_delta d ;
-         if !bdepth > 0 || !adepth > 0 then
-           begin
-             Format.fprintf fmt " (depth: %d" !bdepth ;
-             let d = !bdepth - !adepth in
-             if d < 0 then Format.fprintf fmt ", %d)" d else
-             if d > 0 then Format.fprintf fmt ", +%d)" d else
-               Format.fprintf fmt ")"
-           end
-      ) ;
+    Format.printf "Provers %t%t@\n" print_time print_depth ;
+    List.iter
+      (fun (prv : Prover.prover) ->
+         try
+           let id = Prover.fullname prv in
+           let s = Hashtbl.find provers id in
+           Format.printf " - %-20s (%4d) (%a - %a - %a)@\n"
+             id (Stats.count s)
+             Utils.pp_rtime (Stats.min s)
+             Utils.pp_rtime (Stats.average s)
+             Utils.pp_rtime (Stats.max s)
+         with Not_found -> ()
+      ) allprovers ;
+    List.iter
+      (fun (tac : Tactic.tactic) ->
+         try
+           let id = Tactic.name tac in
+           let s = Hashtbl.find tactics id in
+           Format.printf " - %-20s (%4d)@\n" id !s
+         with Not_found -> ()
+      ) alltactics ;
+    Format.print_flush ()
   end
 
 (* -------------------------------------------------------------------------- *)
@@ -407,8 +453,9 @@ type outcome = {
   unfixed : string list ;
 }
 
-let prove_files ~(env:Config.env) ~mode ~hammer ~session ~log ~axioms ~files
-    ~goals =
+let prove_files ~(env:Config.env)
+    ~mode ~hammer ~session ~log ~axioms ~details
+    ~files ~goals =
   begin
     let fast = env.config.fast in
     let time = env.config.time in
@@ -427,13 +474,15 @@ let prove_files ~(env:Config.env) ~mode ~hammer ~session ~log ~axioms ~files
       client = Client.connect env ; level = hammer ;
       fast ; time ; maxdepth ; patterns ; provers ; tactics ; minimize ;
     } ;
-    if Utils.tty then
+    Utils.flush () ;
+    if Utils.tty || details then
       begin
-        Utils.flush () ;
         Runner.print_stats () ;
-        print_stats () ;
-        if axioms then print_axioms_stats () ;
+        print_stats
+          (if details then provers else [])
+          (if details then tactics else []) ;
       end ;
+    if axioms then print_axioms_stats () ;
     {
       provers ; tactics ;
       time = max 1 (int_of_float (0.5 +. time)) ;
