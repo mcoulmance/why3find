@@ -156,7 +156,11 @@ let getv fd r =
 let geto fd r =
   match !r with
   | None -> fd
-  | Some _ -> !r
+  | Some a when a = "none" -> None
+  | Some a ->
+    match parse_arg ~mode:Set a with
+    | (Set | Add | Move _), a -> Some a
+    | Sub, a -> Option.bind fd (fun s -> if s = a then None else fd)
 
 let add r a =
   r := a :: !r
@@ -184,7 +188,7 @@ let alloptions : (opt * string * Arg.spec * string) list = [
   `Prover,  "--depth", Arg.Int (setv depth), "DEPTH proof search limit";
   `Prover,  "--prover", Arg.String (add prvs), "±PRV,… configure provers";
   `Prover,  "--tactic", Arg.String (add tacs), "±TAC,… configure tactics";
-  `Prover,  "--preprocess", Arg.String (setv prep), "±TAC,… configure preprocessing tactics";
+  `Prover,  "--preprocess", Arg.String (setv prep), "±TAC configure the preprocessing tactic";
   `Driver,  "--driver", Arg.String (add drvs), "±DRV,… configure drivers";
   `Package, "-p", Arg.String (add pkgs), " same as --package";
   `Prover,  "-t", Arg.String (settime time), " same as --time";

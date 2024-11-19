@@ -191,7 +191,7 @@
     --depth DEPTH proof search limit
     --prover ±PRV,… configure provers
     --tactic ±TAC,… configure tactics
-    --preprocess ±TAC,… configure preprocessing tactics
+    --preprocess ±TAC configure the preprocessing tactic
     --driver ±DRV,… configure drivers
     -p  same as --package
     -t  same as --time
@@ -241,7 +241,7 @@
     --depth DEPTH proof search limit
     --prover ±PRV,… configure provers
     --tactic ±TAC,… configure tactics
-    --preprocess ±TAC,… configure preprocessing tactics
+    --preprocess ±TAC configure the preprocessing tactic
     --driver ±DRV,… configure drivers
     -p  same as --package
     -t  same as --time

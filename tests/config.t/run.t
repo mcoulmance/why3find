@@ -113,3 +113,22 @@
     "warnoff": [],
     "preprocess": "compute_specified"
   }
+
+  $ WHY3CONFIG=why3.conf why3find config --preprocess -compute_specified
+  Configuration:
+   - runner: 4 jobs, 1.0s
+   - provers: alt-ergo(2.4.2), z3(4.8.15)
+   - tactics: split_vc, inline_goal (depth 2)
+  Why3find config saved to $TESTCASE_ROOT/why3find.json
+
+  $ cat why3find.json
+  {
+    "fast": 0.2,
+    "time": 1,
+    "depth": 2,
+    "packages": [],
+    "provers": [ "alt-ergo", "z3" ],
+    "tactics": [ "split_vc", "inline_goal" ],
+    "drivers": [],
+    "warnoff": []
+  }
