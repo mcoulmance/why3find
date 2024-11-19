@@ -50,8 +50,8 @@ val goal_name : goal -> string
 val goal_loc : goal -> Loc.position option
 val goal_task : goal -> Task.task
 val goal_expl : goal -> string
-val pp_goal : Format.formatter -> goal -> unit
 val goal_idename : goal -> string
+val pp_goal : Format.formatter -> goal -> unit
 
 val thy_name : Theory.theory -> string
 val proof_name : Ident.ident -> string
