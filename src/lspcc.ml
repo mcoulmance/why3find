@@ -273,6 +273,7 @@ let rec provers m (crc : Crc.crc) =
 let pp_verdict fmt = function
   | `Valid 0 -> Format.pp_print_string fmt "Valid (no goal)"
   | `Valid _ -> Format.pp_print_string fmt "Valid"
+  | `Failed 1 -> Format.fprintf fmt "No Proof"
   | `Failed n -> Format.fprintf fmt "Failed (%d goals)" n
   | `Partial (s,n) -> Format.fprintf fmt "Partial (%d/%d)" s n
 
@@ -392,7 +393,7 @@ let pp_field fmt (f : Why3.Term.lsymbol option) =
   match f with
   | None -> ()
   | Some ls ->
-    Format.fprintf fmt "@ @[<hov 2>%a:@ %a@]"
+    Format.fprintf fmt "@ @[<hov 2>%a:@ %a ;@]"
       pp_name ls.ls_name
       pp_type (Option.value ~default:Why3.Ty.ty_bool ls.ls_value)
 
