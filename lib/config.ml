@@ -28,6 +28,7 @@ type config = {
   tactics : string list ;
   drivers : string list ;
   warnoff : string list ;
+  preprocess : string option ;
   profile : Json.t option ; (* We'll keep it like that for now *)
 }
 
@@ -59,6 +60,7 @@ let config_of_json json =
     tactics = gets "tactics" ~default:["split_vc"] json;
     drivers = gets "drivers" json;
     warnoff = gets "warnoff" json;
+    preprocess = Json.(joption jstring @@ jfield "preprocess" json);
     profile = get ~of_json:Option.some ~default:None "profile" json;
   }
 
@@ -77,8 +79,10 @@ let config_to_json config =
     "tactics", lists config.tactics ;
     "drivers", lists config.drivers ;
     "warnoff", lists config.warnoff ;
-  ] @ Option.fold ~none:[] ~some:(fun p -> [ "profile", p ]) config.profile in
-  `Assoc fields
+    "preprocess", Json.option_map Json.string config.preprocess ;
+    "profile", Json.option_map Fun.id config.profile
+  ] in
+  Json.assoc ~keepnull:false fields
 
 let load_config p =
   config_of_json @@ load_raw_config p

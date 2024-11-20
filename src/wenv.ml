@@ -51,6 +51,7 @@ let pkgs = ref []
 let prvs = ref []
 let tacs = ref []
 let warn = ref []
+let prep = ref None
 
 (* -------------------------------------------------------------------------- *)
 (* --- Variable Argument Processing                                       --- *)
@@ -152,6 +153,15 @@ let getv fd r =
   | Some v -> v
   | None -> fd
 
+let geto fd r =
+  match !r with
+  | None -> fd
+  | Some a when a = "none" -> None
+  | Some a ->
+    match parse_arg ~mode:Set a with
+    | (Set | Add | Move _), a -> Some a
+    | Sub, a -> Option.bind fd (fun s -> if s = a then None else fd)
+
 let add r a =
   r := a :: !r
 
@@ -178,6 +188,7 @@ let alloptions : (opt * string * Arg.spec * string) list = [
   `Prover,  "--depth", Arg.Int (setv depth), "DEPTH proof search limit";
   `Prover,  "--prover", Arg.String (add prvs), "±PRV,… configure provers";
   `Prover,  "--tactic", Arg.String (add tacs), "±TAC,… configure tactics";
+  `Prover,  "--preprocess", Arg.String (setv prep), "±TAC configure the preprocessing tactic";
   `Driver,  "--driver", Arg.String (add drvs), "±DRV,… configure drivers";
   `Package, "-p", Arg.String (add pkgs), " same as --package";
   `Prover,  "-t", Arg.String (settime time), " same as --time";
@@ -209,6 +220,7 @@ let provers config = gets config.Config.provers prvs
 let tactics config = gets config.Config.tactics tacs
 let drivers config = gets config.Config.drivers drvs
 let warnoff config = gets config.Config.warnoff warn
+let preprocess config = geto config.Config.preprocess prep
 
 let arg0 file =
   if Filename.is_relative file then Filename.concat !prefix file else file
@@ -271,6 +283,7 @@ let add_options config =
     tactics = tactics config ;
     drivers = drivers config ;
     warnoff = warnoff config ;
+    preprocess = preprocess config ;
     profile = config.profile ;
   }
 

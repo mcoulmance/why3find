@@ -523,6 +523,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       (* --- Transformations ----- *)
       let depth = config.depth in
       let tactics = config.tactics in
+      let preprocess = config.preprocess in
       (* --- Drivers ----- *)
       let drivers = config.drivers in
       (* --- Disabled warnings ----- *)
@@ -555,6 +556,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           tactics ;
           drivers ;
           warnoff ;
+          preprocess ;
         } in
       let jconfig = Config.config_to_json newconfig in
       let modified = not @@ Json.equal jconfig rawconfig in
@@ -572,6 +574,9 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       if !list && tactics <> [] then
         Format.printf " - @[<hov 2>tactics: %a@ (depth %d)@]@."
           pp_list tactics depth;
+      if !list && preprocess <> None then
+        Format.printf " - @[<hov 2>preprocessing tactic: %s@]@."
+          (Option.get preprocess);
       if !list && drivers <> [] then
         Format.printf " - @[<hov 2>drivers: %a@]@." pp_list drivers ;
       (* --- Updating -------------- *)

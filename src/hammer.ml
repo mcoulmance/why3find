@@ -42,7 +42,6 @@ type henv = {
 type node = {
   depth : int ;
   profile : Calibration.profile ;
-  idename : string;
   goal : Session.goal ;
   hint : crc ;
   replay : bool ;
@@ -57,10 +56,10 @@ let q1 : node Queue.t = Queue.create ()
 let q2 : node Queue.t = Queue.create ()
 
 (* idename should be the goal name as in Why3 IDE *)
-let schedule profile ~replay ~depth ~idename goal hint =
+let schedule profile ~replay ~depth goal hint =
   let result = Fibers.var () in
   Queue.push
-    { profile ; idename; goal ; hint ; replay ; depth ; result }
+    { profile ; goal ; hint ; replay ; depth ; result }
     (if is_complete hint then q2 else q1) ;
   result
 
@@ -110,7 +109,7 @@ let prove env ?client ?cancel prover timeout : strategy = fun n ->
         Fibers.map to_profile @@
         Fibers.finally ~callback:(Runner.update prover n.goal) @@
         Runner.prove_prepared wmain ~name ~cancel:kill ~callback
-          prover task runner_time ~idename:n.idename
+          prover task runner_time ~idename:(Session.goal_idename n.goal)
       in match client with
       | None -> runner
       | Some cl ->
@@ -138,16 +137,14 @@ let pp_hint fmt (h : hint) = Tactic.pretty fmt (fst h)
 (* --- Try Transformation on Node                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
-let rec subgoals ({ profile ; replay ; depth } as n) i goals hints =
+let rec subgoals ({ profile ; replay ; depth } as n) goals hints =
   match goals, hints with
   | [], _ -> []
   | g::gs, [] ->
     let h = Crc.stuck () in
-    let idename = Printf.sprintf "%s.%d" n.idename i in
-    schedule profile ~replay ~depth:(succ depth) ~idename g h :: subgoals n (i+1) gs []
+    schedule profile ~replay ~depth:(succ depth) g h :: subgoals n gs []
   | g::gs, h::hs ->
-    let idename = Printf.sprintf "%s.%d" n.idename i in
-    schedule profile ~replay ~depth:(succ depth) ~idename g h :: subgoals n (i+1) gs hs
+    schedule profile ~replay ~depth:(succ depth) g h :: subgoals n gs hs
 
 let apply h tac ?(hint : hint option) : strategy = fun n ->
   if n.depth > h.maxdepth then stuck n else
@@ -158,7 +155,7 @@ let apply h tac ?(hint : hint option) : strategy = fun n ->
         match hint with
         | Some(t,hs) when Tactic.equal t tac -> hs
         | _ -> []
-      in Crc.tactic ~goal:n.goal tac @+ Fibers.all @@ subgoals n 0 gs hs
+      in Crc.tactic ~goal:n.goal tac @+ Fibers.all @@ subgoals n gs hs
 
 (* -------------------------------------------------------------------------- *)
 (* --- Hammer Strategy                                                    --- *)
@@ -211,7 +208,7 @@ let replay ~hint h n =
   let rec iter = function
     | [] ->
       Log.warning "Goal %S: tactic '%a' not in strategy"
-        n.idename pp_hint hint ;
+        (Session.goal_name n.goal) pp_hint hint ;
       stuck n
     | t::ts ->
       if Tactic.equal t (fst hint) then
@@ -221,7 +218,7 @@ let replay ~hint h n =
         | None -> iter ts
         | Some _ ->
           Log.warning "Goal %S: tactic '%a' shadowed by '%a'"
-            n.idename pp_hint hint Tactic.pretty t ;
+            (Session.goal_name n.goal) pp_hint hint Tactic.pretty t ;
           stuck n
   in iter h.tactics
 
