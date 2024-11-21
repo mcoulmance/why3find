@@ -1,7 +1,7 @@
 (library
  (name why3find)
  (public_name why3find)
- (flags "-open" "Why3findUtils")
+ (flags (:standard "-w" "-9" "-open" "Why3findUtils"))
  (libraries Why3findUtils why3 dune-site)
  (instrumentation (backend bisect_ppx))
  (instrumentation (backend landmarks)))
