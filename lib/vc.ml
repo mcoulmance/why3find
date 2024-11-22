@@ -29,11 +29,11 @@ module Decl = Why3.Decl
 module Thy = Why3.Theory
 module Tsk = Why3.Task
 
-type color = Goal | When | WhenNot
+type kind = Goal | When | WhenNot
 type shape =
   | Empty
   | Cat of shape * shape (* each is non-empty *)
-  | Range of color * Loc.position
+  | Range of kind * Loc.position
 
 (* Collects all colored parts the two shapes *)
 let (<|>) (a : shape) (b : shape) : shape =
@@ -47,10 +47,9 @@ let (<*>) (a : shape) (b : shape) : shape =
   | Empty,_ | _,Empty -> Empty
   | _ -> Cat(a,b)
 
-let range (c: color) = function None -> Empty | Some p -> Range(c,p)
+let range (c: kind) = function None -> Empty | Some p -> Range(c,p)
 
 let apply c p = function Empty -> range c p | _ as shape -> shape
-
 
 let rec hyp (t : Term.term) =
   apply When t.t_loc @@
@@ -86,31 +85,33 @@ let rec task (t : Tsk.task) : shape =
 
 let by_range (_,r1) (_,r2) = Stdlib.compare r1 r2
 
-(* let rank = function Goal -> 2 | WhenNot -> 1 | When -> 0 *)
+type env = {
+  file : string ;
+  mutable goal : (kind * Range.range) list ;
+  mutable hyps : (kind * Range.range) list ;
+}
 
-(* let rec segment = function
-   | [] | [_] as rs -> rs
-   | ((c1,r1) as u)::((c2,r2) as v)::w ->
-    if Range.( r1 <<< r2 ) then u :: segment (v::w) else
-    if c1 = c2 then segment ((c1, Range.union r1 r2)::w) else
-    if rank c1 > rank c2 then
-      (c1,r1) :: segment ((c2,Range.diff r2 r1) :: w)
-    else
-      let r = Range.diff r1 r2 in
-      if Range.is_empty r
-      then segment (v::w)
-      else (c1,r) :: segment (v::w) *)
-
-let rec collect ~file s acc =
-  match s with
-  | Empty -> []
-  | Cat(a,b) -> collect ~file a @@ collect ~file b @@ acc
-  | Range(color,p) ->
+let rec collect env = function
+  | Empty -> ()
+  | Cat(a,b) -> collect env a ; collect env b
+  | Range(kd,p) ->
     let f,a,b,c,d = Loc.get p in
-    if f = file then (color,((a,b),(c,d))) :: acc else acc
+    if f = env.file then
+      let entry = kd,((a,b),(c,d)) in
+      match kd with
+      | Goal ->
+        env.goal <- entry :: env.goal
+      | When | WhenNot ->
+        env.hyps <- entry :: env.hyps
+
+let disjoint (_,a) (_,b) = Range.disjoint a b
 
 let ranges ~file (t : Tsk.task) =
-  collect ~file (task t) [] |> List.sort by_range (*|> segment*)
+  let env = { file ; goal = [] ; hyps = [] } in
+  collect env (task t) ;
+  let goal = env.goal in
+  let hyps = List.filter (fun h -> List.for_all (disjoint h) goal) env.hyps in
+  List.sort by_range (goal @ hyps)
 
 type cursor = {
   text : string ;
