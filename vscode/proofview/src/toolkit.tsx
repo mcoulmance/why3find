@@ -74,6 +74,7 @@ export function Label(props: LabelProps): JSX.Element {
 /* -------------------------------------------------------------------------- */
 
 export interface ButtonProps {
+    className?: string;
     icon?: string;
     label?: string;
     title?: string;
@@ -84,9 +85,9 @@ export interface ButtonProps {
 }
 
 export function Button(props: ButtonProps): JSX.Element {
-    const { display = true, enabled = true, secondary = true } = props;
+    const { display = true, enabled = true, secondary = false } = props;
     const className = classes(
-        'vsbutton',
+        'vsbutton', props.className,
         !display && 'vsnone',
         secondary && 'secondary',
         enabled ? 'enabled' : 'disabled',
@@ -98,9 +99,67 @@ export function Button(props: ButtonProps): JSX.Element {
             onClick={enabled ? props.onClick : undefined}
         >
             <Icon name={props.icon} />
-            <label className="vstext">{props.label}</label>
+            <span className="vstext">{props.label}</span>
         </div>
     );
+}
+
+/* -------------------------------------------------------------------------- */
+/* ---  Spaces                                                            --- */
+/* -------------------------------------------------------------------------- */
+
+export interface SpaceProps {
+    className?: string;
+    width?: number;
+    height?: number;
+}
+
+export function Space(props: SpaceProps): JSX.Element {
+    const { width = 12, height = 12 } = props;
+    const className = classes('vspack', props.className);
+    return <div className={className} style={{ width, height }} />;
+}
+
+export function Filler(props: SpaceProps): JSX.Element {
+    const { width = 12, height = 12 } = props;
+    const className = classes('vsexpand', props.className);
+    return <div className={className} style={{ width, height }} />;
+}
+
+/* -------------------------------------------------------------------------- */
+/* ---  Boxes                                                             --- */
+/* -------------------------------------------------------------------------- */
+
+export interface BoxProps {
+    pack?: boolean;
+    fill?: boolean;
+    display?: boolean;
+    className?: string;
+    children: React.ReactNode;
+}
+
+interface ContainerProps extends BoxProps {
+    baseClass: string;
+}
+
+function Container(props: ContainerProps): JSX.Element {
+    const { display = true, pack = false, fill = false } = props;
+    const className = classes(
+        props.baseClass,
+        props.className,
+        pack && 'vspack',
+        fill && 'vsfill',
+        !display && 'vsnone',
+    );
+    return <div className={className}>{props.children}</div>;
+}
+
+export function Hbox(props: BoxProps): JSX.Element {
+    return <Container baseClass='vshbox' {...props} />;
+}
+
+export function Vbox(props: BoxProps): JSX.Element {
+    return <Container baseClass='vshbox' {...props} />;
 }
 
 /* -------------------------------------------------------------------------- */

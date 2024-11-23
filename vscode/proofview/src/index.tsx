@@ -21,15 +21,15 @@
 
 import React from "react"
 
-import { Label, Button } from './toolkit';
+import { Hbox, Label, Button } from './toolkit';
 
 function Contents(): JSX.Element {
   const onClick = () => console.log('Clicked');
   return (
-    <div>
+    <Hbox>
       <Label icon='archive' title='Example Label'>Label</Label>
       <Button icon='archive' title='Example Button' label='Button' onClick={onClick}/>
-    </div>
+    </Hbox>
   );
 }
 
