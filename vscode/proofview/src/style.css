@@ -27,9 +27,9 @@ body {
 }
 
 .vsicon {
-    font-size: 14px !important;
+    text-align: center;
+    font-size: 16px !important;
     position: relative;
-    top: 2px;
     margin-left: 4px;
     margin-right: 4px;
 }
@@ -42,13 +42,44 @@ body {
 }
 
 .vslabel {
-    display: inline-block;
     margin: 2px;
     padding: 2px;
+    line-height: 22px;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    display: flex;
 }
 
 .vsbutton {
     margin: 2px;
     padding: 2px;
-    min-width: 150px;
+    line-height: 22px;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    display: flex;
+    border-width: 1px;
+    border-radius: 2px;
+    color: var(--vscode-button-foreground);
+    border-color: var(--vscode-button-border);
+    background-color: var(--vscode-button-background);
+}
+
+.vsbutton.disabled {
+    opacity: 0.4 !important;
+}
+
+.vsbutton.enabled:hover {
+    cursor: pointer;
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+.vsbutton.secondary {
+    color: var(--vscode-button-secondaryForeground);
+    background-color: var(--vscode-button-secondaryBackground);
+}
+
+.vsbutton.secondary.enabled:hover {
+    background-color: var(--vscode-button-secondaryHoverBackground);
 }

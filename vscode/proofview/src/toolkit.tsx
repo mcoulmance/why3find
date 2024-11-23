@@ -26,9 +26,9 @@ import './style.css';
 import '@vscode/codicons/dist/codicon.css';
 import '@vscode/codicons/dist/codicon.ttf';
 
-type ClassName = undefined | false | string ;
+type ClassName = undefined | false | string;
 
-function classes(...names : ClassName[]): string {
+function classes(...names: ClassName[]): string {
     return names.filter(a => !!a).join(' ');
 }
 
@@ -62,9 +62,9 @@ export interface LabelProps {
 
 export function Label(props: LabelProps): JSX.Element {
     return (
-        <div className='vstext vslabel' title={props.title} >
+        <div className='vslabel' title={props.title} >
             <Icon name={props.icon} />
-            <label>{props.label}{props.children}</label>
+            <label className='vstext'>{props.label}{props.children}</label>
         </div>
     );
 }
@@ -79,19 +79,27 @@ export interface ButtonProps {
     title?: string;
     display?: boolean;
     enabled?: boolean;
+    secondary?: boolean;
     onClick?: () => void;
 }
 
 export function Button(props: ButtonProps): JSX.Element {
-    const { display=true, enabled=true } = props;
-    const className = classes('vstext', 'vsbutton', !display && 'vsnone' );
+    const { display = true, enabled = true, secondary = true } = props;
+    const className = classes(
+        'vsbutton',
+        !display && 'vsnone',
+        secondary && 'secondary',
+        enabled ? 'enabled' : 'disabled',
+    );
     return (
-        <button
+        <div
             className={className}
             title={props.title}
-            disabled={!enabled}
-            onClick={props.onClick}
-        ><Icon name={props.icon} />{props.label}</button>
+            onClick={enabled ? props.onClick : undefined}
+        >
+            <Icon name={props.icon} />
+            <label className="vstext">{props.label}</label>
+        </div>
     );
 }
 
