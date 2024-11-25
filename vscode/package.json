@@ -67,11 +67,6 @@
       },
       {
         "category": "Why3",
-        "command": "why3.lsp.interrupt",
-        "title": "Interrupt Why3 proofs"
-      },
-      {
-        "category": "Why3",
         "command": "why3.proof.show",
         "title": "Open the Why3 Proof Tree Editor",
         "icon": "$(checklist)",
