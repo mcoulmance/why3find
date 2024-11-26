@@ -23,7 +23,6 @@
 (* ---  Task Colorization                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
-type color = Goal | When | WhenNot
-
-val ranges : file:string -> Why3.Task.task -> (color * Range.range) list
+type kind = Goal | When | WhenNot
+val ranges : file:string -> Why3.Task.task -> (kind * Range.range) list
 val dump : file:string -> context:int -> Why3.Task.task -> unit
