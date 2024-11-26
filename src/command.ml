@@ -455,7 +455,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       (* --- List Provers -------------- *)
       if !list_provers || !list_tactics then
         begin
-          if !list_tactics then
+          if !list_provers then
             begin
               Format.printf "Available Provers:@." ;
               let allprovers = Prover.all env.wenv in
