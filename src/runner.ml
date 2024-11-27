@@ -285,7 +285,7 @@ let memlimit wmain = Whyconf.memlimit wmain
 
 let limit wmain t =
   Why3.Call_provers.{
-    limit_time = t +. 0.5 ;
+    limit_time = t ;
     limit_mem = memlimit wmain ;
     limit_steps = (-1) ;
   }

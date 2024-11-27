@@ -194,17 +194,20 @@ let hammer henv =
 (* --- Node Processing                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
-let overhead t = max (t *. 2.0) 1.0
-
 let replay_prover h d t =
-  let client = if t > h.time *. 0.2 then h.client else None in
   match Prover.check_and_get_prover h.env.wenv ~patterns:h.patterns d with
   | None -> stuck
-  | Some p -> prove h.env ?client p (overhead t)
+  | Some p ->
+    (* Do not ask the server for too short hint times *)
+    let client = if t > h.time *. 0.2 then h.client else None in
+    (* Taking into account the current strategy *)
+    let time = min (max h.time t) (2.0 *. h.time) in
+    (* Applying an overhead against possible fluctuations *)
+    prove h.env ?client p (time +. 0.5)
 
 let update_prover h p t = replay_prover h p t >>> hammer h
 
-let replay ~hint h n =
+let replay_tactic ~hint h n =
   let rec iter = function
     | [] ->
       Log.warning "Goal %S: tactic '%a' not in strategy"
@@ -222,12 +225,12 @@ let replay ~hint h n =
           stuck n
   in iter h.tactics
 
-let reduce ?hint h =
+let reduce_tactic ?hint h =
   hammer1 h >>>
   hammer2 ?hint h >>>
   hammer3 h
 
-let tactic ~hint h =
+let update_tactic ~hint h =
   hammer2 ~hint h >>> hammer h
 
 let explore h n =
@@ -247,12 +250,12 @@ let process h : strategy = fun n ->
       | Some tac ->
         let hint = tac, children in
         if n.replay then
-          replay ~hint h n
+          replay_tactic ~hint h n
         else
         if h.minimize then
-          reduce ~hint h n
+          reduce_tactic ~hint h n
         else
-          tactic ~hint h n
+          update_tactic ~hint h n
       | None ->
         explore h n
   with exn ->
