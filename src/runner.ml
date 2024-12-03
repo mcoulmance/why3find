@@ -419,6 +419,7 @@ let call_prover (config : Why3.Whyconf.main)
   let clockwall = ref 0.0 in
   let started = ref false in
   let killed = ref false in
+  let runover = ref false in
   let canceled = ref false in
   let timedout = ref false in
   update_client config ;
@@ -445,19 +446,27 @@ let call_prover (config : Why3.Whyconf.main)
   Fibers.monitor ?signal:cancel ~handler:interrupt @@
   Fibers.async @@
   begin fun () ->
-    let t0 = Unix.gettimeofday () in
+    let now = Unix.gettimeofday () in
     if !started then
       begin
         if !canceled then kill ()
-        else if not !timedout && !clockwall < t0 then
-          (timedout := true ; kill ()) ;
+        else if not !timedout && now > !clockwall then
+          (timedout := true ; kill ())
+        else if now > !clockwall +. 1.0 then
+          runover := true
       end ;
     let query =
       try WRunner.query_call call with e -> InternalFailure e in
     match query with
-    | NoUpdates
-    | ProverInterrupted ->
-      None
+    | NoUpdates | ProverInterrupted ->
+      if !runover then
+        begin
+          stop ?name () ;
+          Log.warning "Prover %a can not be killed" Prover.pp_prover prover ;
+          Some Failed
+        end
+      else
+        None
     | ProverStarted ->
       if not !started then
         begin
