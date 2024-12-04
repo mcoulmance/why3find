@@ -844,7 +844,13 @@ let () = register ~name:"lsp" ~args:"[OPTIONS]"
          OPTIONS:\n" ;
       match !transport with
       | None -> Log.error "No transport protocol specified." ; exit 1
-      | Some transport -> Lspcc.init () ; Lsp.run transport
+      | Some transport ->
+        Lspcc.init () ;
+        let channel = Lsp.establish transport in
+        while Lsp.running channel || Fibers.pending () > 0 do
+          Fibers.yield () ;
+          if not @@ Lsp.process channel then Unix.sleepf 0.01 ;
+        done
     end
 
 (* -------------------------------------------------------------------------- *)
