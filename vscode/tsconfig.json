@@ -8,5 +8,5 @@
 		"rootDir": "extension",
 		"sourceMap": true
 	},
-	"exclude": [ "node_modules", "proofview" ]
+	"exclude": [ "node_modules" ]
 }

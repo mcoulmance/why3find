@@ -1,13 +1,14 @@
 # Installation Instructions
 
-Make sure you have `vsce` installed:
+Make sure you have `node` and `yarn` installed.
+You can install the why3find VSCode extension from the
+the why3find root directory or from its vscode sub-directory.
 
-    > npm install -g @vscode/vsce
+From the why3find root directory:
 
-Package the platform:
+    > make install-vscode
 
-    > vsce package
+From the why3find/vscode directory:
 
-Install the platform:
-
-    > code --install-extension why3-platform-x.x.x.vsix
+    > make package
+    > make install

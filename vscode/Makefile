@@ -71,7 +71,6 @@ package: build
 .PHONY: clean install uninstall
 
 clean:
-	$(MAKE) -C proofview clean
 	rm -fr out node_modules *.vsix .version
 
 install:
