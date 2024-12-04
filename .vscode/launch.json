@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
          {
-            "name": "Run Why3 LSP",
+            "name": "Debug Why3find Platform",
             "type": "extensionHost",
             "request": "launch",
             "runtimeExecutable": "${execPath}",

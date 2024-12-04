@@ -26,13 +26,17 @@
 import { rm } from 'fs/promises';
 import { Socket, connect } from 'net';
 import { ChildProcess, spawn } from 'child_process';
-import { Disposable, OutputChannel, window, workspace } from 'vscode';
+
+import {
+	OutputChannel,
+	window,
+	workspace,
+} from 'vscode';
 
 import {
 	LanguageClient,
 	LanguageClientOptions,
-	ServerOptions,
-	StreamInfo
+	StreamInfo,
 } from 'vscode-languageclient/node';
 
 /* -------------------------------------------------------------------------- */
@@ -114,11 +118,6 @@ function launchServer(): Promise<StreamInfo> {
 /* --- LSP Entry Points                                                   --- */
 /* -------------------------------------------------------------------------- */
 
-export function deactivate() {
-	disconnectFromServer();
-	shutdownServer();
-};
-
 export async function stop(): Promise<void> {
 	if (client) {
 		output?.appendLine('[VSCode] Stop LSP Client');
@@ -167,3 +166,14 @@ export async function start(): Promise<void> {
 	output?.appendLine('[VSCode] Launch LSP Client');
 	await client.start();
 }
+
+/* -------------------------------------------------------------------------- */
+/* --- Extension Registration                                             --- */
+/* -------------------------------------------------------------------------- */
+
+export function deactivate() {
+	disconnectFromServer();
+	shutdownServer();
+};
+
+/* -------------------------------------------------------------------------- */

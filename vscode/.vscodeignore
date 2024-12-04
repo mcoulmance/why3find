@@ -4,8 +4,9 @@
 VERSION
 dune
 node_modules
-src
+out
+extension
 Makefile
 yarn.lock
 tsconfig.json
-out/*.map
+!out/main.js

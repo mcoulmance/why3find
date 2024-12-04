@@ -24,7 +24,7 @@ uninstall:
 
 SOURCES_MI=$(shell find src lib utils -name "*.ml" -or -name "*.mli")
 SOURCES_ML=$(shell find src lib utils -name "*.ml*")
-SOURCES_TS=$(shell find vscode/src -name "*.ts*")
+SOURCES_TS=$(shell find vscode -not -path "*/node_modules/*" -name "*.ts*")
 
 lint:
 	@ocp-indent -i $(SOURCES_MI)
@@ -55,9 +55,9 @@ test-coverage:
 .PHONY: install-vscode
 
 install-vscode:
-	make
-	make install
-	make -C vscode package
-	make -C vscode install
+	$(MAKE)
+	$(MAKE) install
+	$(MAKE) -C vscode package
+	$(MAKE) -C vscode install
 
 # --------------------------------------------------------------------------

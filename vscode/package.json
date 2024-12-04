@@ -56,20 +56,45 @@
     },
     "commands": [
       {
-        "command": "why3lsp.start",
-        "title": "Start the Why3 LSP Server (restart if running)"
+        "category": "Why3",
+        "command": "why3.lsp.start",
+        "title": "Restart the Why3 LSP Server"
       },
       {
-        "command": "why3lsp.stop",
-        "title": "Stop the Why3 LSP Server (if running)"
+        "category": "Why3",
+        "command": "why3.lsp.stop",
+        "title": "Stop the Why3 LSP Server"
       }
-    ]
+    ],
+    "submenus": [
+      {
+        "id": "why3.menu",
+        "label": "Why3"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "submenu": "why3.menu",
+          "group": "action"
+        }
+      ],
+      "why3.menu": [
+        {
+          "command": "why3.lsp.start",
+          "when": "resourceLangId == why3"
+        },
+        {
+          "command": "why3.lsp.stop",
+          "when": "resourceLangId == why3"
+        }
+      ]
+    }
   },
   "scripts": {
-    "build": "tsc -b",
-    "watch": "tsc -b -w",
+    "start": "tsc -b -w",
     "typecheck": "tsc --noEmit",
-    "bundle": "esbuild ./src/main.ts --bundle --platform=node --external:vscode --minify --outfile=./out/main.js",
+    "build": "esbuild ./extension/main.ts --bundle --platform=node --external:vscode --minify --outfile=./out/main.js",
     "package": "vsce package --yarn"
   },
   "devDependencies": {
