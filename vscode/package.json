@@ -64,13 +64,6 @@
         "category": "Why3",
         "command": "why3.lsp.stop",
         "title": "Stop the Why3 LSP Server"
-      },
-      {
-        "category": "Why3",
-        "command": "why3.proof.show",
-        "title": "Open the Why3 Proof Tree Editor",
-        "icon": "$(checklist)",
-        "shortTitle": "Proof Tree"
       }
     ],
     "submenus": [
@@ -88,19 +81,11 @@
       ],
       "why3.menu": [
         {
-          "command": "why3.proof.show",
-          "when": "resourceLangId == why3"
-        },
-        {
           "command": "why3.lsp.start",
           "when": "resourceLangId == why3"
         },
         {
           "command": "why3.lsp.stop",
-          "when": "resourceLangId == why3"
-        },
-        {
-          "command": "why3.lsp.interrupt",
           "when": "resourceLangId == why3"
         }
       ]

@@ -28,22 +28,16 @@ import { Socket, connect } from 'net';
 import { ChildProcess, spawn } from 'child_process';
 
 import {
-	EventEmitter,
 	OutputChannel,
 	window,
 	workspace,
 } from 'vscode';
 
 import {
-	DocumentUri,
 	LanguageClient,
 	LanguageClientOptions,
-	NotificationType,
-	RequestType,
 	StreamInfo,
 } from 'vscode-languageclient/node';
-
-import * as Hub from './hub';
 
 /* -------------------------------------------------------------------------- */
 /* --- Child Process Management                                           --- */
@@ -121,43 +115,6 @@ function launchServer(): Promise<StreamInfo> {
 }
 
 /* -------------------------------------------------------------------------- */
-/* --- Status Notification (Custom)                                       --- */
-/* -------------------------------------------------------------------------- */
-
-export interface Status {
-  pending?: number ;
-  running?: number ;
-  failed?: number ;
-}
-
-const StatusNotification = new NotificationType<Status>("why3/status");
-
-/* -------------------------------------------------------------------------- */
-/* --- Interrupt & Prove Request (Custom)                                 --- */
-/* -------------------------------------------------------------------------- */
-
-export interface ProveParams {
-	uri: DocumentUri,
-	goal?: string,
-	hlevel?: number,
-}
-
-const InterruptRequest = new RequestType<void,void,void>("why3/interrupt");
-const ProveRequest = new RequestType<ProveParams,void,void>("why3/prove");
-
-export async function interrupt(): Promise<void> {
-	if (client) {
-		await client.sendRequest(InterruptRequest, null);
-	}
-}
-
-export async function prove(prm: ProveParams): Promise<void> {
-	if (client) {
-		await client.sendRequest(ProveRequest, prm);
-	}
-}
-
-/* -------------------------------------------------------------------------- */
 /* --- LSP Entry Points                                                   --- */
 /* -------------------------------------------------------------------------- */
 
@@ -169,7 +126,6 @@ export async function stop(): Promise<void> {
 		await toStop.stop();
 		disconnectFromServer();
 		shutdownServer();
-		Hub.postMessage<Status>('status',{ });
 		await rm(SOCKADDR, { force: true });
 	}
 }
@@ -205,9 +161,6 @@ export async function start(): Promise<void> {
 		launchServer,
 		clientOptions
 	);
-	client.onNotification(StatusNotification,(s: Status) => {
-		Hub.postMessage<Status>('status',s);
-	});
 
 	// Start LSP
 	output?.appendLine('[VSCode] Launch LSP Client');

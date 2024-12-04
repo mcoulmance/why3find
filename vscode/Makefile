@@ -26,7 +26,6 @@ version: .version
 .PHONY: lint
 lint:
 	$(YARN) typecheck
-	$(YARN) --cwd proofview typecheck
 
 # --------------------------------------------------------------------------
 # --- Debugging
@@ -37,45 +36,32 @@ start:
 	@echo "------------------------------------------"
 	@echo "---- Running Servers"
 	@echo "------------------------------------------"
-	@($(YARN) start &)
-	@($(YARN) --cwd proofview start &)
-	@echo "------------------------------------------"
-	@echo "Servers Running… (Hit f5)"
+	@$(YARN) start
 
 # --------------------------------------------------------------------------
 # --- Building
 # --------------------------------------------------------------------------
 
-.PHONY: build-extension
-build-extension:
+.PHONY: build
+build:
 	@echo "------------------------------------------"
 	@echo "---- Building Extension"
 	@echo "------------------------------------------"
 	$(YARN) install
 	$(YARN) typecheck
 	$(YARN) build
-
-.PHONY: build-extension
-build-view:
-	@echo "------------------------------------------"
-	@echo "---- Building Proof View"
-	@echo "------------------------------------------"
-	$(YARN) --cwd proofview install
-	$(YARN) --cwd proofview typecheck
-	$(YARN) --cwd proofview build
-
-.PHONY: build package
-
-build: build-extension build-view
 	@echo "------------------------------------------"
 
-package: build view
+package: build
+	@echo "------------------------------------------"
+	@echo "---- Exported Files"
+	@echo "------------------------------------------"
+	@rm -f *.vsix
+	@$(YARN) vsce ls --yarn
 	@echo "------------------------------------------"
 	@echo "---- Packaging VSCode"
 	@echo "------------------------------------------"
-	@rm -f *.vsix
-	$(YARN) vsce ls
-	$(YARN) package
+	@$(YARN) package
 	@echo "------------------------------------------"
 
 # --------------------------------------------------------------------------
