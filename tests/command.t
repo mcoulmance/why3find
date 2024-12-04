@@ -199,8 +199,8 @@
     -P  same as --prover
     -T  same as --tactic
     -D  same as --driver
-    -c force cache update
     -j JOBS max parallel provers
+    --no-cache do not read results from cache
     --log-prover-results FILE log the prover results in the given file
     --master calibrate provers (master)
     --velocity evaluate prover velocity (local)
@@ -249,8 +249,8 @@
     -P  same as --prover
     -T  same as --tactic
     -D  same as --driver
-    -c force cache update
     -j JOBS max parallel provers
+    --no-cache do not read results from cache
     --log-prover-results FILE log the prover results in the given file
     -g <name> goals selection
     -f force rebuild proofs
@@ -353,8 +353,8 @@
   
   OPTIONS:
   
-    -c force cache update
     -j JOBS max parallel provers
+    --no-cache do not read results from cache
     --log-prover-results FILE log the prover results in the given file
     --server URL proof server address (default "tcp://localhost:5555")
     --polling TIME server polling interval (default 1.0s)

@@ -578,10 +578,12 @@ let prove_buffer config ?cancel prover buffer timeout =
 (* -------------------------------------------------------------------------- *)
 
 let options = [
-  ("-c", Arg.Clear Cache.cache, "force cache update");
-  ("-j", Arg.Set_int jobs, "JOBS max parallel provers");
-  ("--log-prover-results", Arg.String set_logfile,
-   "FILE log the prover results in the given file");
+  "-j",
+  Arg.Set_int jobs, "JOBS max parallel provers" ;
+  "--no-cache",
+  Arg.Clear Cache.cache, "do not read results from cache" ;
+  "--log-prover-results",
+  Arg.String set_logfile, "FILE log the prover results in the given file";
 ]
 
 let print_stats () =
