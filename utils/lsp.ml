@@ -129,11 +129,14 @@ let send_response channel ~id ~result =
     push channel @@ Json.to_string @@ json_rpc [ "id", id ; "result", result ]
 
 let send_error channel ~id ~code ~msg =
-  let err = `Assoc [
-      "code", `Int code ;
-      "message", `String msg ;
-    ] in
-  push channel @@ Json.to_string @@ json_rpc [ "id", id ; "error", err ]
+  if not @@ Json.is_empty id then
+    begin
+      let err = `Assoc [
+          "code", `Int code ;
+          "message", `String msg ;
+        ] in
+      push channel @@ Json.to_string @@ json_rpc [ "id", id ; "error", err ]
+    end
 
 let send_notification channel meth params =
   push channel @@ Json.to_string @@ json_rpc [
@@ -177,7 +180,9 @@ let process_request channel ~id ~meth ~params =
     | result ->
       send_response channel ~id ~result
     | exception Not_found ->
-      Log.error "Unsupported method: %s" meth ;
+      if not @@ String.starts_with ~prefix:"$/" meth then
+        Log.error "Unsupported method: %s" meth ;
+      (* still error the request if there is an id *)
       send_error channel ~id ~code:(-32601) ~msg:meth
     | exception Invalid_argument msg ->
       Log.error "Invalid parameters (%s:%s)" meth msg ;
