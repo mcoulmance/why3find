@@ -86,6 +86,23 @@ let rec sequence (f : 'a -> strategy) (xs : 'a list) : strategy =
   | x::xs -> f x >>> sequence f xs
 
 (* -------------------------------------------------------------------------- *)
+(* --- Interrupt All                                                      --- *)
+(* -------------------------------------------------------------------------- *)
+
+let killall = Fibers.signal ()
+
+let interrupt () =
+  begin
+    Fibers.emit killall () ;
+    let killed = Crc.stuck () (* anonymous CRC *) in
+    let dequeue n = Fibers.set n.result killed in
+    Queue.iter dequeue q_proven ;
+    Queue.iter dequeue q_broken ;
+    Queue.clear q_proven ;
+    Queue.clear q_broken ;
+  end
+
+(* -------------------------------------------------------------------------- *)
 (* --- Try Prover on Node                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -104,8 +121,10 @@ let prove env ?client ?cancel prover timeout : strategy = fun n ->
     | None ->
       let task = Runner.prepare prover n.goal in
       let kill = Fibers.signal () in
+      let handler = Fibers.emit kill in
       let runner =
-        Fibers.monitor ?signal:cancel ~handler:(Fibers.emit kill) @@
+        Fibers.monitor ?signal:cancel ~handler @@
+        Fibers.monitor ~signal:killall ~handler @@
         Fibers.map to_profile @@
         Fibers.finally ~callback:(Runner.update prover n.goal) @@
         Runner.prove_prepared wmain ~name ~cancel:kill ~callback
@@ -124,7 +143,6 @@ let prove env ?client ?cancel prover timeout : strategy = fun n ->
   in match verdict with
   | Valid t -> Crc.prover ~goal:n.goal prover.Prover.desc (Utils.round t)
   | _ -> Crc.stuck ~goal:n.goal ()
-
 
 (* -------------------------------------------------------------------------- *)
 (* --- Tactic Hint                                                        --- *)

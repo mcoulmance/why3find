@@ -61,6 +61,9 @@ type status = {
 val status : unit -> status
 val running : unit -> bool
 
+(** Empty the current task queue and kill all running provers. *)
+val interrupt : unit -> unit
+
 (** Process one pending node, if any.
     Returns true if some node has been processed. *)
 val process : henv -> bool
