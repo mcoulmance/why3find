@@ -47,26 +47,32 @@ let (<*>) (a : shape) (b : shape) : shape =
   | Empty,_ | _,Empty -> Empty
   | _ -> Cat(a,b)
 
-let range (c: kind) = function None -> Empty | Some p -> Range(c,p)
+let range kind = function None -> Empty | Some p -> Range(kind,p)
 
-let apply c p = function Empty -> range c p | _ as shape -> shape
+let apply kind loc = function Empty -> range kind loc | _ as shape -> shape
+
+let rec collect kind (t : Term.term) =
+  apply kind t.t_loc @@
+  Term.t_fold (fun rgs t -> rgs <*> collect kind t) Empty t
 
 let rec hyp (t : Term.term) =
   apply When t.t_loc @@
   match t.t_node with
   | Tbinop(Tand,a,b) -> hyp a <*> hyp b
-  | Tnot p -> range WhenNot p.t_loc
-  | _ -> Empty
+  | Term.Tlet (_,fb) ->
+    let _,t = Term.t_open_bound fb in hyp t
+  | Tnot p -> collect WhenNot p
+  | _ -> collect When t
 
 let rec goal (t : Term.term) =
   apply Goal t.t_loc @@
   match t.t_node with
   | Tbinop(Timplies,h,p) -> hyp h <*> goal p
-  | Tlet(_,bnd) ->
-    let _,p = Term.t_open_bound bnd in goal p
   | Tquant(Tforall,bnd) ->
     let _,_,p = Term.t_open_quant bnd in goal p
-  | _ -> Empty
+  | Term.Tlet (_,fb) ->
+    let _,t = Term.t_open_bound fb in goal t
+  | _ -> collect Goal t
 
 let decl (d: Decl.decl) : shape =
   match d.d_node with
