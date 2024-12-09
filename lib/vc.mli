@@ -24,5 +24,8 @@
 (* -------------------------------------------------------------------------- *)
 
 type kind = Goal | When | WhenNot
-val ranges : file:string -> Why3.Task.task -> (kind * Range.range) list
+type chunk = { kind : kind ; range : Range.range }
+
+val chunks: file:string -> Why3.Task.task -> chunk list
+
 val dump : file:string -> context:int -> Why3.Task.task -> unit

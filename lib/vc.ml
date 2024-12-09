@@ -47,6 +47,10 @@ let (<*>) (a : shape) (b : shape) : shape =
   | Empty,_ | _,Empty -> Empty
   | _ -> Cat(a,b)
 
+(* -------------------------------------------------------------------------- *)
+(* ---  Range Extraction                                                  --- *)
+(* -------------------------------------------------------------------------- *)
+
 let range kind = function None -> Empty | Some p -> Range(kind,p)
 
 let apply kind loc = function Empty -> range kind loc | _ as shape -> shape
@@ -89,94 +93,47 @@ let rec task (t : Tsk.task) : shape =
   | Some { task_decl ; task_prev } ->
     tdecl task_decl <|> task task_prev
 
-let by_range (_,r1) (_,r2) = Stdlib.compare r1 r2
+type chunk = { kind : kind ; range : Range.range }
 
 type env = {
   file : string ;
-  mutable goal : (kind * Range.range) list ;
-  mutable hyps : (kind * Range.range) list ;
+  mutable goal : chunk list ;
+  mutable hyps : chunk list ;
 }
 
 let rec collect env = function
   | Empty -> ()
   | Cat(a,b) -> collect env a ; collect env b
-  | Range(kd,p) ->
+  | Range(kind,p) ->
     let f,a,b,c,d = Loc.get p in
     if f = env.file then
-      let entry = kd,((a,b),(c,d)) in
-      match kd with
+      let chunk = { kind ; range = ((a,b),(c,d)) } in
+      match kind with
       | Goal ->
-        env.goal <- entry :: env.goal
+        env.goal <- chunk :: env.goal
       | When | WhenNot ->
-        env.hyps <- entry :: env.hyps
+        env.hyps <- chunk :: env.hyps
 
-let disjoint (_,a) (_,b) = Range.disjoint a b
+let by_range a b = Stdlib.compare a.range b.range
+let disjoint a b = Range.disjoint a.range b.range
 
-let ranges ~file (t : Tsk.task) =
+let chunks ~file (t : Tsk.task) =
   let env = { file ; goal = [] ; hyps = [] } in
   collect env (task t) ;
   let goal = env.goal in
   let hyps = List.filter (fun h -> List.for_all (disjoint h) goal) env.hyps in
   List.sort by_range (goal @ hyps)
 
-type cursor = {
-  text : string ;
-  mutable offset : int ;
-  mutable pos : Range.pos ;
-}
+(* -------------------------------------------------------------------------- *)
+(* ---  Range Filtering                                                   --- *)
+(* -------------------------------------------------------------------------- *)
 
-let forward print cursor =
-  let k = cursor.offset in
-  let c = cursor.text.[k] in
-  if print then Format.print_char c ;
-  cursor.pos <- Range.after cursor.pos c ;
-  cursor.offset <- succ k
-
-let skip = forward false
-let print = forward true
-
-let before cursor ~context u =
-  let p = (Range.first_line @@ snd u) - context in
-  while fst cursor.pos < p do skip cursor done
-
-let after cursor ~context v =
-  let p = (Range.last_line @@ snd v) + context in
-  while fst cursor.pos <= p do print cursor done
-
-let open_color = function
-  | Goal -> Format.printf "@{<bold>@{<bright red>"
-  | When -> Format.printf "@{<green>"
-  | WhenNot -> Format.printf "@{<magenta>"
-let close_color = function
-  | Goal -> Format.printf "@}@}"
-  | When | WhenNot -> Format.printf "@}"
-
-let rec decorate cursor u w =
-  let open Range in
-  let kd,(a,_) = u in
-  if cursor.pos << a then
-    (print cursor ; decorate cursor u w)
-  else
-    (open_color kd ; print cursor ; colored cursor u w)
-
-and colored cursor u w =
-  let open Range in
-  let kd,(_,b) = u in
-  if cursor.pos << b then
-    (print cursor ; colored cursor u w)
-  else
-    (close_color kd ;
-     match w with
-     | [] -> u
-     | v::w -> decorate cursor v w)
-
-(* Selects the ranges that are near the goal(s) *)
 let window ~context rs =
   (* collect the range of lines for the goals *)
   let rec goals p q = function
     | [] -> p, q
-    | ((When | WhenNot),_) :: ws -> goals p q ws
-    | (Goal,r)::ws ->
+    | { kind = (When | WhenNot) } :: ws -> goals p q ws
+    | { kind = Goal ; range = r } :: ws ->
       let p = min p (Range.first_line r) in
       let q = max q (Range.last_line r) in
       goals p q ws
@@ -188,38 +145,92 @@ let window ~context rs =
   let nq = ref 0 in
   let rs =
     List.filter
-      (fun (_,r) ->
-         if Range.first_line r < hp then (incr np ; false) else
-         if Range.last_line r > hq then (incr nq ; false) else
+      (fun r ->
+         if Range.first_line r.range < hp then (incr np ; false) else
+         if Range.last_line r.range > hq then (incr nq ; false) else
            true
       ) rs in
   p,q,!np,!nq,rs
 
+(* -------------------------------------------------------------------------- *)
+(* ---  Ranges Dumping                                                    --- *)
+(* -------------------------------------------------------------------------- *)
+
+type cursor = {
+  text : string ;
+  context : int ;
+  mutable offset : int ;
+  mutable pos : Range.pos ;
+}
+
+let forward print cursor =
+  let k = cursor.offset in
+  let c = cursor.text.[k] in
+  if print then Format.print_char c ;
+  cursor.pos <- Range.after cursor.pos c ;
+  cursor.offset <- succ k
+
+let skip cursor pos =
+  while Range.(<<) cursor.pos pos do forward false cursor done
+
+let print cursor pos =
+  while Range.(<<) cursor.pos pos do forward true cursor done
+
+let line n = (n,0)
+
+let open_color = function
+  | Goal -> Format.printf "@{<bold>@{<bright red>"
+  | When -> Format.printf "@{<green>"
+  | WhenNot -> Format.printf "@{<magenta>"
+let close_color = function
+  | Goal -> Format.printf "@}@}"
+  | When | WhenNot -> Format.printf "@}"
+
+(* Printing Automata *)
+
+let rec decorate cursor head tail =
+  print cursor @@ fst head.range ;
+  open_color head.kind ;
+  print cursor @@ snd head.range ;
+  close_color head.kind ;
+  match tail with
+  | [] ->
+    let q = Range.last_line head.range + cursor.context in
+    print cursor @@ line q ;
+    Format.printf "@{<orange>[...]@}@."
+  | next :: tail ->
+    let q = Range.last_line head.range in
+    let p' = Range.first_line next.range in
+    let ctxt = cursor.context in
+    if q + 2 * ctxt + 2 < p' then
+      begin
+        print cursor @@ line (q + ctxt) ;
+        Format.printf "@{<orange>[...]@}@." ;
+        skip cursor @@ line (p' - ctxt) ;
+        Format.printf "@{<orange>[...]@}@." ;
+      end ;
+    decorate cursor next tail
+
 let pp_range fmt (p,q) =
   if p < q then Format.fprintf fmt "%d:%d" p q else Format.pp_print_int fmt p
-let pp_trail fmt n = if n > 0 then Format.fprintf fmt " @{<green>(+%d)@}" n
 
 let pp_expl fmt t =
   let expl = Session.task_expl t in
   if expl <> "" then Format.fprintf fmt ":%s" expl
 
-let flush cursor =
-  if snd cursor.pos > 0 then Format.print_newline () ;
-  Format.printf "@{<orange>[eof]@}@."
-
 let dump ~file ~context task =
-  let p,q,np,nq,rs = ranges ~file task |> window ~context in
-  match rs with [] -> () | u::w ->
+  let p,q,_np,_nq,rs = chunks ~file task |> window ~context in
+  match rs with [] -> () | head::tail ->
+    Format.printf "@{<orange>[%s:%a%a]@}@\n"
+      file pp_range (p,q) pp_expl task ;
     let text = Utils.readfile ~file in
-    let cursor = { text ; offset = 0 ; pos = Range.start } in
+    let cursor = { text ; context ; offset = 0 ; pos = Range.start } in
     try
-      Format.printf "@{<orange>[%s:%a%a]@}@\n" file
-        pp_range (p,q) pp_expl task ;
-      before cursor ~context u ;
-      if fst cursor.pos > 1 then
-        Format.printf "@{<orange>[...]@}%a@." pp_trail np ;
-      let v = decorate cursor u w in
-      after cursor ~context v ;
-      Format.printf "@{<orange>[...]@}%a@." pp_trail nq ;
+      let p = Range.first_line head.range in
+      skip cursor @@ line (p - cursor.context) ;
+      if fst cursor.pos > 0 then
+        Format.printf "@{<orange>[...]@}@." ;
+      decorate cursor head tail
     with Invalid_argument _ | Exit ->
-      flush cursor
+      if snd cursor.pos > 0 then Format.print_newline () ;
+      Format.printf "@{<orange>[eof]@}@."
