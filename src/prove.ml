@@ -241,7 +241,9 @@ let prove_goal ~env ~file ~context ~ptactic mode profile buffer theory hint goal
         (fun g (s : Crc.status) ->
            match s with Prover _ | Tactic _ -> () | Stuck ->
              if Utils.tty && context >= 0 then
-               Vc.dump ~file ~context (Session.goal_task g)
+               Vc.dump ~file ~context
+                 (Session.theory theory)
+                 (Session.goal_task g)
              else
                Format.printf "  %a@." Session.pp_goal g
         ) crc ;

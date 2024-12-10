@@ -272,7 +272,7 @@
     --theories list results by theory
     --goals list results by goals
     --proofs list proofs by goals
-    --context <n> show n-lines context on failed proof (tty only)
+    --context <n> show n-lines context on failed proof (tty only, default 2)
     --stdlib report hypotheses from stdlib
     --extern report also external symbols
     --builtin report also builtin symbols

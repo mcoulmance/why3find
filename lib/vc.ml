@@ -101,6 +101,8 @@ type env = {
   mutable hyps : chunk list ;
 }
 
+let make ~file = { file ; goal = [] ; hyps = [] }
+
 let rec collect env = function
   | Empty -> ()
   | Cat(a,b) -> collect env a ; collect env b
@@ -118,7 +120,7 @@ let by_range a b = Stdlib.compare a.range b.range
 let disjoint a b = Range.disjoint a.range b.range
 
 let chunks ~file (t : Tsk.task) =
-  let env = { file ; goal = [] ; hyps = [] } in
+  let env = make ~file in
   collect env (task t) ;
   let goal = env.goal in
   let hyps = List.filter (fun h -> List.for_all (disjoint h) goal) env.hyps in
@@ -128,29 +130,69 @@ let chunks ~file (t : Tsk.task) =
 (* ---  Range Filtering                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
-let window ~context rs =
-  (* collect the range of lines for the goals *)
-  let rec goals p q = function
-    | [] -> p, q
-    | { kind = (When | WhenNot) } :: ws -> goals p q ws
-    | { kind = Goal ; range = r } :: ws ->
-      let p = min p (Range.first_line r) in
-      let q = max q (Range.last_line r) in
-      goals p q ws
-  in
-  let p,q = goals max_int 0 rs in
-  let hp = p - 2*context in
-  let hq = q + 2*context in
-  let np = ref 0 in
-  let nq = ref 0 in
-  let rs =
+let decls ~file (thy : Why3.Theory.theory) =
+  let lines = ref [] in
+  List.iter
+    (fun (td : Why3.Theory.tdecl) ->
+       match td.td_node with
+       | Meta _ | Clone _ | Use _ -> ()
+       | Decl d ->
+         Why3.Ident.Sid.iter
+           (fun id ->
+              match id.id_loc with
+              | None -> ()
+              | Some loc ->
+                let f,l,_,_,_ = Loc.get loc in
+                if f = file then lines := l :: !lines
+           ) d.d_news
+    ) thy.th_decls ;
+  Array.of_list @@ List.sort_uniq Int.compare !lines
+
+let locate l lines =
+  let n = Array.length lines in
+  if n = 0 then
+    0, Sys.max_string_length
+  else
+    let li = lines.(0) in
+    if l < li then (0,li) else
+    if n = 1 then li, Sys.max_string_length else
+      let lj = lines.(n-1) in
+      if l >= lj then lj, Sys.max_string_length else
+        (* i < j /\ li <= l < lj *)
+        let rec lookup i li j lj =
+          if j - i <= 1 then li,lj else
+            let k = i + (j-i) / 2 in
+            let lk = lines.(k) in
+            if l < lk
+            then lookup i li k lk
+            else lookup k lk j lj
+        in lookup 0 li (n-1) lj
+
+let window ~file thy chunks =
+  let p = ref max_int in
+  let q = ref min_int in
+  List.iter
+    (fun chunk ->
+       match chunk.kind with
+       | Goal ->
+         p := min !p @@ Range.first_line chunk.range ;
+         q := max !q @@ Range.last_line chunk.range ;
+       | When | WhenNot -> ()
+    ) chunks ;
+  let lines = decls ~file thy in
+  if !p > !q then 0,0,[] else
+    let u,v =
+      if !p < !q then
+        let p1,p2 = locate !p lines in
+        let q1,q2 = locate !q lines in
+        min p1 q1, max p2 q2
+      else locate !p lines
+    in
+    !p, !q,
     List.filter
-      (fun r ->
-         if Range.first_line r.range < hp then (incr np ; false) else
-         if Range.last_line r.range > hq then (incr nq ; false) else
-           true
-      ) rs in
-  p,q,!np,!nq,rs
+      (fun chunk ->
+         u <= Range.first_line chunk.range && Range.last_line chunk.range <= v
+      ) chunks
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Ranges Dumping                                                    --- *)
@@ -195,19 +237,18 @@ let rec decorate cursor head tail =
   close_color head.kind ;
   match tail with
   | [] ->
-    let q = Range.last_line head.range + cursor.context in
+    let q = Range.last_line head.range + cursor.context + 1 in
     print cursor @@ line q ;
     Format.printf "@{<orange>[...]@}@."
   | next :: tail ->
     let q = Range.last_line head.range in
     let p' = Range.first_line next.range in
     let ctxt = cursor.context in
-    if q + 2 * ctxt + 2 < p' then
+    if q + 2 * ctxt + 3 < p' then
       begin
-        print cursor @@ line (q + ctxt) ;
+        print cursor @@ line (q + ctxt + 1) ;
         Format.printf "@{<orange>[...]@}@." ;
         skip cursor @@ line (p' - ctxt) ;
-        Format.printf "@{<orange>[...]@}@." ;
       end ;
     decorate cursor next tail
 
@@ -218,8 +259,9 @@ let pp_expl fmt t =
   let expl = Session.task_expl t in
   if expl <> "" then Format.fprintf fmt ":%s" expl
 
-let dump ~file ~context task =
-  let p,q,_np,_nq,rs = chunks ~file task |> window ~context in
+let dump ~file ~context thy task =
+  ignore thy ;
+  let p,q,rs = chunks ~file task |> window ~file thy in
   match rs with [] -> () | head::tail ->
     Format.printf "@{<orange>[%s:%a%a]@}@\n"
       file pp_range (p,q) pp_expl task ;

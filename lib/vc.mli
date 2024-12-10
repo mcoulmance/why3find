@@ -28,4 +28,4 @@ type chunk = { kind : kind ; range : Range.range }
 
 val chunks: file:string -> Why3.Task.task -> chunk list
 
-val dump : file:string -> context:int -> Why3.Task.task -> unit
+val dump : file:string -> context:int -> Why3.Theory.theory -> Why3.Task.task -> unit
