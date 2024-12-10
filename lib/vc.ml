@@ -205,18 +205,25 @@ type cursor = {
   mutable pos : Range.pos ;
 }
 
-let forward print cursor =
+let lino cursor =
+  Format.printf "@{<orange>%4d:@} " @@ fst cursor.pos
+
+let forward print endline cursor =
   let k = cursor.offset in
   let c = cursor.text.[k] in
   if print then Format.print_char c ;
   cursor.pos <- Range.after cursor.pos c ;
+  if print && endline && c = '\n' then lino cursor ;
   cursor.offset <- succ k
 
 let skip cursor pos =
-  while Range.(<<) cursor.pos pos do forward false cursor done
+  while Range.(<<) cursor.pos pos do
+    forward false false cursor done
 
-let print cursor pos =
-  while Range.(<<) cursor.pos pos do forward true cursor done
+let print cursor ?(endline=true) pos =
+  while Range.(<<) cursor.pos pos do
+    forward true (endline || fst cursor.pos + 1 < fst pos) cursor
+  done
 
 let line n = (n,0)
 
@@ -238,17 +245,17 @@ let rec decorate cursor head tail =
   match tail with
   | [] ->
     let q = Range.last_line head.range + cursor.context + 1 in
-    print cursor @@ line q ;
-    Format.printf "@{<orange>[...]@}@."
+    print cursor ~endline:false @@ line q
   | next :: tail ->
     let q = Range.last_line head.range in
     let p' = Range.first_line next.range in
     let ctxt = cursor.context in
     if q + 2 * ctxt + 3 < p' then
       begin
-        print cursor @@ line (q + ctxt + 1) ;
-        Format.printf "@{<orange>[...]@}@." ;
+        print cursor ~endline:false @@ line (q + ctxt + 1) ;
+        Format.printf " @{<orange>•••@}@." ;
         skip cursor @@ line (p' - ctxt) ;
+        lino cursor ;
       end ;
     decorate cursor next tail
 
@@ -270,9 +277,13 @@ let dump ~file ~context thy task =
     try
       let p = Range.first_line head.range in
       skip cursor @@ line (p - cursor.context) ;
-      if fst cursor.pos > 0 then
-        Format.printf "@{<orange>[...]@}@." ;
-      decorate cursor head tail
+      lino cursor ;
+      decorate cursor head tail ;
+      if context > 1 then
+        begin
+          lino cursor ;
+          Format.print_newline () ;
+        end ;
     with Invalid_argument _ | Exit ->
-      if snd cursor.pos > 0 then Format.print_newline () ;
-      Format.printf "@{<orange>[eof]@}@."
+      if snd cursor.pos > 0 then
+        Format.print_newline ()
