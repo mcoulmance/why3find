@@ -36,7 +36,7 @@ type shape =
   | Range of kind * Loc.position
 
 (* Collects all colored parts the two shapes *)
-let (<|>) (a : shape) (b : shape) : shape =
+let (<+>) (a : shape) (b : shape) : shape =
   match a,b with
   | Empty,c | c,Empty -> c
   | _ -> Cat(a,b)
@@ -51,16 +51,18 @@ let (<*>) (a : shape) (b : shape) : shape =
 (* ---  Range Extraction                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
-let range kind = function None -> Empty | Some p -> Range(kind,p)
-
-let apply kind loc = function Empty -> range kind loc | _ as shape -> shape
+let default kind l s =
+  match s, l with
+  | Empty, Some p -> Range(kind,p)
+  | shape, _ -> shape
 
 let rec collect kind (t : Term.term) =
-  apply kind t.t_loc @@
-  Term.t_fold (fun rgs t -> rgs <*> collect kind t) Empty t
+  match t.t_loc with
+  | Some p -> Range(kind,p)
+  | None -> Term.t_fold (fun rgs t -> rgs <+> collect kind t) Empty t
 
 let rec hyp (t : Term.term) =
-  apply When t.t_loc @@
+  default When t.t_loc @@
   match t.t_node with
   | Tbinop(Tand,a,b) -> hyp a <*> hyp b
   | Term.Tlet (_,fb) ->
@@ -69,7 +71,7 @@ let rec hyp (t : Term.term) =
   | _ -> collect When t
 
 let rec goal (t : Term.term) =
-  apply Goal t.t_loc @@
+  default Goal t.t_loc @@
   match t.t_node with
   | Tbinop(Timplies,h,p) -> hyp h <*> goal p
   | Tquant(Tforall,bnd) ->
@@ -80,8 +82,8 @@ let rec goal (t : Term.term) =
 
 let decl (d: Decl.decl) : shape =
   match d.d_node with
-  | Dprop(Pgoal,pr,f) -> apply Goal pr.pr_name.id_loc @@ goal f
-  | Dprop(Paxiom,pr,f) -> apply When pr.pr_name.id_loc @@ hyp f
+  | Dprop(Pgoal,pr,f) -> default Goal pr.pr_name.id_loc @@ goal f
+  | Dprop(Paxiom,pr,f) -> default When pr.pr_name.id_loc @@ hyp f
   | _ -> Empty
 
 let tdecl (td : Thy.tdecl) : shape =
@@ -91,7 +93,9 @@ let rec task (t : Tsk.task) : shape =
   match t with
   | None -> Empty
   | Some { task_decl ; task_prev } ->
-    tdecl task_decl <|> task task_prev
+    let p = task task_prev in
+    let d = tdecl task_decl in
+    p <+> d
 
 type chunk = { kind : kind ; range : Range.range }
 
