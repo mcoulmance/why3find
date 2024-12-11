@@ -462,7 +462,8 @@ let call_prover (config : Why3.Whyconf.main)
       if !runover then
         begin
           stop ?name () ;
-          Log.warning "Prover %a can not be killed" Prover.pp_prover prover ;
+          Log.warning "Prover %a did not stop properly"
+            Prover.pp_prover prover ;
           Some Failed
         end
       else
@@ -476,7 +477,8 @@ let call_prover (config : Why3.Whyconf.main)
           started := true ;
         end ;
       None
-    | InternalFailure _ ->
+    | InternalFailure e ->
+      Log.warning "Why3 internal failure: %a" Why3.Exn_printer.exn_printer e;
       begin
         if !started then stop ?name () ;
         Some Failed
