@@ -254,7 +254,7 @@ let rec decorate cursor head tail =
     let q = Range.last_line head.range in
     let p' = Range.first_line next.range in
     let ctxt = cursor.context in
-    if q + 2 * ctxt + 3 < p' then
+    if q + 2 * ctxt + 2 < p' then
       begin
         print cursor ~endline:false @@ line (q + ctxt + 1) ;
         Format.printf " @{<orange>•••@}@." ;
