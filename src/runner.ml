@@ -462,8 +462,9 @@ let call_prover (config : Why3.Whyconf.main)
       if !runover then
         begin
           stop ?name () ;
-          Log.warning "Prover %a did not stop properly"
-            Prover.pp_prover prover ;
+          Why3.Debug.set_flag (Why3.Debug.lookup_flag "keep_vcs");
+          Log.warning "Prover %a did not stop properly on goal %s"
+            Prover.pp_prover prover (Option.value ~default:"<unnamed>" name);
           Some Failed
         end
       else
