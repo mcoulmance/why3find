@@ -445,6 +445,7 @@ type mode = [ `Force | `Update | `Minimize | `Replay ]
 let process ~env ~(mode:mode) ~session ~results ~axioms ~unsuccess ~goals ~ptactic file =
   Fibers.background @@
   begin
+    let save = session in
     let exts = Wutil.exts () in
     if not @@ List.exists (fun suffix -> String.ends_with ~suffix file) exts
     then
@@ -454,7 +455,7 @@ let process ~env ~(mode:mode) ~session ~results ~axioms ~unsuccess ~goals ~ptact
       end ;
     let dir, lib = Wutil.filepath file in
     let theories, format = Wutil.load_theories env.Wenv.wenv.env file in
-    let session = Session.create ~session ~dir ~file ~format theories in
+    let session = Session.create ~dir ~file ~format theories in
     let local = Calibration.default env in
     let profile, strategy = Proofs.load ~local file in
     let buffer = (* the proof strategy must be kept to stabilize crc files *)
@@ -466,7 +467,7 @@ let process ~env ~(mode:mode) ~session ~results ~axioms ~unsuccess ~goals ~ptact
         (prove_theory ~env ~goals ~file ~results ~ptactic mode profile buffer strategy)
         (Session.theories session)
     in
-    Session.save session ;
+    if save then Session.save session ;
     Option.iter (Proofs.save ~force:true) buffer ;
     let henv =
       if axioms then
