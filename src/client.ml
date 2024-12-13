@@ -42,6 +42,7 @@ let options = [
 ]
 
 type goal = { prover : Prover.desc ; digest : string }
+
 type task = {
   goal : goal ;
   prv : Prover.prover ;
@@ -134,7 +135,7 @@ let get_task client prv tsk =
 let request client profile prover task timeout =
   let open Fibers.Monad in
   let wmain = client.wmain in
-  let task = get_task client prover task in
+  let htask = get_task client prover task in
   Fibers.background
     begin
       (* project profile *)
@@ -154,14 +155,14 @@ let request client profile prover task timeout =
           in vs /. vp in
       (* server timeout *)
       let time = timeout /. gamma in
-      if task.timeout < time then
+      if htask.timeout < time then
         begin
-          task.timeout <- time ;
-          send_get client task.goal time ;
+          htask.timeout <- time ;
+          send_get client htask.goal time ;
         end ;
       Fibers.return ()
     end ;
-  task.channel
+  htask.channel
 
 (* -------------------------------------------------------------------------- *)
 (* --- CALIBRATION                                                        --- *)
@@ -185,11 +186,6 @@ let do_result client goal status time =
     | _ -> Runner.Failed
   in
   Fibers.background
-    (* TODO: replace by a store in the prooftree cache (?) *)
-    (*~callback:(fun alpha ->
-        Runner.update task.prv task.tsk @@
-        Runner.map (fun t -> t *. alpha) result
-      )*)
     (Calibration.velocity client.wmain client.profile task.prv) ;
   if Runner.definitive ~timeout:task.timeout result then
     Hashtbl.remove client.pending task.goal ;

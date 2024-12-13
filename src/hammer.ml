@@ -110,6 +110,7 @@ let prove env ?client ?cancel prover timeout : strategy = fun n ->
   let wmain = Why3.Whyconf.get_main env.Config.wenv.config in
   let name = Session.goal_name n.goal in
   let* alpha = Calibration.velocity wmain n.profile prover in
+  let to_local = Runner.map (fun t -> t *. alpha) in
   let to_profile = Runner.map (fun t -> t /. alpha) in
   let runner_time = timeout *. alpha in
   let callback = Session.result n.goal in
@@ -136,6 +137,10 @@ let prove env ?client ?cancel prover timeout : strategy = fun n ->
         let handler result =
           match Runner.crop ~timeout result with
           | Some result ->
+            let local = to_local result in
+            (* TODO: cache this not here but in the prooftree cache *)
+            (* Runner.cache prover n.goal local ; *)
+            Runner.notify wmain prover local callback ;
             Fibers.set runner result ;
             Fibers.emit kill ()
           | None -> ()
