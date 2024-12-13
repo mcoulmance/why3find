@@ -73,6 +73,7 @@ let () = Lsp.register ~force:true "initialize"
           "codeLensProvider", `Bool !codeLensProvider ;
           "documentSymbolProvider", `Bool !documentSymbolProvider;
           "foldingRangeProvider", `Bool !foldingRangeProvider ;
+          "executeCommandProvider", `Bool true ;
         ];
         "serverInfo", `Assoc [
           "name", `String "why3find" ;
@@ -577,5 +578,28 @@ let watchers events uri patterns : Json.t =
 let watch channel ?events ?uri patterns =
   Lsp.register_capability channel
     "workspace/didChangeWatchedFiles" @@ watchers events uri patterns
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Command Provider                                                  --- *)
+(* -------------------------------------------------------------------------- *)
+
+let commandProvider = Hashtbl.create 0
+
+let () = Lsp.register "workspace/executeCommand"
+    begin fun _channel data ->
+      let command = Json.jfield "command" data |> Json.jstring in
+      if command = "" then `Null else
+        match Hashtbl.find_opt commandProvider command with
+        | None ->
+          invalid_arg @@ Printf.sprintf "Unsupported command %S" command
+        | Some fn ->
+          let args = Json.jfield "arguments" data |> Json.jlist in
+          fn args
+    end
+
+let on_execute_command command handler =
+  if Hashtbl.mem commandProvider command then
+    invalid_arg @@ Printf.sprintf "Lspserver.on_execute_command (%s)" command ;
+  Hashtbl.add commandProvider command handler
 
 (* -------------------------------------------------------------------------- *)
