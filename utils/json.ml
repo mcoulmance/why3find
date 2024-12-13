@@ -90,6 +90,10 @@ let jfield fd = function
   | `Assoc fds -> (try List.assoc fd fds with Not_found -> `Null)
   | _ -> `Null
 
+let jpath fds js =
+  List.fold_left (fun js fd -> jfield fd js) js @@
+  String.split_on_char '/' fds
+
 let joption f = function
   | `Null -> None
   | js -> Some (f js)

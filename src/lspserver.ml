@@ -48,11 +48,17 @@ let typedefProvider = ref false
 let implementationProvider = ref false
 let hoverProvider = ref false
 let codeLensProvider = ref false
+let codeLensRefresh = ref false
 let documentSymbolProvider = ref false
 let foldingRangeProvider = ref false
+let foldingRangeRefresh = ref false
 
 let () = Lsp.register ~force:true "initialize"
-    begin fun _channel _data ->
+    begin fun _channel params ->
+      codeLensRefresh :=
+        Json.jbool @@ Json.jpath "workspace/codeLens/refreshSupport" params ;
+      foldingRangeRefresh :=
+        Json.jbool @@ Json.jpath "workspace/foldingRange/refreshSupport" params ;
       `Assoc [
         "capabilities", `Assoc [
           "textDocumentSync", `Assoc [
@@ -67,6 +73,7 @@ let () = Lsp.register ~force:true "initialize"
           "codeLensProvider", `Bool !codeLensProvider ;
           "documentSymbolProvider", `Bool !documentSymbolProvider;
           "foldingRangeProvider", `Bool !foldingRangeProvider ;
+          "executeCommandProvider", `Bool true ;
         ];
         "serverInfo", `Assoc [
           "name", `String "why3find" ;
@@ -375,7 +382,8 @@ let on_codelens ?resolve fn =
     end resolve
 
 let refresh_codelens channel =
-  Lsp.send channel "workspace/codeLens/refresh" `Null
+  if !codeLensRefresh then
+    Lsp.send channel "workspace/codeLens/refresh" `Null
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Folding Ranges                                                    --- *)
@@ -411,7 +419,8 @@ let on_folding fn =
     end
 
 let refresh_folding channel =
-  Lsp.send channel "workspace/foldingRange/refresh" `Null
+  if !foldingRangeRefresh then
+    Lsp.send channel "workspace/foldingRange/refresh" `Null
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Document Symbols                                                  --- *)
@@ -569,5 +578,28 @@ let watchers events uri patterns : Json.t =
 let watch channel ?events ?uri patterns =
   Lsp.register_capability channel
     "workspace/didChangeWatchedFiles" @@ watchers events uri patterns
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Command Provider                                                  --- *)
+(* -------------------------------------------------------------------------- *)
+
+let commandProvider = Hashtbl.create 0
+
+let () = Lsp.register "workspace/executeCommand"
+    begin fun _channel data ->
+      let command = Json.jfield "command" data |> Json.jstring in
+      if command = "" then `Null else
+        match Hashtbl.find_opt commandProvider command with
+        | None ->
+          invalid_arg @@ Printf.sprintf "Unsupported command %S" command
+        | Some fn ->
+          let args = Json.jfield "arguments" data |> Json.jlist in
+          fn args
+    end
+
+let on_execute_command command handler =
+  if Hashtbl.mem commandProvider command then
+    invalid_arg @@ Printf.sprintf "Lspserver.on_execute_command (%s)" command ;
+  Hashtbl.add commandProvider command handler
 
 (* -------------------------------------------------------------------------- *)

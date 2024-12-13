@@ -153,3 +153,7 @@ val on_file_event : (Lsp.channel -> uri:string -> event -> unit) -> unit
 (** Starts watching for file events on the given global file patterns. *)
 val watch : Lsp.channel ->
   ?events:event list -> ?uri:string -> string list -> Lsp.capability
+
+(** {2 Workspace Execute Command} *)
+
+val on_execute_command : string -> (Json.t list -> Json.t) -> unit

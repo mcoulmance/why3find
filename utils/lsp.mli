@@ -58,6 +58,12 @@ val unregister_capability: channel -> capability -> unit
    Register a request or notification handler. Some builtin request and
    notifications are already registered and shall be forced updated, namely
    [initialize], [initialized], [shutdown], [exit] and [$/setTrace].
+
+   The callbacks may raise exceptions, in which case an error is reported
+   to the client. Meaningfull exceptions are:
+   - [Not_found] request is not supported
+   - [Invalid_argument _] request arguments are incorrect
+   - [Failure _] and any other exception are treated as internal error
 *)
 val register: ?force:bool -> string -> (channel -> Json.t -> Json.t) -> unit
 

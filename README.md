@@ -51,7 +51,7 @@ are very opened to discussions and propositions. Please, do not hesitate to open
 issues on our public BTS for submitting bugs or exchanging on feature wishes
 and new ideas.
 
-## VSCode Integration
+## LSP & VSCode Integration
 
 Why3find features a Language Server Protocol (LSP) and a Visual Studio Code
 client for the Why3 language. The LSP is still at early stage and only provides
@@ -59,13 +59,43 @@ syntax highlighting, goto-definition, typing information, proof results, etc.
 Save your files to keep information in sync.
 
 You must have `why3find` installed and available from your `PATH` to use the
-VSCode client. See [vscode/README](vscode/README.md) for details.
+LSP. See [vscode/README](vscode/README.md) for details about the lsp
+functionality
+
+### VSCode
 
 An easy way to install everything for VSCode from the source distribution is:
 
     $ make install-vscode
 
 This will compile and install both the `why3find` command and the VSCode plugin.
+
+### Emacs
+
+The LSP can be used on Emacs with `lsp-mode` (Emacs' internal LSP client Eglot
+might also work, but will offer less functionalities).
+
+Add this to your `.emacs` file :
+
+```elisp
+(let ((why3-share (ignore-errors (car (process-lines "why3" "--print-datadir")))))
+  (when (and why3-share (file-directory-p why3-share))
+    (add-to-list 'load-path (expand-file-name "../emacs/site-lisp" why3-share))
+    (autoload 'why3-mode "why3" "Major mode for Why3." t)
+    (add-to-list 'auto-mode-alist '("\\.mlw$" . why3-mode))
+    (add-hook 'why3-mode-hook #'lsp)
+    (with-eval-after-load 'lsp-mode
+      (add-to-list 'lsp-language-id-configuration '(why3-mode . "whyml"))
+      (defun launch-why3find-lsp (port)
+        (list "why3find" "lsp" "--port" (number-to-string port)))
+      (lsp-register-client
+       (make-lsp-client
+        :new-connection (lsp-tcp-connection 'launch-why3find-lsp)
+        :activation-fn (lsp-activate-on "whyml")
+        :server-id 'why3findlsp)))))
+```
+
+We recommend having `lsp-ui` installed to get the most out of the LSP.
 
 ## Packages
 

@@ -45,6 +45,7 @@ val jmap : (t -> 'a) -> t -> 'a list
 val mfield : string -> t -> bool
 val jfield : string -> t -> t
 val jfield_exn : string -> t -> t
+val jpath : string -> t -> t (* '/'-separated list of fields *)
 val joption : (t -> 'a) -> t -> 'a option
 val jdefault : 'a -> (t -> 'a) -> t -> 'a
 val jmem : string -> t -> bool
