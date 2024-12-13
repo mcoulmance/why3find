@@ -337,7 +337,7 @@ let establish transport =
   with Channel channel -> channel
 
 (* -------------------------------------------------------------------------- *)
-(* ---  Default LSP Behavior                                              --- *)
+(* ---  Default LSP Behavior (refined in lspserver)                       --- *)
 (* -------------------------------------------------------------------------- *)
 
 let () = register "initialize"

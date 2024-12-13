@@ -48,11 +48,14 @@ let typedefProvider = ref false
 let implementationProvider = ref false
 let hoverProvider = ref false
 let codeLensProvider = ref false
+let codeLensRefresh = ref false
 let documentSymbolProvider = ref false
 let foldingRangeProvider = ref false
 
 let () = Lsp.register ~force:true "initialize"
-    begin fun _channel _data ->
+    begin fun _channel params ->
+      codeLensRefresh :=
+        Json.jbool @@ Json.jpath "workspace/codeLens/refreshSupport" params ;
       `Assoc [
         "capabilities", `Assoc [
           "textDocumentSync", `Assoc [
@@ -375,7 +378,8 @@ let on_codelens ?resolve fn =
     end resolve
 
 let refresh_codelens channel =
-  Lsp.send channel "workspace/codeLens/refresh" `Null
+  if !codeLensRefresh then
+    Lsp.send channel "workspace/codeLens/refresh" `Null
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Folding Ranges                                                    --- *)
