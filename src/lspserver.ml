@@ -51,11 +51,14 @@ let codeLensProvider = ref false
 let codeLensRefresh = ref false
 let documentSymbolProvider = ref false
 let foldingRangeProvider = ref false
+let foldingRangeRefresh = ref false
 
 let () = Lsp.register ~force:true "initialize"
     begin fun _channel params ->
       codeLensRefresh :=
         Json.jbool @@ Json.jpath "workspace/codeLens/refreshSupport" params ;
+      foldingRangeRefresh :=
+        Json.jbool @@ Json.jpath "workspace/foldingRange/refreshSupport" params ;
       `Assoc [
         "capabilities", `Assoc [
           "textDocumentSync", `Assoc [
@@ -415,7 +418,8 @@ let on_folding fn =
     end
 
 let refresh_folding channel =
-  Lsp.send channel "workspace/foldingRange/refresh" `Null
+  if !foldingRangeRefresh then
+    Lsp.send channel "workspace/foldingRange/refresh" `Null
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Document Symbols                                                  --- *)
