@@ -28,6 +28,17 @@ type 'a t = {
   next : 'a t Cmap.t ;
 }
 
+let rec dump fmt n =
+  begin
+    Format.fprintf fmt "@[<hov 2>{" ;
+    if n.data <> None then Format.fprintf fmt "* " ;
+    Cmap.iter
+      (fun c n ->
+         Format.fprintf fmt "@ %c: %a" c dump n
+      ) n.next ;
+    Format.fprintf fmt " }@]" ;
+  end
+
 let empty = { data = None ; next = Cmap.empty }
 
 let rec insert k a v node =
@@ -45,7 +56,10 @@ let rec lookup best text k node =
   try
     let best = match node.data with None -> best | data -> data in
     lookup best text (succ k) (Cmap.find text.[k] node.next)
-  with Not_found | Invalid_argument _ -> best
+  with Not_found | Invalid_argument _ ->
+  match node.data with
+  | Some _ as data -> data
+  | None -> best
 
 let find text k n = lookup None text k n
 

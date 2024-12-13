@@ -63,17 +63,18 @@ open Format
 let nop _ = ()
 
 let mark_open_stag = function
-  | String_tag "red" -> "\027[31m"
+  | String_tag "bold" -> "\027[1m"
+  | String_tag "bright magenta" -> "\027[95m"
+  | String_tag "bright red" -> "\027[91m"
+  | String_tag "gray" -> "\027[37m"
   | String_tag "green" -> "\027[32m"
   | String_tag "orange" -> "\027[33m"
-  | String_tag "bright red" -> "\027[91m"
-  | String_tag "bright magenta" -> "\027[95m"
-  | String_tag "bold" -> "\027[1m"
+  | String_tag "red" -> "\027[31m"
   | _ -> ""
 
 let mark_close_stag = function
-  | String_tag ("red"|"green"|"orange"|"bright red"|"bright magenta") -> "\027[39m"
   | String_tag "bold" -> "\027[22m"
+  | String_tag ("bright magenta"|"bright red"|"gray"|"green"|"orange"|"red") -> "\027[39m"
   | _ -> ""
 
 let set_tty std fmt =

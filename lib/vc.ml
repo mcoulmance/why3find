@@ -205,28 +205,113 @@ let window ~file thy chunks =
 type cursor = {
   text : string ;
   context : int ;
+  mutable edge : bool ;
+  mutable comment : int ;
   mutable offset : int ;
   mutable pos : Range.pos ;
 }
 
+let keywords = lazy
+  begin
+    let m = ref Dict.empty in
+    List.iter
+      (fun k -> m := Dict.add k k !m)
+      Why3.Keywords.keywords ; !m
+  end
+
 let lino cursor =
   Format.printf "@{<orange>%4d:@} " @@ fst cursor.pos
 
-let forward print endline cursor =
-  let k = cursor.offset in
-  let c = cursor.text.[k] in
-  if print then Format.print_char c ;
-  cursor.pos <- Range.after cursor.pos c ;
-  if print && endline && c = '\n' then lino cursor ;
-  cursor.offset <- succ k
+let edge = function
+  | 'a'..'z' | 'A'..'Z' | '0'..'9' | '\'' | '_' -> false
+  | _ -> true
+
+let move cursor d =
+  begin
+    let l,c = cursor.pos in
+    cursor.offset <- cursor.offset + d ;
+    cursor.pos <- l, c+d ;
+  end
+
+let comment_start text k =
+  let n = String.length text in
+  k + 2 < n && text.[k+1] = '*' && text.[k+2] <> ')'
+
+let comment_end text k =
+  let n = String.length text in
+  k + 1 < n && text.[k+1] = ')'
 
 let skip cursor pos =
+  if cursor.comment > 0 then Format.printf "@}" ;
   while Range.(<<) cursor.pos pos do
-    forward false false cursor done
+    let k = cursor.offset in
+    let c = cursor.text.[k] in
+    match c with
+    | '\n' ->
+      cursor.pos <- Range.after cursor.pos c ;
+      cursor.offset <- succ k ;
+    | '(' when comment_start cursor.text k ->
+      cursor.comment <- succ cursor.comment ;
+      move cursor 2 ;
+    | '*' when comment_end cursor.text k ->
+      cursor.comment <- pred cursor.comment ;
+      move cursor 2 ;
+    | _ ->
+      move cursor 1 ;
+      cursor.edge <- edge c
+  done
 
 let print cursor ?(endline=true) pos =
+  if cursor.comment > 0 then Format.printf "@{<gray>" ;
   while Range.(<<) cursor.pos pos do
-    forward true (endline || fst cursor.pos + 1 < fst pos) cursor
+    let k = cursor.offset in
+    let c = cursor.text.[k] in
+    begin
+      match
+        if cursor.edge && cursor.comment = 0 then
+          Dict.find cursor.text k (Lazy.force keywords)
+        else None
+      with
+      | None ->
+        begin
+          match c with
+          | '\n' when (endline || fst cursor.pos < fst pos) ->
+            cursor.pos <- Range.after cursor.pos c ;
+            cursor.offset <- succ k ;
+            cursor.edge <- true ;
+            if cursor.comment > 0 then Format.printf "@}" ;
+            Format.print_char c ;
+            lino cursor ;
+            if cursor.comment > 0 then Format.printf "@{<gray>"
+          | '(' when comment_start cursor.text k ->
+            move cursor 2 ;
+            cursor.edge <- true ;
+            cursor.comment <- succ cursor.comment ;
+            if cursor.comment = 1 then Format.printf "@{<gray>" ;
+            Format.print_string "(*"
+          | '*' when comment_end cursor.text k ->
+            move cursor 2 ;
+            cursor.edge <- true ;
+            cursor.comment <- pred cursor.comment ;
+            Format.print_string "*)" ;
+            if cursor.comment = 0 then Format.printf "@}" ;
+          | _ ->
+            move cursor 1 ;
+            cursor.edge <- edge c ;
+            Format.print_char c ;
+        end
+      | Some kwd ->
+        let n = String.length kwd in
+        let s = String.length cursor.text in
+        if k+n >= s || edge cursor.text.[k+n] then
+          Format.printf "@{<bold>%s@}" kwd
+        else
+          Format.print_string kwd ;
+        let l,p = cursor.pos in
+        cursor.pos <- l, p+n;
+        cursor.offset <- k+n;
+        cursor.edge <- false;
+    end
   done
 
 let line n = (n,0)
@@ -277,7 +362,10 @@ let dump ~file ~context thy task =
     Format.printf "@{<orange>[%s:%a%a]@}@\n"
       file pp_range (p,q) pp_expl task ;
     let text = Utils.readfile ~file in
-    let cursor = { text ; context ; offset = 0 ; pos = Range.start } in
+    let cursor = {
+      text ; context ; offset = 0 ; pos = Range.start ;
+      edge = false ; comment = 0 ;
+    } in
     try
       let p = Range.first_line head.range in
       skip cursor @@ line (p - cursor.context) ;

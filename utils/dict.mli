@@ -27,3 +27,5 @@ val find : string -> int -> 'a t -> 'a option
 
 val starts_with : prefix:string -> string -> int -> bool
 val ends_with : suffix:string -> string -> int -> bool
+
+val dump : Format.formatter -> 'a t -> unit
