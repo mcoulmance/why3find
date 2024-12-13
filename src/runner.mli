@@ -57,10 +57,10 @@ type prooftask
 val digest : prooftask -> string
 val data : prooftask -> string
 
-val prove_cached : Prover.prover -> Session.goal -> float -> result option
-(** Query cache *)
-
 val prepare : Prover.prover -> Session.goal -> prooftask
+
+val prove_cached : Prover.prover -> Session.goal -> float -> result option
+(** Query cache only *)
 
 val prove_prepared : Why3.Whyconf.main ->
   ?name:string ->
@@ -76,7 +76,7 @@ val prove_buffer : Why3.Whyconf.main ->
 (** Do not read nor update cache *)
 
 val notify : Why3.Whyconf.main -> Prover.prover -> result -> callback -> unit
-val update : Prover.prover -> Session.goal -> result -> unit
+val cache : Prover.prover -> Session.goal -> result -> unit
 
 val options : (string * Arg.spec * string) list
 val pending : unit -> int

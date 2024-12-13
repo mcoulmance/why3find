@@ -126,17 +126,17 @@ let prove env ?client ?cancel prover timeout : strategy = fun n ->
         Fibers.monitor ?signal:cancel ~handler @@
         Fibers.monitor ~signal:killall ~handler @@
         Fibers.map to_profile @@
-        Fibers.finally ~callback:(Runner.update prover n.goal) @@
+        Fibers.finally ~callback:(Runner.cache prover n.goal) @@
         Runner.prove_prepared wmain ~name ~cancel:kill ~callback
           prover task runner_time ~idename:(Session.goal_idename n.goal)
       in match client with
       | None -> runner
       | Some cl ->
         let signal = Client.request cl n.profile prover task timeout in
-        let handler r =
-          match Runner.crop ~timeout r with
-          | Some r ->
-            Fibers.set runner r ;
+        let handler result =
+          match Runner.crop ~timeout result with
+          | Some result ->
+            Fibers.set runner result ;
             Fibers.emit kill ()
           | None -> ()
         in Fibers.monitor ~signal ~handler runner

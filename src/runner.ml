@@ -597,7 +597,7 @@ let prove config ?name ?idename ?cancel ?callback prover task timeout =
 let prepare prover goal =
   ProofTask.prepare prover (Session.goal_task goal)
 
-let update prover goal result =
+let cache prover goal result =
   let task = Session.goal_task goal in
   Cache.set (task,prover) result
 
