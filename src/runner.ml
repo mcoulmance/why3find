@@ -594,15 +594,12 @@ let prove config ?name ?idename ?cancel ?callback prover task timeout =
       (prove_prepared config ?name ?idename ?cancel ?callback
          prover task timeout)
 
-let prepare prover goal =
-  ProofTask.prepare prover (Session.goal_task goal)
+let prepare = ProofTask.prepare
 
-let cache prover goal result =
-  let task = Session.goal_task goal in
+let cache prover task result =
   Cache.set (task,prover) result
 
-let prove_cached prover goal timeout =
-  let task = Session.goal_task goal in
+let prove_cached prover task timeout =
   let cached = Cache.get (task,prover) in
   let cropped = crop ~timeout cached in
   incr (if cropped = None then miss else hits);

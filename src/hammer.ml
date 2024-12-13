@@ -114,32 +114,33 @@ let prove env ?client ?cancel prover timeout : strategy = fun n ->
   let to_profile = Runner.map (fun t -> t /. alpha) in
   let runner_time = timeout *. alpha in
   let callback = Session.result n.goal in
+  let task = Session.goal_task n.goal in
   let+ verdict =
-    match Runner.prove_cached prover n.goal runner_time with
+    match Runner.prove_cached prover task runner_time with
     | Some result ->
       Runner.notify wmain prover result callback ;
       Fibers.return (to_profile result)
     | None ->
-      let task = Runner.prepare prover n.goal in
+      let ptask = Runner.prepare prover task in
       let kill = Fibers.signal () in
       let handler = Fibers.emit kill in
       let runner =
         Fibers.monitor ?signal:cancel ~handler @@
         Fibers.monitor ~signal:killall ~handler @@
         Fibers.map to_profile @@
-        Fibers.finally ~callback:(Runner.cache prover n.goal) @@
+        Fibers.finally ~callback:(Runner.cache prover task) @@
         Runner.prove_prepared wmain ~name ~cancel:kill ~callback
-          prover task runner_time ~idename:(Session.goal_idename n.goal)
+          prover ptask runner_time ~idename:(Session.goal_idename n.goal)
       in match client with
       | None -> runner
       | Some cl ->
-        let signal = Client.request cl n.profile prover task timeout in
+        let signal = Client.request cl n.profile prover ptask timeout in
         let handler result =
           match Runner.crop ~timeout result with
           | Some result ->
             let local = to_local result in
             (* TODO: cache this not here but in the prooftree cache *)
-            (* Runner.cache prover n.goal local ; *)
+            (* Runner.cache prover task local ; *)
             Runner.notify wmain prover local callback ;
             Fibers.set runner result ;
             Fibers.emit kill ()
