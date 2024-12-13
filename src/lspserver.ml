@@ -111,7 +111,10 @@ let jchange js =
   | Some range -> Update(range,text)
 
 type document = Doc of { uri: string ; lang: string ; text: Ropes.t }
+
 type location = Loc of { uri: string ; range: range}
+
+let location ~uri ~range = Loc { uri ; range }
 
 let wlocation (loc: location) : Json.t =
   match loc with Loc { uri ; range } ->
@@ -471,13 +474,25 @@ let on_document_symbol fn =
 
 type severity = [ `Error | `Warning | `Information | `Hint ]
 
+type related = Info of {
+    location : location ;
+    message : string ;
+  }
+
 type diagnostic = Diag of {
     range : range ;
     severity : severity ;
     source : string option ;
     message : string ;
+    related : related list ;
     data : Json.t ;
   }
+
+let related ~location ~message = Info { location ; message }
+
+let diagnostic
+    ~range ?(severity=`Error) ?source ~message ?(related=[]) ?(data=`Null) () =
+  Diag { range ; severity ; source ; message ; related ; data }
 
 let wseverity (s : severity) : Json.t =
   match s with
@@ -486,18 +501,21 @@ let wseverity (s : severity) : Json.t =
   | `Information -> `Int 3
   | `Hint -> `Int 4
 
-let diagnostic ~range ?(severity=`Error) ?source ~message ?(data=`Null) () =
-  Diag { range ; severity ; source ; message ; data }
+let wrelated (Info i) =
+  Json.assoc [
+    "location", wlocation i.location ;
+    "message", `String i.message ;
+  ]
 
-let wdiagnostic =
-  function Diag { range ; severity ; source ; message ; data } ->
-    Json.assoc [
-      "range", wrange range ;
-      "severity", wseverity severity ;
-      "source", Json.option_map Json.string source ;
-      "message", `String message ;
-      "data", data ;
-    ]
+let wdiagnostic (Diag d) =
+  Json.assoc [
+    "range", wrange d.range ;
+    "severity", wseverity d.severity ;
+    "source", Json.option_map Json.string d.source ;
+    "message", `String d.message ;
+    "relatedInformation", Json.list_map wrelated d.related ;
+    "data", d.data ;
+  ]
 
 let publish_diagnostic channel ~uri (ds : diagnostic list) =
   Lsp.notify channel "textDocument/publishDiagnostics" @@
