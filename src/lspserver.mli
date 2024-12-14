@@ -26,6 +26,8 @@ val to_uri : filename:string -> string
 
 type position = { line: int ; char : int }
 type range = { start: position ; stop: position }
+type location = Loc of { uri: string ; range: range}
+val location : uri:string -> range:range -> location
 
 (** {2 Document Synchronization} *)
 
@@ -49,19 +51,28 @@ val on_update : (Lsp.channel -> uri:string -> update -> unit) -> unit
 (** {2 Document Diagnostic} *)
 
 type severity = [ `Error | `Warning | `Information | `Hint ]
+
+type related = Info of {
+    location : location ;
+    message : string ;
+  }
+
 type diagnostic = Diag of {
     range : range ;
     severity : severity ;
     source : string option ;
     message : string ;
+    related : related list ;
     data : Json.t ;
   }
 
+val related : location:location -> message:string -> related
 val diagnostic :
   range:range ->
   ?severity:severity ->
   ?source:string ->
   message:string ->
+  ?related:related list ->
   ?data:Json.t ->
   unit -> diagnostic
 
@@ -69,7 +80,6 @@ val publish_diagnostic : Lsp.channel -> uri:string -> diagnostic list -> unit
 
 (** {2 Goto Definitions} *)
 
-type location = Loc of { uri: string ; range: range }
 type defkind = [ `Def | `Typedef | `Implementation ]
 
 val on_definition : ?kind:defkind ->
