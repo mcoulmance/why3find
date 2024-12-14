@@ -605,7 +605,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       let set m v () = m := v in
       let add r p = r := p :: !r in
       let context n = log := `Context n in
-      let failed () = context 5 in
+      let failed () = context 2 in
       parse_argv argv
         begin
           Wenv.options () @
@@ -628,7 +628,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
             "--theories", Arg.Unit (set log `Theories), "list results by theory";
             "--goals", Arg.Unit (set log `Goals), "list results by goals";
             "--proofs", Arg.Unit (set log `Proofs), "list proofs by goals";
-            "--context", Arg.Int context, "<n> show n-lines context on failed proof (tty only)";
+            "--context", Arg.Int context, "<n> show n-lines context on failed proof (tty only, default 2)";
             "--stdlib", Arg.Set Prove.stdlib, "report hypotheses from stdlib";
             "--extern", Arg.Set Prove.externals, "report also external symbols";
             "--builtin", Arg.Set Prove.builtins, "report also builtin symbols";
