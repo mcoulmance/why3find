@@ -50,18 +50,22 @@ let map f ta = match !ta with Done v -> return (f v) | Wait qs ->
 
 let apply f th = map th f
 
+type ('a,'b) par = Empty | Left of 'a | Right of 'b
+
 let par a b =
   let joined = var () in
-  let x = ref None in
-  let y = ref None in
-  let join () =
-    match !x,!y with
-    | Some u,Some v -> set joined (u,v)
-    | _ -> ()
-  in
+  let s = ref Empty in
+  let left x =
+    match !s with
+    | Empty | Left _ -> s := Left x
+    | Right y -> set joined (x,y) in
+  let right y =
+    match !s with
+    | Empty | Right _ -> s := Right y
+    | Left x -> set joined (x,y) in
   begin
-    forward a (fun u -> x := Some u ; join ()) ;
-    forward b (fun v -> y := Some v ; join ()) ;
+    forward a left ;
+    forward b right ;
     joined
   end
 
@@ -179,11 +183,7 @@ let all = function
       if !n <= 0 then
         let ys = List.sort (fun (i,_) (j,_) -> Stdlib.compare i j) !xs in
         set rs @@ List.map snd ys
-    in
-    let rec schedule i = function
-      | [] -> ()
-      | t::ts -> forward t @@ recv i ; schedule (succ i) ts
-    in schedule 0 ts ; rs
+    in List.iteri (fun i t -> forward t @@ recv i) ts ; rs
 
 let rec seq ts =
   match ts with
