@@ -192,17 +192,46 @@ end = struct
 
 end
 
-type prooftask = Prepared of Why3.Task.task [@@ocaml.unboxed]
+module ProofTask : sig
+  type prooftask
 
-let digest (Prepared task) =
-  digest task
+  val prepare : Prover.prover -> Task.task -> prooftask
 
-let data prv (Prepared task) =
-  let buffer = Buffer.create 2048 in
-  let fmt = Format.formatter_of_buffer buffer in
-  ignore @@ Driver.print_task_prepared prv.Prover.driver fmt task ;
-  Format.pp_print_flush fmt () ;
-  Buffer.contents buffer
+  val digest : prooftask -> string
+  val buffer : prooftask -> Buffer.t
+end = struct
+
+  type prooftask = {
+    task : Task.task;
+    buffer : Buffer.t;
+  }
+
+  let prepare_task =
+    Timer.timed2 ~name:"Task preparation" Driver.prepare_task
+
+  let print_task_prepared =
+    Timer.timed3 ~name:"Task printing" Driver.print_task_prepared
+
+  let prepare prover task =
+    let task = prepare_task prover.Prover.driver task in
+    let buffer = Buffer.create 2048 in
+    let fmt = Format.formatter_of_buffer buffer in
+    ignore @@ print_task_prepared prover.Prover.driver fmt task ;
+    Format.pp_print_flush fmt () ;
+    { task ; buffer }
+
+  let digest task =
+    digest task.task
+
+  let buffer task =
+    task.buffer
+
+end
+
+include ProofTask
+
+let data task =
+  Buffer.contents @@ ProofTask.buffer task
 
 (* -------------------------------------------------------------------------- *)
 (* --- Running Prover                                                     --- *)
@@ -313,8 +342,6 @@ let notify wmain prover result cb =
 let notify_pr prv limit pr cb =
   cb prv.Prover.config.prover limit pr
 
-type prepared_task = Prooftask of prooftask | Buffered of Buffer.t
-
 let launch_proof_timer = Timer.create_global "Launch proof"
 
 let logchannel = ref None
@@ -331,7 +358,7 @@ module type WRunner = sig
   type prover_call
 
   val prove_task : command:string -> config:Whyconf.main
-    -> limit:Call_provers.resource_limit -> Driver.driver -> prepared_task
+    -> limit:Call_provers.resource_limit -> Driver.driver -> Buffer.t
     -> prover_call
 
   val interrupt_call : config:Whyconf.main -> prover_call -> unit
@@ -344,11 +371,8 @@ module WRunner : WRunner = struct
 
   type prover_call = Call_provers.prover_call
 
-  let prove_task ~command ~config ~limit driver = function
-    | Prooftask (Prepared task) ->
-      Driver.prove_task_prepared ~command ~config ~limit driver task
-    | Buffered buffer ->
-      Driver.prove_buffer_prepared ~command ~config ~limit driver buffer
+  let prove_task ~command ~config ~limit driver buffer =
+    Driver.prove_buffer_prepared ~command ~config ~limit driver buffer
 
   let interrupt_call ~config c =
     Call_provers.interrupt_call ~config c
@@ -405,12 +429,18 @@ let mock_runner () =
 
 let _ = Debug.create_flag ~callback:mock_runner "fake-local-timeouts"
 
+let debug_print_task fmt buf =
+  let f, oc = Filename.open_temp_file "why3find_" "" in
+  Buffer.output_buffer oc buf;
+  close_out oc;
+  Format.pp_print_string fmt f
+
 let call_prover (config : Why3.Whyconf.main)
     ?(name : string option)
     ?(idename : string option)
     ?(cancel : unit Fibers.signal option)
     ?(callback : callback option)
-    ~(prepared : prepared_task)
+    ~(prepared : Buffer.t)
     ~(prover : Prover.prover)
     ~(timeout : float) () =
   let module WRunner = (val !wrunner) in
@@ -419,6 +449,7 @@ let call_prover (config : Why3.Whyconf.main)
   let clockwall = ref 0.0 in
   let started = ref false in
   let killed = ref false in
+  let runover = ref false in
   let canceled = ref false in
   let timedout = ref false in
   update_client config ;
@@ -445,19 +476,30 @@ let call_prover (config : Why3.Whyconf.main)
   Fibers.monitor ?signal:cancel ~handler:interrupt @@
   Fibers.async @@
   begin fun () ->
-    let t0 = Unix.gettimeofday () in
+    let now = Unix.gettimeofday () in
     if !started then
       begin
         if !canceled then kill ()
-        else if not !timedout && !clockwall < t0 then
-          (timedout := true ; kill ()) ;
+        else if not !timedout && now > !clockwall then
+          (timedout := true ; kill ())
+        else if now > !clockwall +. 1.0 then
+          runover := true
       end ;
     let query =
       try WRunner.query_call call with e -> InternalFailure e in
     match query with
-    | NoUpdates
-    | ProverInterrupted ->
-      None
+    | NoUpdates | ProverInterrupted ->
+      if !runover then
+        begin
+          stop ?name () ;
+          Log.warning "Prover %a did not stop properly on goal %s.@ \
+                       See the prover input at %a."
+            Prover.pp_prover prover (Option.value ~default:"<unnamed>" name)
+            debug_print_task prepared;
+          Some Failed
+        end
+      else
+        None
     | ProverStarted ->
       if not !started then
         begin
@@ -467,7 +509,8 @@ let call_prover (config : Why3.Whyconf.main)
           started := true ;
         end ;
       None
-    | InternalFailure _ ->
+    | InternalFailure e ->
+      Log.warning "Why3 internal failure: %a" Why3.Exn_printer.exn_printer e;
       begin
         if !started then stop ?name () ;
         Some Failed
@@ -533,17 +576,12 @@ let definitive ~timeout result =
 
 let prove_prepared config ?name ?idename ?cancel ?callback prover task timeout =
   call_prover config ?name ?idename ?cancel ?callback
-    ~prepared:(Prooftask task) ~prover ~timeout ()
-
-let prepare prover task =
-  Prepared (Driver.prepare_task prover.Prover.driver task)
-
-let prepare = Timer.timed2 ~name:"Task preparation" prepare
+    ~prepared:(ProofTask.buffer task) ~prover ~timeout ()
 
 let prove config ?name ?idename ?cancel ?callback prover task timeout =
   let entry = task,prover in
   let cached = Cache.get entry in
-  let task = prepare prover task in
+  let task = ProofTask.prepare prover task in
   match crop ~timeout cached with
   | Some cached ->
     incr hits ;
@@ -557,7 +595,7 @@ let prove config ?name ?idename ?cancel ?callback prover task timeout =
          prover task timeout)
 
 let prepare prover goal =
-  prepare prover (Session.goal_task goal)
+  ProofTask.prepare prover (Session.goal_task goal)
 
 let update prover goal result =
   let task = Session.goal_task goal in
@@ -571,7 +609,7 @@ let prove_cached prover goal timeout =
   cropped
 
 let prove_buffer config ?cancel prover buffer timeout =
-  call_prover config ?cancel ~prepared:(Buffered buffer) ~prover ~timeout ()
+  call_prover config ?cancel ~prepared:buffer ~prover ~timeout ()
 
 (* -------------------------------------------------------------------------- *)
 (* --- Options                                                            --- *)

@@ -55,7 +55,7 @@ val prove : Why3.Whyconf.main ->
 type prooftask
 
 val digest : prooftask -> string
-val data : Prover.prover -> prooftask -> string
+val data : prooftask -> string
 
 val prove_cached : Prover.prover -> Session.goal -> float -> result option
 (** Query cache *)

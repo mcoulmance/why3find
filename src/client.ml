@@ -201,7 +201,7 @@ let do_result client goal status time =
 
 let do_download client goal =
   let task = Hashtbl.find client.pending goal in
-  send_upload client goal (Runner.data task.prv task.tsk)
+  send_upload client goal (Runner.data task.tsk)
 
 (* -------------------------------------------------------------------------- *)
 (* --- SERVER Handler                                                     --- *)
