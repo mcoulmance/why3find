@@ -56,7 +56,7 @@ stdenv.mkDerivation rec {
     ppx_sexp_conv
   ];
 
-  propagatedBuildInputs = [ camlzip num re sexplib ];
+  propagatedBuildInputs = [ camlzip num zarith re sexplib ];
 
   enableParallelBuilding = true;
 

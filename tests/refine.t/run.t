@@ -33,6 +33,8 @@
     
     axiom cD'def : cD > 0
     
+    (* meta remove_unused:dependency prop cD'def, constant cD *)
+    
     goal cE'vc :
       (exists result:int. result > 0) /\
       (forall result:int.
@@ -42,9 +44,13 @@
     
     axiom cE'def : cE > 0
     
+    (* meta remove_unused:dependency prop cE'def, constant cE *)
+    
     function fY int : int
     
     axiom fY'spec : forall x:int. fY x < x
+    
+    (* meta remove_unused:dependency prop fY'spec, function fY *)
     
     goal fZ'vc :
       forall x:int.
@@ -55,6 +61,8 @@
     function fZ int : int
     
     axiom fZ'def : forall x:int. not fZ x = x
+    
+    (* meta remove_unused:dependency prop fZ'def, function fZ *)
     
   end
   
@@ -103,6 +111,8 @@
     function fZ1 int : int
     
     axiom fZ'def1 : forall x:int. not fZ1 x = x
+    
+    (* meta remove_unused:dependency prop fZ'def1, function fZ1 *)
     
     (* clone Interface with function fZ = fZ1, function fY = fY1,
       constant cE = cE1, constant cD = cD1, constant cC = cC1,

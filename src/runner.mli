@@ -40,7 +40,7 @@ val to_json : result -> Json.t
 
 type callback =
   Why3.Whyconf.prover ->
-  Why3.Call_provers.resource_limit ->
+  Why3.Call_provers.resource_limits ->
   Why3.Call_provers.prover_result ->
   unit
 
