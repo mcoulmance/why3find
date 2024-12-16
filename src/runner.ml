@@ -30,7 +30,7 @@ module Call_provers = Why3.Call_provers
 
 type callback =
   Why3.Whyconf.prover ->
-  Why3.Call_provers.resource_limit ->
+  Why3.Call_provers.resource_limits ->
   Why3.Call_provers.prover_result ->
   unit
 
@@ -312,7 +312,7 @@ let update_client wmain =
 
 let memlimit wmain = Whyconf.memlimit wmain
 
-let limit wmain t =
+let limits wmain t =
   Why3.Call_provers.{
     limit_time = t ;
     limit_mem = memlimit wmain ;
@@ -331,16 +331,16 @@ let notify wmain prover result cb =
       pr_models = [] ;
     }
   in
-  let limit = limit wmain in
+  let limits = limits wmain in
   match result with
   | NoResult -> ()
-  | Valid t -> fire cb prover (limit t) (pr ~s:0 ~t Valid)
-  | Timeout t -> fire cb prover (limit t) (pr ~s:1 ~t Timeout)
-  | Unknown t -> fire cb prover (limit t) (pr ~s:1 ~t (Unknown "why3find"))
-  | Failed -> fire cb prover (limit 1.0) (pr ~s:2 (Failure "why3find"))
+  | Valid t -> fire cb prover (limits t) (pr ~s:0 ~t Valid)
+  | Timeout t -> fire cb prover (limits t) (pr ~s:1 ~t Timeout)
+  | Unknown t -> fire cb prover (limits t) (pr ~s:1 ~t (Unknown "why3find"))
+  | Failed -> fire cb prover (limits 1.0) (pr ~s:2 (Failure "why3find"))
 
-let notify_pr prv limit pr cb =
-  cb prv.Prover.config.prover limit pr
+let notify_pr prv limits pr cb =
+  cb prv.Prover.config.prover limits pr
 
 let launch_proof_timer = Timer.create_global "Launch proof"
 
@@ -358,7 +358,7 @@ module type WRunner = sig
   type prover_call
 
   val prove_task : command:string -> config:Whyconf.main
-    -> limit:Call_provers.resource_limit -> Driver.driver -> Buffer.t
+    -> limits:Call_provers.resource_limits -> Driver.driver -> Buffer.t
     -> prover_call
 
   val interrupt_call : config:Whyconf.main -> prover_call -> unit
@@ -371,8 +371,8 @@ module WRunner : WRunner = struct
 
   type prover_call = Call_provers.prover_call
 
-  let prove_task ~command ~config ~limit driver buffer =
-    Driver.prove_buffer_prepared ~command ~config ~limit driver buffer
+  let prove_task ~command ~config ~limits driver buffer =
+    Driver.prove_buffer_prepared ~command ~config ~limits driver buffer
 
   let interrupt_call ~config c =
     Call_provers.interrupt_call ~config c
@@ -394,7 +394,7 @@ module MockRunner : WRunner = struct
     mutable state : state;
   }
 
-  let prove_task ~command:_ ~config:_ ~limit:_ _ _ =
+  let prove_task ~command:_ ~config:_ ~limits:_ _ _ =
     { state = Unstarted }
 
   let interrupt_call ~config:_ c =
@@ -404,7 +404,7 @@ module MockRunner : WRunner = struct
 
   let interrupted = (* expected answer, see below *)
     let highfailure = Call_provers.{
-        pr_answer = HighFailure ;
+        pr_answer = HighFailure "interrupt";
         pr_status = Unix.WEXITED 0 ;
         pr_time = 0. ;
         pr_steps = 0 ;
@@ -444,7 +444,7 @@ let call_prover (config : Why3.Whyconf.main)
     ~(prover : Prover.prover)
     ~(timeout : float) () =
   let module WRunner = (val !wrunner) in
-  let limit = limit config timeout in
+  let limits = limits config timeout in
   let timer = Timer.create () in
   let clockwall = ref 0.0 in
   let started = ref false in
@@ -456,7 +456,7 @@ let call_prover (config : Why3.Whyconf.main)
   schedule () ;
   Timer.start launch_proof_timer;
   let call =
-    WRunner.prove_task ~config ~limit prover.driver prepared
+    WRunner.prove_task ~config ~limits prover.driver prepared
       ~command:(Whyconf.get_complete_command prover.config ~with_steps:false)
   in
   Timer.stop launch_proof_timer;
@@ -524,7 +524,7 @@ let call_prover (config : Why3.Whyconf.main)
           Timeout timeout, false
         | Invalid | Unknown _ | OutOfMemory | StepLimitExceeded ->
           Unknown pr.pr_time, true
-        | Failure _ | HighFailure ->
+        | Failure _ | HighFailure _ ->
           (if !canceled then NoResult else
            if !timedout then Timeout timeout else
              Failed), false
@@ -545,7 +545,7 @@ let call_prover (config : Why3.Whyconf.main)
       begin match callback with
         | Some cb ->
           if precise then
-            notify_pr prover limit pr cb
+            notify_pr prover limits pr cb
           else
             notify config prover result cb
         | None -> ()

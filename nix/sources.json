@@ -36,10 +36,10 @@
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     },
     "why3": {
-        "branch": "master",
+        "branch": "stable",
         "repo": "https://gitlab.inria.fr/why3/why3.git",
-        "rev": "ee474fdf493de18a702f9c503e104cea58dc22af",
+        "rev": "88f8a1408c58149ad3bbffd403c1a26a6ff05aa6",
         "type": "git",
-        "version": "1.7.1"
+        "version": "1.8.0"
     }
 }

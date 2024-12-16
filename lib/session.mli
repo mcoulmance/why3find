@@ -60,7 +60,7 @@ val task_expl : Task.task -> string
 
 val result : goal ->
   Whyconf.prover ->
-  Call_provers.resource_limit ->
+  Call_provers.resource_limits ->
   Call_provers.prover_result ->
   unit
 

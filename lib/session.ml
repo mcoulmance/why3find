@@ -121,11 +121,11 @@ let pp_goal fmt g =
 
 let silent : S.notifier = fun _ -> ()
 
-let result goal prv limit result =
+let result goal prv limits result =
   match goal.task with
   | Task _ -> ()
   | Snode(s,n,_) ->
-    let _ = S.graft_proof_attempt s n prv ~limit in
+    let _ = S.graft_proof_attempt s n prv ~limits in
     S.update_proof_attempt silent s n prv result ;
     S.update_goal_node silent s n
 

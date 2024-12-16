@@ -24,7 +24,7 @@
      OCaml extracted code.")
   (depends
      (dune-site (>= 3.12))
-     (why3 (>= 1.7.0))
+     (why3 (>= 1.8.0))
      (ocaml (>= 4.13.0))
      (yojson (>= 1.7.0))
      (zmq (>= 5.0.0))
