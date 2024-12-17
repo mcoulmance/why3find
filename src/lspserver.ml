@@ -55,10 +55,11 @@ let foldingRangeRefresh = ref false
 
 let () = Lsp.register ~force:true "initialize"
     begin fun _channel params ->
+      let workspace = Json.jpath "capabilities/workspace" params in
       codeLensRefresh :=
-        Json.jbool @@ Json.jpath "workspace/codeLens/refreshSupport" params ;
+        Json.jbool @@ Json.jpath "codeLens/refreshSupport" workspace ;
       foldingRangeRefresh :=
-        Json.jbool @@ Json.jpath "workspace/foldingRange/refreshSupport" params ;
+        Json.jbool @@ Json.jpath "foldingRange/refreshSupport" workspace ;
       `Assoc [
         "capabilities", `Assoc [
           "textDocumentSync", `Assoc [
