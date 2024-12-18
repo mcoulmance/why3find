@@ -33,4 +33,4 @@
   (sites
     (lib packages)
     (share resources))
-  (tags (topics "why3")))
+  (tags (why3)))
