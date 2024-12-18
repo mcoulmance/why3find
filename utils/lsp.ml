@@ -26,14 +26,14 @@
 type response = (Json.t,Json.t) result
 type callback = response -> unit
 
-type request =
+type message =
   | Notify of { meth: string; param: Json.t }
   | Request of { meth: string; param: Json.t; callback: callback }
 
 type channel = {
   mutable shutdown : bool ; (* has been shutdown *)
   mutable processing : bool ; (* processing a request *)
-  queue : request Queue.t ; (* pending notifications *)
+  queue : message Queue.t ; (* pending notifications *)
   callbacks : (string, callback) Hashtbl.t ;
   sock : Unix.file_descr ; (* Socket *)
   rcv : bytes ; (* RCV bytes buffer, re-used for transport *)
@@ -156,7 +156,7 @@ let send_request channel meth params callback =
     "params", params ;
   ]
 
-let send ch = function
+let send_message ch = function
   | Notify { meth = m ; param = p } ->
     send_notification ch m p
   | Request { meth = m ; param = p ; callback = fn } ->
@@ -164,7 +164,7 @@ let send ch = function
 
 let flush channel =
   channel.processing <- false ;
-  Queue.iter (send channel) channel.queue ;
+  Queue.iter (send_message channel) channel.queue ;
   Queue.clear channel.queue ;
   send_bytes channel
 
