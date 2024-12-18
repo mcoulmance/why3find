@@ -1,33 +1,40 @@
 # Changelog
 
-All notable changes to the Why3find Platform will be documented in this file.
-
 ## Unreleased
+
+### Notable New Features
+
+- Make the timeout of the fast sequential proof step an independent `fast`
+  parameter instead of using 1/5 * `time`. See option `--fast` and README.md
+  (!144).
+- Introduce option `--preprocess <tactic>` to run a tactic before starting the
+  proof strategy (!142).
+- Add a LSP server and VSCode extension for the WhyML language. See the
+  corresponding section below for detailed features.
+- Improve cache efficiency by hashing tasks earlier in the Why3 processing
+  (#93, !91).
 
 ### Command Line Interface
 
 - Renamed option `-m` into `--master` (#99, !127)
 - Renamed option `-v` into `--velocity` (#99, !127)
 - New option `-l` for detailed statistics (!83, !146)
-- New option `--preprocess <tactic>` to apply tactic before starting the proof
-  strategy (!142)
 - New option `-g <name>` to select goal(s) to be proven (!114)
 - New option `-H n` to run the proof strategy up to step n (!118)
-- New option `--fast t` to set fast prover timeout (!144)
 - New option `--log-prover-results` to dump JSON prover results (!92)
 - New option `--list-provers` to list available provers (!96)
 - New option `--list-tactics` to list available tactics (!96)
-- New option `--strict` to pin provers to their current version (!90)
-- New option `--relax` to un-pin provers from their configured version (!90)
+- New option `--strict` to pin provers to their current version (#90, !86)
+- New option `--relax` to un-pin provers from their configured version
+  (#90, !86)
 - New option `--update` to update provers' pins to latest version (!143)
 - New option `--why3-debug` to enable Why3 debug flags (#88, !80)
 - New option `--why3-warn-off` to disable Why3 warnings (#88, !80)
 - Removed option `--extra-config` (no-more supported feature) (!79, !123)
-- New command `why3find lsp` (setup a Language Server Protocol) (!89)
 - `--detect` and `--default` options are now strict and pin the provers to
   their current version (!137)
 
-### VSCode Integration
+### LSP and VSCode Extension
 
 - Syntax highlighting
 - Typechecking (after saving)
@@ -40,24 +47,24 @@ All notable changes to the Why3find Platform will be documented in this file.
 
 ### Bug Fixes
 
-- Take into account current strategy when replaying prover runs (!150)
-- Fix highlighting in context dump mode (-x) (#78, !149)
-- Optimized fast sequential proof step (Cf. README, !144)
+- Fix how hammer strategy parameters are used in update and replay modes
+  (!82, !129, !150)
+- Fix highlighting in context dump mode (-x) (#78, !149, !157)
+- Fix Why3 session generation, correctly setting the proved flag (#111, !145)
 - Fix documentation links to internal modules (#75, !130)
 - Avoid redundant warnings (#98, !126)
 - Keep stuck goals in proof.json (#102, !121)
 - Keep partial proofs when interrupted (#12, !114)
 - Fix documentation of nested clone instances (!102)
-- Improve cache efficiency by hashing tasks before preparation (#93, !91)
 - Load prover drivers once (!91)
 - Fix parsing of `-p`, `-P`, `-T` and `-D` command-line arguments (#89, !85)
 - Round times to millisecond in proof.json files (#87, !81)
 - Load Why3 plugins and accept all registered input formats (#84, #85, !77)
 
-### Ongoing Work
+### API
 
-- Preparing an OCaml API for Why3find (!87)
+- Expose some of the why3find internal API as a library (!87)
 
-## 1.0 — 2024-05-15
+## 1.0 - 2024-05-15
 
 - Initial release
