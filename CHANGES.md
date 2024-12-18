@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 - 2024-12-18
 
 ### Notable New Features
 
