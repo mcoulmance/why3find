@@ -141,7 +141,7 @@
     <span class="keyword">goal</span> <a id="C.A.commutative" href="clones.C.html#A.commutative">A.commutative</a><span title="Failed (no proof)" class="icon failed icofont-error"></span></pre><script type="text/javascript" src="script.js"></script>
   </body>
   </html>
-  $ cat html/certif.proof.html
+  $ cat html/certif.proof.html | sed s/569ms/570ms/ # x86-32
   <html>
   <head>
   <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
