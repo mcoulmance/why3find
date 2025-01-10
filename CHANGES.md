@@ -10,6 +10,10 @@
 
 ### Bug Fixes
 
+- Fix the proving strategy to try only the first applicable tactic as stated
+  in the doc. It would previously "backtrack" to the following tactic under
+  certain circumstances (#121, !164)
+
 ### API
 
 ## 1.1.0 - 2024-12-18
