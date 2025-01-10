@@ -19,19 +19,6 @@ Hammer isn't supposed to backtrack, no inline_goal <transf> tag should appear
   <theory name="T">
    <goal name="g">
    <proof prover="0"><result status="unknown" steps="0"/></proof>
-   <transf name="inline_goal" >
-    <goal name="g.0">
-    <proof prover="0"><result status="unknown" steps="0"/></proof>
-    <transf name="split_vc" >
-     <goal name="g.0.0">
-     <proof prover="0"><result status="unknown" steps="0"/></proof>
-     </goal>
-     <goal name="g.0.1">
-     <proof prover="0"><result status="unknown" steps="0"/></proof>
-     </goal>
-    </transf>
-    </goal>
-   </transf>
    <transf name="split_vc" >
     <goal name="g.0">
     <proof prover="0"><result status="unknown" steps="0"/></proof>
