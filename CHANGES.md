@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.1 - 2025-01-10
 
 ### Bug Fixes
 
