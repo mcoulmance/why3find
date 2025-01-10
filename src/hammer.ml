@@ -68,13 +68,13 @@ let pop () =
   try Some (Queue.pop q2) with Queue.Empty ->
     None
 
-let stuck n = Fibers.return (stuck ~goal:n.goal ())
+let stuck n = stuck ~goal:n.goal ()
 
 type strategy = node -> crc Fibers.t
-let fail : strategy = fun n -> stuck n
+let fail : strategy = fun n -> Fibers.return (stuck n)
 
 let (@>) (h : strategy) (n : node) : crc Fibers.t =
-  try h n with Not_found -> stuck n
+  try h n with Not_found -> fail n
 
 let (>>>) (h1 : strategy) (h2 : strategy) : strategy = fun n ->
   let* r = h1 @> n in
@@ -146,16 +146,16 @@ let rec subgoals ({ profile ; replay ; depth } as n) goals hints =
   | g::gs, h::hs ->
     schedule profile ~replay ~depth:(succ depth) g h :: subgoals n gs hs
 
-let apply h tac ?(hint : hint option) : strategy = fun n ->
-  if n.depth > h.maxdepth then stuck n else
+let apply h tac ?(hint : hint option) : node -> crc option Fibers.t = fun n ->
+  if n.depth > h.maxdepth then Fibers.return @@ Some (stuck n) else
     match Session.apply h.env.Config.wenv.env tac n.goal with
-    | None -> stuck n
+    | None -> Fibers.return None
     | Some gs ->
       let hs =
         match hint with
         | Some(t,hs) when Tactic.equal t tac -> hs
         | _ -> []
-      in Crc.tactic ~goal:n.goal tac @+ Fibers.all @@ subgoals n gs hs
+      in Option.some @+ Crc.tactic ~goal:n.goal tac @+ Fibers.all @@ subgoals n gs hs
 
 (* -------------------------------------------------------------------------- *)
 (* --- Hammer Strategy                                                    --- *)
@@ -179,10 +179,17 @@ let hammer13 h time : strategy = fun n ->
 let hammer1 h = if h.level > 1 then hammer13 h h.time else fail
 let hammer3 h = if h.level > 3 then hammer13 h (2.0 *. h.time) else fail
 
-let hammer2 ?hint h : strategy =
+let hammer2 ?hint h : strategy = fun n ->
+  let rec aux = function
+    | [] -> fail n
+    | t :: ts ->
+      let* o = apply h t ?hint n in
+      match o with
+      | Some r -> Fibers.return r
+      | None -> aux ts in
   if h.level > 2
-  then sequence (apply h ?hint) h.tactics
-  else fail
+  then aux h.tactics
+  else fail n
 
 let hammer henv =
   hammer0 henv >>> (* level -H 1 *)
@@ -196,7 +203,7 @@ let hammer henv =
 
 let replay_prover h d t =
   match Prover.check_and_get_prover h.env.wenv ~patterns:h.patterns d with
-  | None -> stuck
+  | None -> fail
   | Some p ->
     (* Do not ask the server for too short hint times *)
     let client = if t > h.time *. 0.2 then h.client else None in
@@ -212,17 +219,17 @@ let replay_tactic ~hint h n =
     | [] ->
       Log.warning "Goal %S: tactic '%a' not in strategy"
         (Session.goal_name n.goal) pp_hint hint ;
-      stuck n
+      fail n
     | t::ts ->
       if Tactic.equal t (fst hint) then
-        apply h t ~hint n
+        Option.value ~default:(stuck n) @+ apply h t ~hint n
       else
         match Session.apply h.env.Config.wenv.env t n.goal with
         | None -> iter ts
         | Some _ ->
           Log.warning "Goal %S: tactic '%a' shadowed by '%a'"
             (Session.goal_name n.goal) pp_hint hint Tactic.pretty t ;
-          stuck n
+          fail n
   in iter h.tactics
 
 let reduce_tactic ?hint h =
@@ -234,7 +241,7 @@ let update_tactic ~hint h =
   hammer2 ~hint h >>> hammer h
 
 let explore h n =
-  if n.replay then stuck n else hammer h n
+  if n.replay then fail n else hammer h n
 
 let process h : strategy = fun n ->
   try
@@ -260,7 +267,7 @@ let process h : strategy = fun n ->
         explore h n
   with exn ->
     Log.emit "Process Error (%s)" @@ Printexc.to_string exn ;
-    stuck n
+    fail n
 
 (* -------------------------------------------------------------------------- *)
 (* --- Main Loop                                                          --- *)

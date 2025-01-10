@@ -1,0 +1,6 @@
+(* File a.mlw *)
+theory T
+    predicate p (x: int)
+    predicate q (x: int) = p x
+    goal g : forall x. q x /\ q x
+end
