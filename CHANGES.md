@@ -2,19 +2,12 @@
 
 ## Unreleased
 
-### Notable New Features
-
-### Command Line Interface
-
-### LSP and VSCode Extension
-
 ### Bug Fixes
 
 - Fix the proving strategy to try only the first applicable tactic as stated
   in the doc. It would previously "backtrack" to the following tactic under
-  certain circumstances (#121, !164)
-
-### API
+  certain circumstances (#121, !164).
+- Fix dev-repo URI in opam file (!163).
 
 ## 1.1.0 - 2024-12-18
 
