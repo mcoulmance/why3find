@@ -8,7 +8,7 @@
 
 Hammer isn't supposed to backtrack, no inline_goal <transf> tag should appear
 
-  $ cat a/why3session.xml | sed -E 's/ time(|limit)="[0-9.e-]+"//g'
+  $ cat a/why3session.xml | sed -E 's/ tim(e|elimit)="[0-9.e-]+"//g'
   <?xml version="1.0" encoding="UTF-8"?>
   <!DOCTYPE why3session PUBLIC "-//Why3//proof session v5//EN"
   "https://www.why3.org/why3session.dtd">
