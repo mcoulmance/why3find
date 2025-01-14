@@ -35,209 +35,38 @@ type callback =
   unit
 
 (* -------------------------------------------------------------------------- *)
-(* --- Prover Result                                                      --- *)
+(* --- Proof Tasks                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
-type result =
-  | NoResult | Failed | Unknown of float | Timeout of float | Valid of float
+type prooftask = {
+  task : Task.task;
+  buffer : Buffer.t;
+}
 
-let merge a b =
-  match a,b with
-  | NoResult,c | c,NoResult -> c
-  | Failed,c | c,Failed -> c
-  | Valid ta , Valid tb -> Valid (min ta tb)
-  | Valid _ , (Unknown _ | Timeout _) -> a
-  | (Unknown _ | Timeout _) , Valid _ -> b
-  | Unknown ta , Unknown tb -> Unknown (min ta tb)
-  | Unknown _ , Timeout _ -> a
-  | Timeout _ , Unknown _ -> b
-  | Timeout ta , Timeout tb -> Timeout (max ta tb)
+let prepare_task =
+  Timer.timed2 ~name:"Task preparation" Driver.prepare_task
 
-let map f = function
-  | NoResult -> NoResult
-  | Failed -> Failed
-  | Valid t -> Valid (f t)
-  | Unknown t -> Unknown (f t)
-  | Timeout t -> Timeout (f t)
+let print_task_prepared =
+  Timer.timed3 ~name:"Task printing" Driver.print_task_prepared
 
-let pp_result fmt = function
-  | NoResult -> Format.pp_print_string fmt "No Result"
-  | Failed -> Format.pp_print_string fmt "Failed"
-  | Unknown t -> Format.fprintf fmt "Unknown (%a)" Utils.pp_time t
-  | Timeout t -> Format.fprintf fmt "Timeout (%a)" Utils.pp_time t
-  | Valid t -> Format.fprintf fmt "Valid (%a)" Utils.pp_time t
+let prepare prover task =
+  let task = prepare_task prover.Prover.driver task in
+  let buffer = Buffer.create 2048 in
+  let fmt = Format.formatter_of_buffer buffer in
+  ignore @@ print_task_prepared prover.Prover.driver fmt task ;
+  Format.pp_print_flush fmt () ;
+  { task ; buffer }
 
-let pp_verdict fmt = function
-  | NoResult -> Format.pp_print_string fmt "No Result"
-  | Failed -> Format.pp_print_string fmt "Failed"
-  | Unknown _ -> Format.pp_print_string fmt "Unknown"
-  | Timeout _ -> Format.pp_print_string fmt "Timeout"
-  | Valid _ -> Format.pp_print_string fmt "Valid"
+let digest task = Cache.digest task.task
 
-let of_json (js : Json.t) =
-  let open Json in
-  let status = jfield "status" js |> jstring in
-  let time = jfield "time" js |> jfloat in
-  match status with
-  | "Failed" -> Failed
-  | "Unknown" -> Unknown time
-  | "Timeout" -> Timeout time
-  | "Valid" -> Valid time
-  | _ -> NoResult
-
-let to_json (r : result) : Json.t =
-  let status st = `Assoc [ "status", `String st ] in
-  let timed st t = `Assoc [ "status", `String st ; "time", `Float t ] in
-  match r with
-  | NoResult -> status "NoResult"
-  | Failed -> status "Failed"
-  | Unknown t -> timed "Unknown" t
-  | Timeout t -> timed "Timeout" t
-  | Valid t -> timed "Valid" t
-
-(* -------------------------------------------------------------------------- *)
-(* --- Prover Cache                                                       --- *)
-(* -------------------------------------------------------------------------- *)
-
-let digest task = Why3.Termcode.(task_checksum task |> string_of_checksum)
-
-let digest = Timer.timed ~name:"Task checksum" digest
-
-module Cache : sig
-  val cache : bool ref
-  val get : Task.task * Prover.prover -> result
-  val set : Task.task * Prover.prover -> result -> unit
-end = struct
-
-  let cachedir = ".why3find"
-  let cachever = ".why3find/v3"
-  let why3vers = ".why3find/why3version"
-
-  let destroycache () =
-    begin
-      if Utils.tty then
-        Log.emit "Upgrading cache (%s, why3 %s)" (Filename.basename cachever)
-          Why3.Config.version ;
-      Utils.rmpath cachedir ;
-    end
-
-  let preparecache () =
-    begin
-      Utils.mkdirs cachedir ;
-      Utils.outputfile ~file:cachever begin fun out ->
-        output_string out "why3find cache " ;
-        output_string out (Filename.basename cachever) ;
-        output_string out "\n" ;
-      end ;
-      Utils.writefile ~file:why3vers (Why3.Config.version ^ "\n")
-    end
-
-  let checkcache = lazy
-    begin
-      let cd = Sys.file_exists cachedir in
-      let cv = Sys.file_exists cachever in
-      let wv =
-        Sys.file_exists why3vers
-        && String.trim (Utils.readfile ~file:why3vers) = Why3.Config.version in
-      Utils.flush () ;
-      if cd && (not cv || not wv) then destroycache () ;
-      if not cd || not cv || not wv then preparecache () ;
-    end
-
-  module Cache = Hashtbl.Make
-      (struct
-        type t = Task.task * Prover.prover
-        let hash (t,p) = Hashtbl.hash (Task.task_hash t , p.Prover.digest)
-        let equal (t1,p1) (t2,p2) = (p1 == p2) && (Task.task_equal t1 t2)
-      end)
-
-  let digest (t, p) =
-    Digest.(to_hex (string (digest t ^ p.Prover.digest)))
-
-  let file (t,p) =
-    Lazy.force checkcache ;
-    let hash = digest (t, p) in
-    let h2 = String.sub hash 0 2 in
-    Printf.sprintf ".why3find/%s/%s/%s.json" Prover.(desc_to_string p.desc) h2 hash
-
-  let read e =
-    let f = file e in
-    if Sys.file_exists f then
-      try Json.of_file f |> of_json with _ -> NoResult
-    else NoResult
-
-  let write e r =
-    let f = file e in
-    Utils.mkdirs (Filename.dirname f) ;
-    Json.to_file f (to_json r)
-
-  let hash = Cache.create 0
-  let cache = ref true
-
-  let get e =
-    try Cache.find hash e with Not_found ->
-      let r = if !cache then read e else NoResult in
-      Cache.add hash e r ; r
-
-  let set e r1 =
-    let r0 = try Cache.find hash e with Not_found -> NoResult in
-    let r = merge r0 r1 in
-    if r <> r0 then
-      match r with
-      | NoResult -> ()
-      | Failed ->
-        Cache.replace hash e Failed
-      | Valid _ | Unknown _ | Timeout _ ->
-        Cache.replace hash e r ; write e r
-
-end
-
-module ProofTask : sig
-  type prooftask
-
-  val prepare : Prover.prover -> Task.task -> prooftask
-
-  val digest : prooftask -> string
-  val buffer : prooftask -> Buffer.t
-end = struct
-
-  type prooftask = {
-    task : Task.task;
-    buffer : Buffer.t;
-  }
-
-  let prepare_task =
-    Timer.timed2 ~name:"Task preparation" Driver.prepare_task
-
-  let print_task_prepared =
-    Timer.timed3 ~name:"Task printing" Driver.print_task_prepared
-
-  let prepare prover task =
-    let task = prepare_task prover.Prover.driver task in
-    let buffer = Buffer.create 2048 in
-    let fmt = Format.formatter_of_buffer buffer in
-    ignore @@ print_task_prepared prover.Prover.driver fmt task ;
-    Format.pp_print_flush fmt () ;
-    { task ; buffer }
-
-  let digest task =
-    digest task.task
-
-  let buffer task =
-    task.buffer
-
-end
-
-include ProofTask
-
-let data task =
-  Buffer.contents @@ ProofTask.buffer task
+let data task = Buffer.contents task.buffer
 
 (* -------------------------------------------------------------------------- *)
 (* --- Running Prover                                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
 let jobs = ref 0
+let usecache = ref true
 let clients = ref 0
 let pending = ref 0
 let running = ref 0
@@ -319,7 +148,7 @@ let limits wmain t =
     limit_steps = (-1) ;
   }
 
-let notify wmain prover result cb =
+let notify wmain prover (result: Result.t) (cb: callback) =
   let fire cb p l r = cb p.Prover.config.prover l r in
   let pr ~s ?(t = 0.0) ans =
     Why3.Call_provers.{
@@ -496,7 +325,7 @@ let call_prover (config : Why3.Whyconf.main)
                        See the prover input at %a."
             Prover.pp_prover prover (Option.value ~default:"<unnamed>" name)
             debug_print_task prepared;
-          Some Failed
+          Some Result.Failed
         end
       else
         None
@@ -519,15 +348,17 @@ let call_prover (config : Why3.Whyconf.main)
       let result, precise =
         match pr.pr_answer with
         | Valid ->
-          Valid pr.pr_time, true
+          Result.Valid pr.pr_time, true
         | Timeout ->
-          Timeout timeout, false
+          Result.Timeout timeout, false
         | Invalid | Unknown _ | OutOfMemory | StepLimitExceeded ->
-          Unknown pr.pr_time, true
+          Result.Unknown pr.pr_time, true
         | Failure _ | HighFailure _ ->
-          (if !canceled then NoResult else
-           if !timedout then Timeout timeout else
-             Failed), false
+          let result =
+            if !canceled then Result.NoResult
+            else if !timedout then Result.Timeout timeout
+            else Result.Failed
+          in result, false
       in
       if !started then (Timer.stop timer; stop ?name ()) else unschedule () ;
       Option.iter (fun log ->
@@ -539,7 +370,7 @@ let call_prover (config : Why3.Whyconf.main)
                 ("timeout", `Float timeout);
                 ("time", `Float pr.pr_time);
                 ("why3find time", `Float (Timer.total_time timer));
-                ("result", `String (Format.asprintf "%a" pp_verdict result));
+                ("result", `String (Format.asprintf "%a" Result.pp_verdict result));
               ])
         ) !logchannel;
       begin match callback with
@@ -560,29 +391,14 @@ let call_prover (config : Why3.Whyconf.main)
 let hits = ref 0
 let miss = ref 0
 
-let crop ~timeout result =
-  match result with
-  | NoResult -> None
-  | Failed | Unknown _ -> Some result
-  | Timeout t -> if timeout <= t then Some result else None
-  | Valid t ->
-    if t <= timeout *. 1.25 then Some result else Some (Timeout timeout)
-
-let definitive ~timeout result =
-  match result with
-  | NoResult -> false
-  | Timeout t -> timeout <= t
-  | Failed | Unknown _ | Valid _ -> true
-
 let prove_prepared config ?name ?idename ?cancel ?callback prover task timeout =
   call_prover config ?name ?idename ?cancel ?callback
-    ~prepared:(ProofTask.buffer task) ~prover ~timeout ()
+    ~prepared:task.buffer ~prover ~timeout ()
 
-let prove config ?name ?idename ?cancel ?callback prover task timeout =
-  let entry = task,prover in
-  let cached = Cache.get entry in
-  let task = ProofTask.prepare prover task in
-  match crop ~timeout cached with
+let prove config ?name ?idename ?cancel ?callback cache prover task timeout =
+  let cached = Cache.get cache task prover in
+  let prooftask = prepare prover task in
+  match Result.crop ~timeout cached with
   | Some cached ->
     incr hits ;
     Option.iter (notify config prover cached) callback ;
@@ -590,18 +406,13 @@ let prove config ?name ?idename ?cancel ?callback prover task timeout =
   | None ->
     incr miss ;
     Fibers.map
-      (fun result -> Cache.set entry result ; result)
+      (fun result -> Cache.set cache task prover result ; result)
       (prove_prepared config ?name ?idename ?cancel ?callback
-         prover task timeout)
+         prover prooftask timeout)
 
-let prepare = ProofTask.prepare
-
-let cache prover task result =
-  Cache.set (task,prover) result
-
-let prove_cached prover task timeout =
-  let cached = Cache.get (task,prover) in
-  let cropped = crop ~timeout cached in
+let prove_cached cache prover task timeout =
+  let cached = Cache.get cache task prover in
+  let cropped = Result.crop ~timeout cached in
   incr (if cropped = None then miss else hits);
   cropped
 
@@ -616,7 +427,7 @@ let options = [
   "-j",
   Arg.Set_int jobs, "JOBS max parallel provers" ;
   "--no-cache",
-  Arg.Clear Cache.cache, "do not read results from cache" ;
+  Arg.Clear usecache, "do not read results from cache" ;
   "--log-prover-results",
   Arg.String set_logfile, "FILE log the prover results in the given file";
 ]

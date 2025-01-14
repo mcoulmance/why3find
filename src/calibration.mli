@@ -41,9 +41,9 @@ val lock : profile -> Prover.desc -> bool
 val observed : profile -> Prover.prover -> float
 
 (** Local Time / Profile Time *)
-val velocity : Why3.Whyconf.main -> profile -> Prover.prover -> float Fibers.t
+val velocity : Why3.Whyconf.main -> Cache.t -> profile -> Prover.prover -> float Fibers.t
 
-val profile : Why3.Whyconf.main -> profile -> Prover.prover
+val profile : Why3.Whyconf.main -> Cache.t -> profile -> Prover.prover
   -> (int * float) Fibers.t
 
 val calibrate_provers : saved:bool -> Project.env -> Prover.prover list

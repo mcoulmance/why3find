@@ -24,11 +24,12 @@
 (* -------------------------------------------------------------------------- *)
 
 type env = private {
+  cache : Cache.t ;
   config : Config.config ;
   wenv : Config.wenv ;
   pkgs : Meta.pkg list ;
 }
 
-val create_env : ?root:string -> config:Config.config -> unit -> env
+val create_env : ?root:string -> ?usecache:bool -> config:Config.config -> unit -> env
 (** Create an environment with configuration [config] for the project
     located in [root] (which default to ".") *)

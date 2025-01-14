@@ -291,6 +291,7 @@ let load_config () =
   add_options @@ Config.config_of_json @@ load_raw_config ()
 
 type env = Project.env = private {
+  cache : Cache.t ;
   config : Config.config ;
   wenv : Config.wenv ;
   pkgs : Meta.pkg list ;
@@ -303,7 +304,7 @@ let disable_warning s =
 
 let init ?root ?(loadplugins=true) config =
   begin
-    let wenv = Project.create_env ?root ~config () in
+    let wenv = Project.create_env ?root ~config ~usecache:!Runner.usecache () in
     if loadplugins then
       Why3.Whyconf.load_plugins @@ Why3.Whyconf.get_main wenv.wenv.config;
     Debug.init_why3_debug ();

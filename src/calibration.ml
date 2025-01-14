@@ -77,7 +77,6 @@ let generate n =
 (* -------------------------------------------------------------------------- *)
 
 open Prover
-open Runner
 open Fibers.Monad
 
 type range = Guess of int * int | Range of int * int
@@ -100,14 +99,15 @@ let pp_range fmt = function
 
 type qenv = {
   wmain : Why3.Whyconf.main ;
+  cache : Cache.t ;
   time : float ;
   time_lo : float ;
   time_up : float ;
   time_out : float ;
 }
 
-let qenv wmain time = {
-  wmain ; time ;
+let qenv wmain cache time = {
+  wmain ; time ; cache ;
   time_lo = time *. 0.9 ;
   time_up = time *. 1.1 ;
   time_out = time *. 2.0
@@ -121,7 +121,7 @@ let rec seqlookup ~progress q prv rg best =
         ( Utils.progress "%s (%d)" (name prv) n ; None )
       else Some (name prv)
     in
-    let* result = Runner.prove q.wmain ?name prv (generate n) q.time_out in
+    let* result = Runner.prove q.wmain q.cache ?name prv (generate n) q.time_out in
     match result with
     | Valid t ->
       let best = choose q.time best (Some (n,t)) in
@@ -168,7 +168,7 @@ let ptry c ~cancel ?(upper=[]) ?(lower=[]) n =
       else Some (name prv)
     in
     let q = c.qenv in
-    let+ r = Runner.prove q.wmain ?name ~cancel prv (generate n) q.time_out in
+    let+ r = Runner.prove q.wmain q.cache ?name ~cancel prv (generate n) q.time_out in
     match r with
     | Valid t ->
       c.best <- choose q.time c.best (Some (n,t)) ;
@@ -231,11 +231,11 @@ let lookup ~progress q prv =
 
 let qhash = Hashtbl.create 0
 
-let calibrate ?(progress=false) wmain prv : (int * float) option Fibers.t =
+let calibrate ?(progress=false) wmain cache prv : (int * float) option Fibers.t =
   try Hashtbl.find qhash prv.desc
   with Not_found ->
     let p = Fibers.var () in
-    let q = qenv wmain !reftime in
+    let q = qenv wmain cache !reftime in
     Fibers.background ~callback:(Fibers.set p) (lookup ~progress q prv) ;
     Hashtbl.add qhash prv.desc p ; p
 
@@ -282,12 +282,12 @@ let to_json (p : profile) : Json.t =
 (* --- Velocity                                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-let gauge wmain profile prv : gauge Fibers.t =
+let gauge wmain cache profile prv : gauge Fibers.t =
   let p = prv.desc in
   try Hashtbl.find profile p
   with Not_found ->
     let gv =
-      let+ r = calibrate wmain prv in
+      let+ r = calibrate wmain cache prv in
       match r with
       | Some (size,time) -> { time ; size ; alpha = None }
       | None ->
@@ -296,30 +296,30 @@ let gauge wmain profile prv : gauge Fibers.t =
         exit 2
     in Hashtbl.replace profile p gv ; gv
 
-let profile wmain profile prv =
-  let+ { size ; time } = gauge wmain profile prv in (size,time)
+let profile wmain cache profile prv =
+  let+ { size ; time } = gauge wmain cache profile prv in (size,time)
 
-let alpha wmain prv ~size ~time : float Fibers.t =
+let alpha wmain cache prv ~size ~time : float Fibers.t =
   let timeout = 5.0 *. (max 1.0 time) in
-  let+ result = Runner.prove wmain
+  let+ result = Runner.prove wmain cache
       ~name:(Prover.name prv)
       prv (generate size) timeout in
   match result with
   | Valid t -> t /. time
   | _ ->
     Log.error "can not calibrate prover %a (N=%d, %a)"
-      Prover.pp_prover prv size Runner.pp_result result ;
+      Prover.pp_prover prv size Result.pp_result result ;
     exit 2
 
 let local = ref false
 
-let velocity wmain profile prv : float Fibers.t =
+let velocity wmain cache profile prv : float Fibers.t =
   if !local then Fibers.return 1.0 else
-    let* g = gauge wmain profile prv in
+    let* g = gauge wmain cache profile prv in
     match g.alpha with
     | Some a -> a
     | None ->
-      let ga = alpha wmain prv ~size:g.size ~time:g.time in
+      let ga = alpha wmain cache prv ~size:g.size ~time:g.time in
       g.alpha <- Some ga ; ga
 
 let observed profile prv =
@@ -369,7 +369,7 @@ let default (env : Why3find.Project.env) =
     | None -> create ()
 
 let calibrate_provers ~saved (env : Why3find.Project.env) provers =
-  let q = qenv (Whyconf.get_main env.wenv.config) !reftime in
+  let q = qenv (Whyconf.get_main env.wenv.config) env.cache !reftime in
   let+ results =
     Fibers.all @@ List.map
       (fun prv ->
@@ -402,7 +402,7 @@ let velocity_provers (env : Why3find.Project.env) provers =
         (fun prv ->
            try
              let g = Fibers.find @@ Hashtbl.find profile prv.desc in
-             let+ a = velocity (Whyconf.get_main env.wenv.config) profile prv in
+             let+ a = velocity (Whyconf.get_main env.wenv.config) env.cache profile prv in
              prv , Some(g.size,g.time,a)
            with Not_found ->
              Fibers.return (prv , None)

@@ -109,14 +109,14 @@ let interrupt () =
 let prove env ?client ?cancel prover timeout : strategy = fun n ->
   let wmain = Why3.Whyconf.get_main env.Project.wenv.config in
   let name = Session.goal_name n.goal in
-  let* alpha = Calibration.velocity wmain n.profile prover in
-  let to_local = Runner.map (fun t -> t *. alpha) in
-  let to_profile = Runner.map (fun t -> t /. alpha) in
+  let* alpha = Calibration.velocity wmain env.cache n.profile prover in
+  let to_local = Result.map (fun t -> t *. alpha) in
+  let to_profile = Result.map (fun t -> t /. alpha) in
   let runner_time = timeout *. alpha in
   let callback = Session.result n.goal in
   let task = Session.goal_task n.goal in
   let+ verdict =
-    match Runner.prove_cached prover task runner_time with
+    match Runner.prove_cached env.cache prover task runner_time with
     | Some result ->
       Runner.notify wmain prover result callback ;
       Fibers.return (to_profile result)
@@ -128,7 +128,7 @@ let prove env ?client ?cancel prover timeout : strategy = fun n ->
         Fibers.monitor ?signal:cancel ~handler @@
         Fibers.monitor ~signal:killall ~handler @@
         Fibers.map to_profile @@
-        Fibers.finally ~callback:(Runner.cache prover task) @@
+        Fibers.finally ~callback:(Cache.set env.cache task prover) @@
         Runner.prove_prepared wmain ~name ~cancel:kill ~callback
           prover ptask runner_time ~idename:(Session.goal_idename n.goal)
       in match client with
@@ -136,11 +136,11 @@ let prove env ?client ?cancel prover timeout : strategy = fun n ->
       | Some cl ->
         let signal = Client.request cl n.profile prover ptask timeout in
         let handler result =
-          match Runner.crop ~timeout result with
+          match Result.crop ~timeout result with
           | Some result ->
             let local = to_local result in
             (* TODO: cache this not here but in the prooftree cache *)
-            (* Runner.cache prover task local ; *)
+            (* Cache.set env.cache task prover local ; *)
             Runner.notify wmain prover local callback ;
             Fibers.set runner result ;
             Fibers.emit kill ()

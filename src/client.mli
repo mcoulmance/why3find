@@ -29,7 +29,7 @@ val options : (string * Arg.spec * string) list
 val connect : Project.env -> client option
 val request : client ->
   Calibration.profile -> Prover.prover -> Runner.prooftask -> float ->
-  Runner.result Fibers.signal
+  Result.t Fibers.signal
 
 val yield : client -> unit
 val terminate : client -> unit
