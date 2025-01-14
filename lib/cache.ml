@@ -75,10 +75,16 @@ type t = {
   results : Result.t Hash.t ;
 }
 
-let create ~cdir ?(usecache=true) () =
-  let prepare = lazy (reformat ~cdir) in
-  let results = Hash.create 0 in
-  { cdir ; prepare ; usecache ; results }
+let create =
+  let table = Hashtbl.create 16 in
+  fun ~cdir ?(usecache=true) () ->
+    try Hashtbl.find table (Utils.absolute cdir, usecache) with
+    | Not_found ->
+      let prepare = lazy (reformat ~cdir) in
+      let results = Hash.create 0 in
+      let res = { cdir ; prepare ; usecache ; results } in
+      Hashtbl.add table (Utils.absolute cdir, usecache) res;
+      res
 
 let file cache task prover =
   Lazy.force cache.prepare ;
