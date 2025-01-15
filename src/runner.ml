@@ -66,7 +66,6 @@ let data task = Buffer.contents task.buffer
 (* -------------------------------------------------------------------------- *)
 
 let jobs = ref 0
-let usecache = ref true
 let clients = ref 0
 let pending = ref 0
 let running = ref 0
@@ -112,27 +111,12 @@ let pp_goals fmt =
          Format.fprintf fmt " %s" a
     ) !goals
 
-let is_modified () = !jobs > 0
-
-let save_config (env : Project.env) =
-  let j = !jobs in
-  if j > 0 then
-    let open Why3 in
-    let file = Whyconf.get_conf_file env.wenv.config in
-    if file <> "" then
-      let main = Whyconf.get_main env.wenv.config in
-      let time = Whyconf.timelimit main in
-      let mem = Whyconf.memlimit main in
-      let config = Whyconf.User.set_limits ~time ~mem ~j env.wenv.config in
-      Whyconf.save_config config ;
-      Format.printf "Why3 config saved to %s@." file
-
-let maxjobs wmain =
-  if !jobs > 0 then !jobs else
-    Whyconf.running_provers_max wmain
+let set_jobs n = jobs := n
+let get_jobs wmain =
+  if !jobs > 0 then !jobs else Whyconf.running_provers_max wmain
 
 let update_client wmain =
-  let njobs = maxjobs wmain in
+  let njobs = get_jobs wmain in
   if njobs <> !clients then
     begin
       clients := njobs ;
@@ -422,15 +406,6 @@ let prove_buffer config ?cancel prover buffer timeout =
 (* -------------------------------------------------------------------------- *)
 (* --- Options                                                            --- *)
 (* -------------------------------------------------------------------------- *)
-
-let options = [
-  "-j",
-  Arg.Set_int jobs, "JOBS max parallel provers" ;
-  "--no-cache",
-  Arg.Clear usecache, "do not read results from cache" ;
-  "--log-prover-results",
-  Arg.String set_logfile, "FILE log the prover results in the given file";
-]
 
 let print_stats () =
   let h = !hits in

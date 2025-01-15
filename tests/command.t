@@ -361,8 +361,6 @@
   OPTIONS:
   
     -j JOBS max parallel provers
-    --no-cache do not read results from cache
-    --log-prover-results FILE log the prover results in the given file
     --server URL proof server address (default "tcp://localhost:5555")
     --polling TIME server polling interval (default 1.0s)
     --trace Trace server protocol

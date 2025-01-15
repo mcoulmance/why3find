@@ -418,7 +418,6 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       parse_argv argv
         begin
           Wenv.options () @
-          Runner.options @
           [
             "--master", Arg.Set calibrate, "calibrate provers (master)";
             "--velocity", Arg.Set velocity, "evaluate prover velocity (local)";
@@ -562,7 +561,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       (* --- Printing Final Config -------------- *)
       if !list then
         begin
-          let jobs = Runner.maxjobs wmain in
+          let jobs = Runner.get_jobs wmain in
           Format.printf "Configuration:@." ;
           Format.printf " - runner: %d jobs" jobs ;
           if fast <> 0.2 then Format.printf ", %a" Utils.pp_time fast ;
@@ -579,10 +578,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       if !list && drivers <> [] then
         Format.printf " - @[<hov 2>drivers: %a@]@." pp_list drivers ;
       (* --- Updating -------------- *)
-      if Runner.is_modified () then
-        Runner.save_config env ;
-      if !reset || modified then
-        Wenv.save newconfig;
+      if !reset || modified then Wenv.save newconfig;
+      Wenv.update_why3_config env.wenv.config ;
       exit (!retval)
     end
 
@@ -608,7 +605,6 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       parse_argv argv
         begin
           Wenv.options () @
-          Runner.options @
           [
             "-g", Arg.String (add goals), "<name> goals selection";
             "-f", Arg.Unit (set mode `Force), "force rebuild proofs";
@@ -912,7 +908,9 @@ let () = register ~name:"worker" ~args:"OPTIONS"
       let polling = ref 1.0 in
       parse_argv argv
         begin
-          Runner.options @ [
+          [
+            "-j", Arg.Int Runner.set_jobs,
+            "JOBS max parallel provers";
             "--server",Arg.Set_string server,
             "URL proof server address (default \"tcp://localhost:5555\")";
             "--polling",Arg.Set_float polling,

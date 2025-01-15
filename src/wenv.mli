@@ -52,3 +52,6 @@ type env = Project.env = private {
 }
 
 val init : ?root:string -> ?loadplugins:bool -> Config.config -> Project.env
+
+val update_why3_config : Why3.Whyconf.config -> unit
+(** Update [~/.why3conf] with the specified number of jobs, if modified. *)

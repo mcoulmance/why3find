@@ -61,17 +61,16 @@ val prove_buffer : Why3.Whyconf.main ->
 (** Do not read nor update cache *)
 
 val notify : Why3.Whyconf.main -> Prover.prover -> Result.t -> callback -> unit
+val memlimit : Why3.Whyconf.main -> int
 
-val options : (string * Arg.spec * string) list
-val usecache : bool ref
+val set_jobs : int -> unit
+val get_jobs : Why3.Whyconf.main -> int
+
 val pending : unit -> int
 val running : unit -> int
-val maxjobs : Why3.Whyconf.main -> int
 val pp_goals : Format.formatter -> unit
 
-val is_modified : unit -> bool
-val memlimit : Why3.Whyconf.main -> int
-val save_config : Project.env -> unit
+val set_logfile : string -> unit
 val print_stats : unit -> unit
 
 (* -------------------------------------------------------------------------- *)

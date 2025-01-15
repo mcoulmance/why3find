@@ -52,6 +52,8 @@ let prvs = ref []
 let tacs = ref []
 let warn = ref []
 let prep = ref None
+let jobs = ref false
+let usecache = ref true
 
 (* -------------------------------------------------------------------------- *)
 (* --- Variable Argument Processing                                       --- *)
@@ -145,13 +147,8 @@ let process_args config args =
 (* --- Command Line Arguments                                             --- *)
 (* -------------------------------------------------------------------------- *)
 
-let setv r v =
-  r := Some v
-
-let getv fd r =
-  match !r with
-  | Some v -> v
-  | None -> fd
+let setv r v = r := Some v
+let getv fd r = match !r with Some v -> v | None -> fd
 
 let geto fd r =
   match !r with
@@ -175,6 +172,8 @@ type opt = [
   | `Driver
 ]
 
+let setjobs n = Runner.set_jobs n ; jobs := true
+
 let settime prm s =
   try setv prm (Utils.pa_time s)
   with Invalid_argument _ -> Utils.failwith "Invalid time (-t %s)" s
@@ -196,6 +195,9 @@ let alloptions : (opt * string * Arg.spec * string) list = [
   `Prover,  "-P", Arg.String (add prvs), " same as --prover";
   `Prover,  "-T", Arg.String (add tacs), " same as --tactic";
   `Driver,  "-D", Arg.String (add drvs), " same as --driver";
+  `Prover,  "-j", Arg.Int setjobs, "JOBS max parallel provers" ;
+  `Prover,  "--no-cache", Arg.Clear usecache, "do not read results from cache";
+  `Prover,  "--log-prover-results", Arg.String Runner.set_logfile, "FILE log the prover results in the given file";
 ]
 
 let options ?(packages=false) ?(provers=false) ?(drivers=false) () =
@@ -263,6 +265,21 @@ let save conf =
   Format.printf "Why3find config saved to %s@."
     (Filename.concat path Config.conf_file)
 
+let update_why3_config config =
+  if !jobs then
+    begin
+      let open Why3 in
+      let file = Whyconf.get_conf_file config in
+      if file <> "" then
+        let main = Whyconf.get_main config in
+        let jobs = Runner.get_jobs main in
+        let time = Whyconf.timelimit main in
+        let mem = Whyconf.memlimit main in
+        let config = Whyconf.User.set_limits ~time ~mem ~j:jobs config in
+        Whyconf.save_config config ;
+        Format.printf "Why3 config saved to %s@." file
+    end
+
 (* -------------------------------------------------------------------------- *)
 (* --- Why3 Environment                                                   --- *)
 (* -------------------------------------------------------------------------- *)
@@ -304,9 +321,10 @@ let disable_warning s =
 
 let init ?root ?(loadplugins=true) config =
   begin
-    let wenv = Project.create_env ?root ~config ~usecache:!Runner.usecache () in
+    let wenv = Project.create_env ?root ~config ~usecache:!usecache () in
     if loadplugins then
-      Why3.Whyconf.load_plugins @@ Why3.Whyconf.get_main wenv.wenv.config;
+      Why3.Whyconf.load_plugins @@
+      Why3.Whyconf.get_main wenv.wenv.config;
     Debug.init_why3_debug ();
     List.iter disable_warning config.warnoff;
     wenv

@@ -212,7 +212,7 @@ let connect ~server ~polling =
   let wmain = Why3.Whyconf.get_main wconfig in
   let wenv = Config.create_wenv wconfig in
   let prvs = Prover.all wenv in
-  let jobs = Runner.maxjobs wmain in
+  let jobs = Runner.get_jobs wmain in
   let cache = Cache.create ~cdir:".why3find" () in
   Utils.flush () ;
   Prover.(Mdesc.iter (fun _ -> Format.printf "Prover %a@." pp_prover) prvs) ;
