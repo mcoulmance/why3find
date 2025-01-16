@@ -606,6 +606,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       let add r p = r := p :: !r in
       let context n = log := `Context n in
       let failed () = context 2 in
+      let failed_task () = context max_int in
       parse_argv argv
         begin
           Wenv.options () @
@@ -617,6 +618,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
             "-r", Arg.Unit (set mode `Replay), "replay proofs (no update)";
             "-m", Arg.Unit (set mode `Minimize), "minimize proofs (or update)";
             "-x", Arg.Unit failed, "show context on failed proof (tty only)";
+            "-xx", Arg.Unit failed_task, "show task on failed proof" ;
             "-i", Arg.Set ide, "run Why3 IDE on failed proof (implies -s)";
             "-s", Arg.Set session, "save why3 session";
             "-l", Arg.Set details, "performance details (cache, prover, tactics)";

@@ -399,26 +399,33 @@ let pp_expl fmt t =
   if expl <> "" then Format.fprintf fmt ":%s" expl
 
 let dump ~file ~context thy task =
-  ignore thy ;
   let p,q,rs = chunks ~file task |> window ~file thy in
   match rs with [] -> () | head::tail ->
     Format.printf "@{<orange>[%s:%a%a]@}@\n"
       file pp_range (p,q) pp_expl task ;
-    let text = Utils.readfile ~file in
-    let cursor = {
-      text ; context ; offset = 0 ; pos = Range.start ;
-      edge = false ; comment = 0 ; style = Text ;
-    } in
-    try
-      let p = Range.first_line head.range in
-      skip cursor @@ line (p - cursor.context) ;
-      lino cursor ;
-      decorate cursor head tail ;
-      if context > 1 then
-        begin
+    if context < max_int then
+      begin
+        let text = Utils.readfile ~file in
+        let cursor = {
+          text ; context ; offset = 0 ; pos = Range.start ;
+          edge = false ; comment = 0 ; style = Text ;
+        } in
+        try
+          let p = Range.first_line head.range in
+          skip cursor @@ line (p - cursor.context) ;
           lino cursor ;
-          Format.print_newline () ;
-        end ;
-    with Invalid_argument _ | Exit ->
-      if snd cursor.pos > 0 then
-        Format.print_newline ()
+          decorate cursor head tail ;
+          if context > 1 then
+            begin
+              lino cursor ;
+              Format.print_newline () ;
+            end ;
+        with Invalid_argument _ | Exit ->
+          if snd cursor.pos > 0 then
+            Format.print_newline ()
+      end
+    else
+      begin
+        Why3.Pretty.print_sequent Format.std_formatter task ;
+        Format.printf "%s@." (String.make 69 '-') ;
+      end
