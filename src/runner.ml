@@ -482,7 +482,7 @@ let call_prover (config : Why3.Whyconf.main)
         if !canceled then kill ()
         else if not !timedout && now > !clockwall then
           (timedout := true ; kill ())
-        else if now > !clockwall +. 1.0 then
+        else if !timedout && now > !clockwall +. 1.0 then
           runover := true
       end ;
     let query =
