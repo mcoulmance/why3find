@@ -45,6 +45,7 @@ type node = {
   hint : crc ;
   depth : int ;
   hammer : hammer ;
+  cancel : unit Fibers.signal option ;
   result : crc Fibers.t ;
 }
 
@@ -56,21 +57,21 @@ let q_broken = Queue.create () (* Stuck hints, scheduled first *)
 let q_proven = Queue.create () (* Complete hints, scheduled last *)
 
 (* idename should be the goal name as in Why3 IDE *)
-let push hammer ~depth goal hint =
+let push hammer ~depth ~cancel goal hint =
   let result = Fibers.var () in
   Queue.push
-    { goal ; hint ; depth ; hammer ; result }
+    { goal ; hint ; depth ; cancel ; hammer ; result }
     (if is_complete hint then q_proven else q_broken) ;
   result
 
-let rec push_all hammer ~depth goals hints =
+let rec push_all hammer ~depth ~cancel goals hints =
   match goals, hints with
   | [], _ -> []
   | g::gs, [] ->
     let s = Crc.stuck () in
-    push hammer ~depth g s :: push_all hammer ~depth gs []
+    push hammer ~depth ~cancel g s :: push_all hammer ~depth ~cancel gs []
   | g::gs, h::hs ->
-    push hammer ~depth g h :: push_all hammer ~depth gs hs
+    push hammer ~depth ~cancel g h :: push_all hammer ~depth ~cancel gs hs
 
 let pop () =
   try Some (Queue.pop q_broken) with Queue.Empty ->
@@ -136,6 +137,7 @@ let prove ?cancel timeout prover : strategy = fun n ->
       let handler = Fibers.emit kill in
       let runner =
         Fibers.monitor ?signal:cancel ~handler @@
+        Fibers.monitor ?signal:n.cancel ~handler @@
         Fibers.monitor ~signal:killall ~handler @@
         Fibers.map to_profile @@
         Fibers.finally ~callback:(Cache.set h.cache task prover) @@
@@ -184,7 +186,7 @@ let apply tac ?(hint : hint option) : node -> crc option Fibers.t = fun n ->
         | _ -> [] in
       Option.some @+
       Crc.tactic ~goal:n.goal tac @+
-      Fibers.all @@ push_all n.hammer ~depth:(succ n.depth) gs hs
+      Fibers.all @@ push_all n.hammer ~depth:(succ n.depth) ~cancel:n.cancel gs hs
 
 (* -------------------------------------------------------------------------- *)
 (* --- Hammer Entry Points                                                --- *)
@@ -220,9 +222,9 @@ let create
     provers ; tactics ; profile ; preprocess ;
   }
 
-let schedule hammer goal hint =
+let schedule hammer ?cancel goal hint =
   match hammer.preprocess with
-  | None -> push hammer ~depth:0 goal hint
+  | None -> push hammer ~depth:0 ~cancel goal hint
   | Some tactic ->
     match Session.apply hammer.why3.env tactic goal with
     | None ->
@@ -234,7 +236,7 @@ let schedule hammer goal hint =
         | Tactic { id; children; _ } when id = Tactic.name tactic -> children
         | _ -> []
       in Crc.tactic ~goal tactic @+
-         Fibers.all @@ push_all hammer ~depth:0 goals hints
+         Fibers.all @@ push_all hammer ~depth:0 ~cancel goals hints
 
 (* -------------------------------------------------------------------------- *)
 (* --- Hammer Strategy                                                    --- *)

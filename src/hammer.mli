@@ -49,7 +49,7 @@ val create :
   Project.env -> hammer
 
 (** Enqueue some goal to be processed. *)
-val schedule : hammer -> goal -> crc -> crc Fibers.t
+val schedule : hammer -> ?cancel:unit Fibers.signal -> goal -> crc -> crc Fibers.t
 
 (** Current Task Server State *)
 type status = {
