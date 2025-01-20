@@ -597,16 +597,15 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       let goals = ref [] in
       let ide = ref false in
       let session = ref false in
-      let log = ref `Default in
+      let results = ref `Default in
       let mode = ref `Update in
       let hammer = ref 4 in
       let axioms = ref false in
       let details = ref false in
       let set m v () = m := v in
       let add r p = r := p :: !r in
-      let context n = log := `Context n in
+      let context n = results := `Context n in
       let failed () = context 2 in
-      let failed_task () = context max_int in
       parse_argv argv
         begin
           Wenv.options () @
@@ -618,7 +617,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
             "-r", Arg.Unit (set mode `Replay), "replay proofs (no update)";
             "-m", Arg.Unit (set mode `Minimize), "minimize proofs (or update)";
             "-x", Arg.Unit failed, "show context on failed proof (tty only)";
-            "-xx", Arg.Unit failed_task, "show task on failed proof" ;
+            "-X", Arg.Unit (set results `Tasks), "show task on failed proof" ;
             "-i", Arg.Set ide, "run Why3 IDE on failed proof (implies -s)";
             "-s", Arg.Set session, "save why3 session";
             "-l", Arg.Set details, "performance details (cache, prover, tactics)";
@@ -626,10 +625,10 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
             "-H", Arg.Set_int hammer, "[0-4] hammer strategy level (default 4)";
           ] @
           Client.options @ [
-            "--modules",  Arg.Unit (set log `Modules), "list results by module";
-            "--theories", Arg.Unit (set log `Theories), "list results by theory";
-            "--goals", Arg.Unit (set log `Goals), "list results by goals";
-            "--proofs", Arg.Unit (set log `Proofs), "list proofs by goals";
+            "--modules",  Arg.Unit (set results `Modules), "list results by module";
+            "--theories", Arg.Unit (set results `Theories), "list results by theory";
+            "--goals", Arg.Unit (set results `Goals), "list results by goals";
+            "--proofs", Arg.Unit (set results `Proofs), "list proofs by goals";
             "--context", Arg.Int context, "<n> show n-lines context on failed proof (tty only, default 2)";
             "--stdlib", Arg.Set Prove.stdlib, "report hypotheses from stdlib";
             "--extern", Arg.Set Prove.externals, "report also external symbols";
@@ -652,7 +651,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       let goals = List.rev !goals in
       let result = Prove.prove_files
           ~env ~mode ~hammer ~session
-          ~log:!log ~axioms:!axioms ~details:!details
+          ~results:!results ~axioms:!axioms ~details:!details
           ~files ~goals in
       let n = List.length result.unfixed in
       if n > 0 then

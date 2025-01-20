@@ -258,7 +258,7 @@
     -r replay proofs (no update)
     -m minimize proofs (or update)
     -x show context on failed proof (tty only)
-    -xx show task on failed proof
+    -X show task on failed proof
     -i run Why3 IDE on failed proof (implies -s)
     -s save why3 session
     -l performance details (cache, prover, tactics)

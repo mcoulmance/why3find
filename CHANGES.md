@@ -6,7 +6,7 @@
 
 ### Command Line Interface
 
-- New option [-xx] to print failed tasks in extenso
+- New option [-X] to print failed tasks _in extenso_
 
 ### LSP and VSCode Extension
 
