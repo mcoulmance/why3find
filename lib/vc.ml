@@ -172,7 +172,7 @@ let locate l lines =
             else lookup k lk j lj
         in lookup 0 li (n-1) lj
 
-let window ~file thy chunks =
+let range chunks =
   let p = ref max_int in
   let q = ref min_int in
   List.iter
@@ -183,23 +183,29 @@ let window ~file thy chunks =
          q := max !q @@ Range.last_line chunk.range ;
        | When | WhenNot -> ()
     ) chunks ;
-  let lines = decls ~file thy in
-  if !p > !q then 0,0,[] else
-    let u,v =
-      if !p < !q then
-        let p1,p2 = locate !p lines in
-        let q1,q2 = locate !q lines in
-        min p1 q1, max p2 q2
-      else locate !p lines
-    in
-    !p, !q,
-    List.filter
-      (fun chunk ->
-         u <= Range.first_line chunk.range && Range.last_line chunk.range <= v
-      ) chunks
+  !p, !q
 
 (* -------------------------------------------------------------------------- *)
-(* ---  Ranges Dumping                                                    --- *)
+(* ---  Dumping Tasks                                                     --- *)
+(* -------------------------------------------------------------------------- *)
+
+let pp_range fmt (p,q) =
+  if p < q then Format.fprintf fmt "%d:%d" p q else Format.pp_print_int fmt p
+
+let pp_expl fmt t =
+  let expl = Session.task_expl t in
+  if expl <> "" then Format.fprintf fmt ":%s" expl
+
+let dump ~file task =
+  let p,q = chunks ~file task |> range in
+  if p <= q then
+    Format.printf "@{<orange>[%s:%a%a]@}@\n"
+      file pp_range (p,q) pp_expl task ;
+  Why3.Pretty.print_sequent Format.std_formatter task ;
+  Format.printf "%s@." (String.make 69 '-')
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Printing Automaton                                                --- *)
 (* -------------------------------------------------------------------------- *)
 
 type style = Comment | Kind of kind | Text
@@ -364,8 +370,6 @@ let print cursor ?(endline=true) pos =
 
 let line n = (n,0)
 
-(* Printing Automata *)
-
 let rec decorate cursor head tail =
   print cursor @@ fst head.range ;
   let style = Kind head.kind in
@@ -391,41 +395,47 @@ let rec decorate cursor head tail =
       end ;
     decorate cursor next tail
 
-let pp_range fmt (p,q) =
-  if p < q then Format.fprintf fmt "%d:%d" p q else Format.pp_print_int fmt p
+(* -------------------------------------------------------------------------- *)
+(* ---  Highlighting Ranges                                               --- *)
+(* -------------------------------------------------------------------------- *)
 
-let pp_expl fmt t =
-  let expl = Session.task_expl t in
-  if expl <> "" then Format.fprintf fmt ":%s" expl
+let window ~file thy chunks =
+  let p,q = range chunks in
+  let lines = decls ~file thy in
+  if p > q then 0,0,[] else
+    let u,v =
+      if p < q then
+        let p1,p2 = locate p lines in
+        let q1,q2 = locate q lines in
+        min p1 q1, max p2 q2
+      else locate p lines
+    in
+    p, q,
+    List.filter
+      (fun chunk ->
+         u <= Range.first_line chunk.range && Range.last_line chunk.range <= v
+      ) chunks
 
-let dump ~file ~context thy task =
+let highlight ~file ~context thy task =
   let p,q,rs = chunks ~file task |> window ~file thy in
   match rs with [] -> () | head::tail ->
     Format.printf "@{<orange>[%s:%a%a]@}@\n"
       file pp_range (p,q) pp_expl task ;
-    if context < max_int then
-      begin
-        let text = Utils.readfile ~file in
-        let cursor = {
-          text ; context ; offset = 0 ; pos = Range.start ;
-          edge = false ; comment = 0 ; style = Text ;
-        } in
-        try
-          let p = Range.first_line head.range in
-          skip cursor @@ line (p - cursor.context) ;
+    let text = Utils.readfile ~file in
+    let cursor = {
+      text ; context ; offset = 0 ; pos = Range.start ;
+      edge = false ; comment = 0 ; style = Text ;
+    } in
+    try
+      let p = Range.first_line head.range in
+      skip cursor @@ line (p - cursor.context) ;
+      lino cursor ;
+      decorate cursor head tail ;
+      if context > 1 then
+        begin
           lino cursor ;
-          decorate cursor head tail ;
-          if context > 1 then
-            begin
-              lino cursor ;
-              Format.print_newline () ;
-            end ;
-        with Invalid_argument _ | Exit ->
-          if snd cursor.pos > 0 then
-            Format.print_newline ()
-      end
-    else
-      begin
-        Why3.Pretty.print_sequent Format.std_formatter task ;
-        Format.printf "%s@." (String.make 69 '-') ;
-      end
+          Format.print_newline () ;
+        end ;
+    with Invalid_argument _ | Exit ->
+      if snd cursor.pos > 0 then
+        Format.print_newline ()
