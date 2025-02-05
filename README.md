@@ -248,6 +248,8 @@ on the terminal by `why3find prove -x`. Unproved goals are highlighted in
 red, hypotheses and positive conditions in green and negative conditions
 in magenta. Hypotheses and context are kept in a range of 5 lines around goals.
 Use `--context n` instead of `-x` to output a context of `n` lines instead.
+For further debugging, option `-X` can be used to print the failed proof tasks
+_in extenso_.
 
 *Interactive Proving* is activated by `why3find prove -i` and will launch the
 standard Why3 IDE in case of unproved goals. Notice that Why3 sessions will be

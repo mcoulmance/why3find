@@ -221,7 +221,7 @@ let prove_goal ~env ~ptactic ~replay profile goal task hint =
         goal Tactic.pretty ptactic;
       Fibers.return (Crc.stuck ~goal:task ())
 
-let prove_goal ~env ~file ~context ~ptactic mode profile buffer theory hint goal task =
+let prove_goal ~env ~file ~results ~ptactic mode profile buffer theory hint goal task =
   let replay = (mode = `Replay) in
   let+ crc =
     Crc.merge hint @+
@@ -239,18 +239,20 @@ let prove_goal ~env ~file ~context ~ptactic mode profile buffer theory hint goal
       Format.printf "@[<v2>Goal @{<red>%s@}: %a@]@." goal Crc.pretty crc ;
       Crc.iter
         (fun g (s : Crc.status) ->
-           match s with Prover _ | Tactic _ -> () | Stuck ->
-             if Utils.tty && context >= 0 then
-               Vc.dump ~file ~context
+           match s with
+           | Prover _ | Tactic _ -> () | Stuck ->
+             match results with
+             | `Context context when Utils.tty && context >= 0 ->
+               Vc.highlight ~file ~context
                  (Session.theory theory)
                  (Session.goal_task g)
-             else
-               Format.printf "  %a@." Session.pp_goal g
+             | `Tasks -> Vc.dump ~file (Session.goal_task g)
+             | _ -> Format.printf "  %a@." Session.pp_goal g
         ) crc ;
     end ;
   goal, crc
 
-let prove_theory ~env ~goals ~file ~context ~ptactic mode profile buffer strategy theory =
+let prove_theory ~env ~goals ~file ~results ~ptactic mode profile buffer strategy theory =
   let thy = Session.name theory in
   let tasks = Session.split theory in
   let hints = M.find_def M.empty thy strategy in
@@ -263,7 +265,7 @@ let prove_theory ~env ~goals ~file ~context ~ptactic mode profile buffer strateg
          let goal = Session.goal_name task in
          let hint = M.find_def (Crc.stuck ()) goal hints in
          let+ crc =
-           prove_goal ~env ~file ~context mode profile buffer theory hint goal ~ptactic task
+           prove_goal ~env ~file ~results mode profile buffer theory hint goal ~ptactic task
          in
          crc
       ) tasks
@@ -378,9 +380,9 @@ let report_hypotheses henv ~lib (ths : Th.theory list) =
 (* --- Proof Logger                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
-type results = [ `Modules | `Theories | `Goals | `Proofs | `Context of int ]
+type results = [ `Default | `Modules | `Theories | `Goals | `Proofs | `Tasks | `Context of int ]
 
-let report_results (log : results) henv ~lib proofs =
+let report ~(results:results) henv ~lib proofs =
   begin
     let stuck = ref 0 in
     let proved = ref 0 in
@@ -397,12 +399,12 @@ let report_results (log : results) henv ~lib proofs =
     let ths = List.map (fun (th,_) -> Session.theory th) proofs in
     begin
       let path = String.concat "." lib in
-      match log with
-      | `Modules ->
+      match results with
+      | `Modules | `Default ->
         Format.printf "Library %s: %t@."
           path (Crc.pp_result ~stuck:!stuck ~proved:!proved) ;
         List.iter (report_signature henv ~lib) ths
-      | `Theories | `Goals | `Proofs | `Context _ ->
+      | `Theories | `Goals | `Proofs | `Tasks | `Context _ ->
         List.iter
           (fun (th,goals) ->
              let thy = Session.theory th in
@@ -413,8 +415,8 @@ let report_results (log : results) henv ~lib proofs =
              Format.printf "Theory %s.%s: %t@." path tn
                (Crc.pp_result ~stuck:s ~proved:p) ;
              begin
-               match log with
-               | `Modules | `Theories | `Context _ -> ()
+               match results with
+               | `Default | `Modules | `Theories | `Tasks | `Context _ -> ()
                | `Goals ->
                  List.iter
                    (fun (g,c) ->
@@ -439,9 +441,8 @@ let report_results (log : results) henv ~lib proofs =
 (* -------------------------------------------------------------------------- *)
 
 type mode = [ `Force | `Update | `Minimize | `Replay ]
-type log = [ `Default | `Context of int | results ]
 
-let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess ~goals ~ptactic file =
+let process ~env ~(mode:mode) ~session ~results ~axioms ~unsuccess ~goals ~ptactic file =
   Fibers.background @@
   begin
     let exts = Wutil.exts () in
@@ -460,10 +461,9 @@ let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess ~goals ~ptacti
       if (mode = `Replay)
       then None
       else Some (Proofs.create file profile strategy) in
-    let context = match log with `Context n -> n | _ -> (-1) in
     let* proofs =
       Fibers.all @@ List.map
-        (prove_theory ~env ~goals ~file ~context ~ptactic mode profile buffer strategy)
+        (prove_theory ~env ~goals ~file ~results ~ptactic mode profile buffer strategy)
         (Session.theories session)
     in
     Session.save session ;
@@ -473,7 +473,7 @@ let process ~env ~mode ~session ~(log:results) ~axioms ~unsuccess ~goals ~ptacti
         Some (Axioms.init env)
       else None in
     Utils.flush () ;
-    let failed = report_results log henv ~lib proofs in
+    let failed = report ~results henv ~lib proofs in
     if failed then unsuccess := file :: !unsuccess ;
     Fibers.return ()
   end
@@ -491,7 +491,7 @@ type outcome = {
 }
 
 let prove_files ~(env:Config.env)
-    ~mode ~hammer ~session ~log ~axioms ~details
+    ~mode ~hammer ~session ~results ~axioms ~details
     ~files ~goals =
   begin
     let fast = env.config.fast in
@@ -503,10 +503,10 @@ let prove_files ~(env:Config.env)
     let provers = Prover.select env.wenv ~patterns in
     let unsuccess = ref [] in
     let minimize = (mode = `Minimize) in
-    let log : results = match log with
+    let results = match results with
       | `Default -> if List.length files > 1 then `Modules else `Theories
-      | #results as l -> l in
-    List.iter (process ~env ~mode ~session ~log ~axioms ~unsuccess ~goals ~ptactic) files ;
+      | _ -> results in
+    List.iter (process ~env ~mode ~session ~results ~axioms ~unsuccess ~goals ~ptactic) files ;
     Hammer.run {
       env ;
       client = Client.connect env ; level = hammer ;

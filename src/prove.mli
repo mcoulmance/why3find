@@ -24,9 +24,7 @@
 (* -------------------------------------------------------------------------- *)
 
 type mode = [ `Force | `Update | `Minimize | `Replay ]
-type log = [
-    `Default | `Modules | `Theories | `Goals | `Proofs | `Context of int
-]
+type results = [ `Default | `Modules | `Theories | `Goals | `Proofs | `Tasks | `Context of int ]
 
 val stdlib : bool ref
 val externals : bool ref
@@ -45,7 +43,7 @@ val prove_files :
   mode:mode ->
   hammer:int ->
   session:bool ->
-  log:log ->
+  results:results ->
   axioms:bool ->
   details:bool ->
   files:string list ->
