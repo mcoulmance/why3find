@@ -52,20 +52,20 @@ type node = {
 (* --- Queue Management                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
-let q1 : node Queue.t = Queue.create ()
-let q2 : node Queue.t = Queue.create ()
+let q_broken = Queue.create () (* Stuck hints, scheduled first *)
+let q_proven = Queue.create () (* Complete hints, scheduled last *)
 
 (* idename should be the goal name as in Why3 IDE *)
 let schedule profile ~replay ~depth goal hint =
   let result = Fibers.var () in
   Queue.push
     { profile ; goal ; hint ; replay ; depth ; result }
-    (if is_complete hint then q2 else q1) ;
+    (if is_complete hint then q_proven else q_broken) ;
   result
 
 let pop () =
-  try Some (Queue.pop q1) with Queue.Empty ->
-  try Some (Queue.pop q2) with Queue.Empty ->
+  try Some (Queue.pop q_broken) with Queue.Empty ->
+  try Some (Queue.pop q_proven) with Queue.Empty ->
     None
 
 let stuck n = stuck ~goal:n.goal ()
@@ -281,8 +281,8 @@ let run henv =
     while true do
       Fibers.yield () ;
       Option.iter Client.yield henv.client ;
-      let n2 = Queue.length q2 + !p2 in
-      let n1 = Queue.length q1 + !p1 in
+      let n2 = Queue.length q_proven + !p2 in
+      let n1 = Queue.length q_broken + !p1 in
       let nq = Runner.pending () in
       let nr = Runner.running () in
       let total = n2 + n1 + nq + nr in
