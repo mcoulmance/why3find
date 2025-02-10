@@ -14,6 +14,10 @@
 
 ### Bug Fixes
 
+- Truncated float printing introduced in (!81) caused imprecise calibration
+  values on reruns which could lead to spurious cache misses. Cache entries
+  are now printed with sufficient precision. (#125, !169)
+
 ### API
 
 ## 1.1.1 - 2025-01-10

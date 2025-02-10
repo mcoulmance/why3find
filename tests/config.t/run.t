@@ -8,7 +8,7 @@
   $ cat why3find.json
   {
     "fast": 0.2,
-    "time": 1,
+    "time": 1.0,
     "depth": 2,
     "packages": [],
     "provers": [ "alt-ergo" ],
@@ -104,7 +104,7 @@
   $ cat why3find.json
   {
     "fast": 0.2,
-    "time": 1,
+    "time": 1.0,
     "depth": 2,
     "packages": [],
     "provers": [ "alt-ergo", "z3" ],
@@ -124,7 +124,7 @@
   $ cat why3find.json
   {
     "fast": 0.2,
-    "time": 1,
+    "time": 1.0,
     "depth": 2,
     "packages": [],
     "provers": [ "alt-ergo", "z3" ],
