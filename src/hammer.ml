@@ -243,7 +243,7 @@ let update_tactic ~hint h =
 let explore h n =
   if n.replay then fail n else hammer h n
 
-let process h : strategy = fun n ->
+let process_node h : strategy = fun n ->
   try
     match n.hint.status with
     | Stuck -> explore h n
@@ -270,54 +270,70 @@ let process h : strategy = fun n ->
     fail n
 
 (* -------------------------------------------------------------------------- *)
-(* --- Main Loop                                                          --- *)
+(* --- Queue Status                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
+(* Number of currently processed tasks from their respective queues *)
+let p_proven = ref 0
+let p_broken = ref 0
+
+type status = {
+  broken  : int ;
+  proven  : int ;
+  pending : int ;
+  running : int ;
+}
+
+let status () = {
+  proven = Queue.length q_proven + !p_proven ;
+  broken = Queue.length q_broken + !p_broken ;
+  pending = Runner.pending () ;
+  running = Runner.running() ;
+}
+
+let running () =
+  !p_proven > 0 ||
+  !p_broken > 0 ||
+  Queue.length q_proven > 0 ||
+  Queue.length q_broken > 0 ||
+  Runner.pending () > 0 ||
+  Runner.running () > 0 ||
+  Fibers.pending () > 0
+
+let pp_status fmt s =
+  if s.proven > 0 then Format.fprintf fmt "!%d/" s.proven ;
+  if s.broken > 0 then Format.fprintf fmt "?%d/" s.broken ;
+  Format.fprintf fmt "%d/%d" s.pending s.running
+
+(* -------------------------------------------------------------------------- *)
+(* --- Task Processing                                                    --- *)
+(* -------------------------------------------------------------------------- *)
+
+let process henv =
+  Fibers.yield () ;
+  Option.iter Client.yield henv.client ;
+  match pop () with
+  | Some node ->
+    let pr = if is_complete node.hint then p_proven else p_broken in
+    incr pr;
+    Fibers.background (process_node henv node)
+      ~callback:(fun r -> decr pr; Fibers.set node.result r);
+    true
+  | None -> false
+
 let run henv =
-  let exception Break in
-  try
-    let p2 = ref 0 in
-    let p1 = ref 0 in
-    while true do
-      Fibers.yield () ;
-      Option.iter Client.yield henv.client ;
-      let n2 = Queue.length q_proven + !p2 in
-      let n1 = Queue.length q_broken + !p1 in
-      let nq = Runner.pending () in
-      let nr = Runner.running () in
-      let total = n2 + n1 + nq + nr in
-      Utils.progress "%t%d/%d%t"
-        (fun fmt ->
-           if n2 > 0 then Format.fprintf fmt "!%d/" n2 ;
-           if n1 > 0 then Format.fprintf fmt "?%d/" n1 ;
-        ) nq nr Runner.pp_goals ;
-      match pop () with
-      | Some node ->
-        Fibers.background @@
-        begin
-          let pr = if is_complete node.hint then p2 else p1 in
-          incr pr ;
-          let* r = process henv node in
-          decr pr ;
-          Fibers.set node.result r ;
-          Fibers.return ()
-        end
-      | None ->
-        if total > 0
-        then Unix.sleepf 0.01
-        else raise Break
-    done
-  with Break ->
-    Option.iter Client.terminate henv.client
+  while running () do
+    let s = status () in
+    Utils.progress "%a%t" pp_status s Runner.pp_goals ;
+    if not @@ process henv then Unix.sleepf 0.01 ;
+  done ;
+  Option.iter Client.terminate henv.client
 
 (* -------------------------------------------------------------------------- *)
 (* --- Why3 Hammer Config                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
-let session = ".why3find"
-let hammer = ".why3find/hammer.cfg"
-
-let config ~tactics ~provers ~time ~mem =
+let why3_ide_config ~tactics ~provers ~time ~mem file =
   let c_skip fmt = ignore fmt in
   let c_label l fmt = Format.fprintf fmt "%s:@\n" l in
   let c_goto l fmt = Format.fprintf fmt "g %s@\n" l in
@@ -341,34 +357,31 @@ let config ~tactics ~provers ~time ~mem =
        shortcut = \"%c\"@\n@."
       (c_list pps) name descr shortcut
   in
-  begin
-    Utils.mkdirs session ;
-    Utils.formatfile ~file:hammer
-      begin fun fmt ->
-        c_strategy fmt ~name:"hammer" ~shortcut:'H'
-          ~descr:"Hammer (why3find provers & tactics)" [
-          c_label "root" ;
-          c_prover ~time ;
-          c_tactic ~goto:"root" ;
-          if time > 1 then c_prover ~time:(time * 2) else c_skip ;
-        ] ;
-        c_strategy fmt ~name:"provers" ~shortcut:'P'
-          ~descr:"Hammer Prove (why3find provers)" [
-          c_prover ~time ;
-        ] ;
-        c_strategy fmt ~name:"tactics" ~shortcut:'U'
-          ~descr:"Hammer Unfold (why3find tactics)" [
-          c_label "tactic" ;
-          c_tactic ~goto:"prover" ;
-          c_goto "final" ;
-          c_label "prover" ;
-          c_prover ~time ;
-          c_goto "tactic" ;
-          c_label "final" ;
-          if time > 1 then c_prover ~time:(2 * time) else c_skip ;
-        ] ;
-      end ;
-    hammer
-  end
+  Utils.mkdirs @@ Filename.dirname file ;
+  Utils.formatfile ~file
+    begin fun fmt ->
+      c_strategy fmt ~name:"hammer" ~shortcut:'H'
+        ~descr:"Hammer (why3find provers & tactics)" [
+        c_label "root" ;
+        c_prover ~time ;
+        c_tactic ~goto:"root" ;
+        if time > 1 then c_prover ~time:(time * 2) else c_skip ;
+      ] ;
+      c_strategy fmt ~name:"provers" ~shortcut:'P'
+        ~descr:"Hammer Prove (why3find provers)" [
+        c_prover ~time ;
+      ] ;
+      c_strategy fmt ~name:"tactics" ~shortcut:'U'
+        ~descr:"Hammer Unfold (why3find tactics)" [
+        c_label "tactic" ;
+        c_tactic ~goto:"prover" ;
+        c_goto "final" ;
+        c_label "prover" ;
+        c_prover ~time ;
+        c_goto "tactic" ;
+        c_label "final" ;
+        if time > 1 then c_prover ~time:(2 * time) else c_skip ;
+      ] ;
+    end
 
 (* -------------------------------------------------------------------------- *)

@@ -27,6 +27,7 @@ open Crc
 open Calibration
 open Session
 
+(** Enqueue some goal to be processed. *)
 val schedule :
   profile ->
   replay:bool ->
@@ -35,6 +36,7 @@ val schedule :
   crc ->
   crc Fibers.t
 
+(** Hammer Strategy Environment *)
 type henv = {
   env : Config.env ;
   fast : float ;
@@ -48,13 +50,31 @@ type henv = {
   minimize : bool ;
 }
 
+(** Current Task Server State *)
+type status = {
+  broken  : int ; (** Number of pending tasks with broken CRC *)
+  proven  : int ; (** Number of pending tasks with proven CRC *)
+  pending : int ; (** Number of pending prover tasks *)
+  running : int ; (** Number of running prover tasks *)
+}
+
+val status : unit -> status
+val running : unit -> bool
+
+(** Process one pending node, if any.
+    Returns true if some node has been processed. *)
+val process : henv -> bool
+
+(** Loop process and log process on stdout until there is no more activity. *)
 val run : henv -> unit
 
-val config :
+(** Generate a why3 ide configuration file for the hammer strategy and
+    write it in the specified file. *)
+val why3_ide_config :
   tactics:Tactic.tactic list ->
   provers:Prover.prover list ->
   time:int ->
   mem:int ->
-  string (* config file *)
+  string -> unit
 
 (* -------------------------------------------------------------------------- *)
