@@ -88,6 +88,7 @@
     -r recursive mode, query also dependencies
     --debug FLAG Activate the given debug flag (eg default)
     --why3-debug FLAG Activate the given Why3 debug flag
+    --show-progress {never|auto|always} When to show progress
     -help  Display this list of options
     --help  Display this list of options
   
@@ -165,6 +166,7 @@
     -v print why3 extract command
     --debug FLAG Activate the given debug flag (eg default)
     --why3-debug FLAG Activate the given Why3 debug flag
+    --show-progress {never|auto|always} When to show progress
     -help  Display this list of options
     --help  Display this list of options
   
@@ -216,6 +218,7 @@
     --check check that proof certificates conform to configuration
     --debug FLAG Activate the given debug flag (eg default)
     --why3-debug FLAG Activate the given Why3 debug flag
+    --show-progress {never|auto|always} When to show progress
     -help  Display this list of options
     --help  Display this list of options
   
@@ -279,6 +282,7 @@
     --builtin report also builtin symbols
     --debug FLAG Activate the given debug flag (eg default)
     --why3-debug FLAG Activate the given Why3 debug flag
+    --show-progress {never|auto|always} When to show progress
     -help  Display this list of options
     --help  Display this list of options
   
@@ -312,6 +316,7 @@
     --url URL prefix URL for external packages.
     --debug FLAG Activate the given debug flag (eg default)
     --why3-debug FLAG Activate the given Why3 debug flag
+    --show-progress {never|auto|always} When to show progress
     -help  Display this list of options
     --help  Display this list of options
   
@@ -337,6 +342,7 @@
     --trace Trace server protocol
     --debug FLAG Activate the given debug flag (eg default)
     --why3-debug FLAG Activate the given Why3 debug flag
+    --show-progress {never|auto|always} When to show progress
     -help  Display this list of options
     --help  Display this list of options
   
@@ -365,6 +371,7 @@
     --sequential use sequential calibration algorithm
     --debug FLAG Activate the given debug flag (eg default)
     --why3-debug FLAG Activate the given Why3 debug flag
+    --show-progress {never|auto|always} When to show progress
     -help  Display this list of options
     --help  Display this list of options
   
@@ -403,6 +410,7 @@
     --no-doc Do not install documentation
     --debug FLAG Activate the given debug flag (eg default)
     --why3-debug FLAG Activate the given Why3 debug flag
+    --show-progress {never|auto|always} When to show progress
     -help  Display this list of options
     --help  Display this list of options
   

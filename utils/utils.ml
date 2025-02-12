@@ -37,13 +37,31 @@ let term =
 let escape_codes fd =
   term && Unix.isatty fd
 
+type show_progress_mode =
+  | Never
+  | Auto
+  | Always
+
+let show_progress = ref Auto
+
+let set_show_progress = function
+  | "never" -> show_progress := Never
+  | "auto" -> show_progress := Auto
+  | "always" -> show_progress := Always
+  | _ -> assert false
+
+let show_progress_opt =
+  "--show-progress", Arg.Symbol (["never"; "auto"; "always"], set_show_progress),
+  " When to show progress"
+
 let progress msg =
   let width = Option.value (Terminal_size.get_columns ()) ~default:80 in
   let buffer = Buffer.create (max 80 width) in
   Format.kfprintf
     (fun fmt ->
        Format.pp_print_flush fmt () ;
-       if escape_codes Unix.stdout then
+       if !show_progress = Always
+       || !show_progress <> Never && escape_codes Unix.stdout then
          let msg = Buffer.contents buffer in
          let len = String.length msg in
          if 3 + len <= width then
