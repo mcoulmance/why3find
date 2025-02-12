@@ -6,7 +6,9 @@
 
 ### Command Line Interface
 
-- New option [-X] to print failed tasks _in extenso_
+- New option `-X` to print failed tasks _in extenso_ (!165)
+- New option `--show-progress=(never|auto|always)` to control when progress is
+  shown (#128, !170)
 
 ### LSP and VSCode Extension
 
