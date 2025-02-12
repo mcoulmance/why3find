@@ -86,7 +86,7 @@ let contains ~pattern ~text =
   | _ -> true
 
 let parse_argv argv opts arg umsg =
-  Arg.parse_argv argv (opts @ Debug.options) arg umsg
+  Arg.parse_argv argv (opts @ Debug.options @ [ Utils.show_progress_opt ]) arg umsg
 
 let print_timings = Debug.create_flag "print-timings"
 

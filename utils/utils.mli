@@ -69,6 +69,8 @@ val pp_yies : Format.formatter -> int -> unit
 
 val round : float -> float
 
+val show_progress_opt : string * Arg.spec * string
+
 val tty : bool
 val flush : unit -> unit
 val overflows : unit -> bool
