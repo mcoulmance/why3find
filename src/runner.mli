@@ -85,7 +85,7 @@ val pp_goals : Format.formatter -> unit
 
 val is_modified : unit -> bool
 val memlimit : Why3.Whyconf.main -> int
-val save_config : Config.env -> unit
+val save_config : Project.env -> unit
 val print_stats : unit -> unit
 
 (* -------------------------------------------------------------------------- *)

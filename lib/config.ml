@@ -105,16 +105,3 @@ let create_wenv ?(loadpath=[]) config =
   let loadpath = loadpath @ Why3.Whyconf.(loadpath @@ get_main config) in
   let env = Why3.Env.create_env loadpath in
   { config ; env }
-
-type env = {
-  config : config ;
-  wenv : wenv ;
-  pkgs : Meta.pkg list ;
-}
-
-let create_env ?(root=".") ~config () =
-  let pkgs = Meta.find_all config.packages in
-  let pkg_path = List.map (fun m -> m.Meta.path) pkgs in
-  let wconfig = Why3.Whyconf.init_config ~extra_config:[] None in
-  let wenv = create_wenv ~loadpath:(root :: pkg_path) wconfig in
-  { config ; wenv ; pkgs }

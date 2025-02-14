@@ -27,7 +27,7 @@ open Crc
 open Fibers.Monad
 
 type henv = {
-  env : Config.env ;
+  env : Project.env ;
   fast : float ;
   time : float ;
   client : Client.client option ;
@@ -107,7 +107,7 @@ let interrupt () =
 (* -------------------------------------------------------------------------- *)
 
 let prove env ?client ?cancel prover timeout : strategy = fun n ->
-  let wmain = Why3.Whyconf.get_main env.Config.wenv.config in
+  let wmain = Why3.Whyconf.get_main env.Project.wenv.config in
   let name = Session.goal_name n.goal in
   let* alpha = Calibration.velocity wmain n.profile prover in
   let to_local = Runner.map (fun t -> t *. alpha) in
@@ -172,7 +172,7 @@ let rec subgoals ({ profile ; replay ; depth } as n) goals hints =
 
 let apply h tac ?(hint : hint option) : node -> crc option Fibers.t = fun n ->
   if n.depth > h.maxdepth then Fibers.return @@ Some (stuck n) else
-    match Session.apply h.env.Config.wenv.env tac n.goal with
+    match Session.apply h.env.Project.wenv.env tac n.goal with
     | None -> Fibers.return None
     | Some gs ->
       let hs =
@@ -248,7 +248,7 @@ let replay_tactic ~hint h n =
       if Tactic.equal t (fst hint) then
         Option.value ~default:(stuck n) @+ apply h t ~hint n
       else
-        match Session.apply h.env.Config.wenv.env t n.goal with
+        match Session.apply h.env.Project.wenv.env t n.goal with
         | None -> iter ts
         | Some _ ->
           Log.warning "Goal %S: tactic '%a' shadowed by '%a'"

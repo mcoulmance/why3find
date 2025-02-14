@@ -93,7 +93,7 @@ let add_builtins bmap p =
        | Some xs, Some (m,_) -> Some ((p,m) :: xs)
     ) bmap @@ Driver.syntax_map p.Prover.driver
 
-let init (env : Why3find.Config.env) =
+let init (env : Why3find.Project.env) =
   let provers = Prover.select env.wenv ~patterns:env.config.provers in
   let builtins = List.fold_left add_builtins Mid.empty provers in
   let drivers = List.concat_map pkg_drivers env.pkgs @ env.config.drivers in

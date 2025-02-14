@@ -285,7 +285,7 @@ let pp_goals fmt =
 
 let is_modified () = !jobs > 0
 
-let save_config (env : Why3find.Config.env) =
+let save_config (env : Project.env) =
   let j = !jobs in
   if j > 0 then
     let open Why3 in

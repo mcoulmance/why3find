@@ -24,7 +24,7 @@
 (* -------------------------------------------------------------------------- *)
 
 type henv
-val init : Config.env -> henv
+val init : Project.env -> henv
 
 open Why3
 

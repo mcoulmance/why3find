@@ -44,10 +44,10 @@ val load_config : unit -> Config.config
 
 val save : Config.config -> unit
 
-type env = Config.env = private {
+type env = Project.env = private {
   config : Config.config ;
   wenv : Config.wenv ;
   pkgs : Meta.pkg list ;
 }
 
-val init : ?root:string -> ?loadplugins:bool -> Config.config -> Config.env
+val init : ?root:string -> ?loadplugins:bool -> Config.config -> Project.env

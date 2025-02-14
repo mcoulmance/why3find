@@ -38,7 +38,7 @@ val schedule :
 
 (** Hammer Strategy Environment *)
 type henv = {
-  env : Config.env ;
+  env : Project.env ;
   fast : float ;
   time : float ;
   client : Client.client option ;

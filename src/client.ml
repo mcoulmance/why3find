@@ -69,7 +69,7 @@ let resolve () =
   if !host <> "" then Some (Printf.sprintf "tcp://%s:%d" !host !port) else
     None
 
-let connect (env : Config.env) =
+let connect (env : Project.env) =
   Option.map
     begin fun address ->
       let wmain = Why3.Whyconf.get_main env.wenv.config in

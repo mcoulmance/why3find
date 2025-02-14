@@ -39,7 +39,7 @@ type outcome = {
 }
 
 val prove_files :
-  env:Config.env ->
+  env:Project.env ->
   mode:mode ->
   hammer:int ->
   session:bool ->

@@ -68,14 +68,3 @@ val create_wenv : ?loadpath:string list -> Why3.Whyconf.config -> wenv
 (** Create a why3 environment from the given why3 config.
     If present, the parameter [loadpath] is added to the loadpath defined
     by the config. *)
-
-type env = private {
-  config : config ;
-  wenv : wenv ;
-  pkgs : Meta.pkg list ;
-}
-(** The environment type *)
-
-val create_env : ?root:string -> config:config -> unit -> env
-(** Create an environment with configuration [config] for the project
-    located in [root] (which default to ".") *)

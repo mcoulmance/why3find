@@ -362,13 +362,13 @@ let iter f profile =
 (* --- Calibration                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
-let default (env : Why3find.Config.env) =
+let default (env : Why3find.Project.env) =
   if !local then create () else
     match env.config.profile with
     | Some p -> of_json p
     | None -> create ()
 
-let calibrate_provers ~saved (env : Why3find.Config.env) provers =
+let calibrate_provers ~saved (env : Why3find.Project.env) provers =
   let q = qenv (Whyconf.get_main env.wenv.config) !reftime in
   let+ results =
     Fibers.all @@ List.map
@@ -393,7 +393,7 @@ let calibrate_provers ~saved (env : Why3find.Config.env) provers =
     ) results ;
   profile
 
-let velocity_provers (env : Why3find.Config.env) provers =
+let velocity_provers (env : Why3find.Project.env) provers =
   Fibers.await @@
   begin
     let profile = default env in

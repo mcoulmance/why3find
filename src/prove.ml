@@ -209,7 +209,7 @@ let prove_goal ~env ~ptactic ~replay profile goal task hint =
   match ptactic with
   | None -> schedule ~replay profile task hint
   | Some ptactic ->
-    match Session.apply env.Config.wenv.env ptactic task with
+    match Session.apply env.Project.wenv.env ptactic task with
     | Some tasks ->
       let hints = match hint.status with
         | Tactic { id; children; _ } when id = Tactic.name ptactic -> children
@@ -491,7 +491,7 @@ type outcome = {
   unfixed : string list ;
 }
 
-let prove_files ~(env:Config.env)
+let prove_files ~(env:Project.env)
     ~mode ~hammer ~session ~results ~axioms ~details
     ~files ~goals =
   begin
