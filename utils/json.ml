@@ -25,32 +25,49 @@
 
 type t = Yojson.Basic.t
 
-let of_file f : t = (Yojson.Basic.from_file f :> t)
+let of_file f : t = Yojson.Basic.from_file f
 let of_string s : t = (Yojson.Basic.from_string s :> t)
 
-let rec to_raw : Yojson.Basic.t -> Yojson.Raw.t = function
+let float_needs_period s =
+  try
+    for i = 0 to String.length s - 1 do
+      match s.[i] with
+      | '0'..'9' | '-' -> ()
+      | _ -> raise Exit
+    done;
+    true
+  with Exit ->
+    false
+
+let string_of_truncated_float f =
+  let s = Printf.sprintf "%.3g" f in
+  (* we don't want floats to get parsed back as ints *)
+  if float_needs_period s then s ^ ".0" else s
+
+let rec truncate_floats : Yojson.Basic.t -> Yojson.t = function
   | `Int i -> `Intlit (string_of_int i)
-  | `Float f -> `Floatlit (Printf.sprintf "%.3g" f)
+  | `Float f -> `Floatlit (string_of_truncated_float f)
   | `String _ as s -> `Stringlit (Yojson.Basic.to_string s)
-  | `Assoc fs -> `Assoc (List.map (fun (s, js) -> (s, to_raw js)) fs)
-  | `List js -> `List (List.map to_raw js)
+  | `Assoc fs -> `Assoc (List.map (fun (s, js) -> (s, truncate_floats js)) fs)
+  | `List js -> `List (List.map truncate_floats js)
   | (`Null | `Bool _ as js) -> js
 
-let to_file f js =
+let to_file ?(pretty_floats=false) f js =
   let out = open_out f in
-  let js = to_raw js in
-  Yojson.Raw.pretty_to_channel ~std:true out js ;
+  let js = if pretty_floats then truncate_floats js else (js :> Yojson.t) in
+  Yojson.pretty_to_channel ~std:true out js ;
   output_char out '\n';
   close_out out
 
-let to_string js =
-  let js = to_raw js in
-  Yojson.Raw.pretty_to_string ~std:true js
+let to_string ?(pretty_floats=false) js =
+  let js = if pretty_floats then truncate_floats js else (js :> Yojson.t) in
+  Yojson.pretty_to_string ~std:true js
 
-let pretty fmt js =
-  Format.pp_print_string fmt @@ to_string js
+let pp_gen ?(pretty_floats=false) fmt js =
+  Format.pp_print_string fmt @@ to_string ~pretty_floats js
 
-let equal a b = String.equal (to_string a) (to_string b)
+let pretty = pp_gen ~pretty_floats:true
+let print = pp_gen ~pretty_floats:false
 
 let jbool = function
   | `Bool b -> b

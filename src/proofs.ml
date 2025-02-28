@@ -62,7 +62,7 @@ let save =
     begin function { file; profile; proofs } ->
       let file = filename file in
       Utils.mkdirs (Filename.dirname file) ;
-      Json.to_file file @@ `Assoc [
+      Json.to_file ~pretty_floats:true file @@ `Assoc [
         "profile", Calibration.to_json profile ;
         "proofs", jproofs proofs ;
       ]

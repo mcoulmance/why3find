@@ -25,13 +25,34 @@
 
 type t = Yojson.Basic.t
 
-val equal : t -> t -> bool
-
 val of_file : string -> t
-val to_file : string -> t -> unit
 val of_string : string -> t
-val to_string : t -> string
+
+val to_file : ?pretty_floats:bool -> string -> t -> unit
+(** [to_file ~pretty_floats path t] print the json value [t] in file [path].
+    If pretty_floats is set to [true], the floats inside [t] are truncated to 3
+    decimals. If it is set to [false], floats are printed with full precision.
+    The default is [false]. *)
+
+val to_string : ?pretty_floats:bool -> t -> string
+(** [to_string ~pretty_floats t] convert the json value [t] to a string.
+    If pretty_floats is set to [true], the floats inside [t] are truncated to 3
+    decimals. If it is set to [false], floats are printed with full precision.
+    The default is [false]. *)
+
+val pp_gen : ?pretty_floats:bool -> Format.formatter -> t -> unit
+(** [pp_gen ~pretty_floats fmt t] print the json value [t] in formatter [fmt].
+    If pretty_floats is set to [true], the floats inside [t] are truncated to 3
+    decimals. If it is set to [false], floats are printed with full precision.
+    The default is [false]. *)
+
 val pretty : Format.formatter -> t -> unit
+(** [pretty fmt t] print the json value [t] in formatter [fmt], truncating
+    floats inside [t] to 3 decimals. *)
+
+val print :  Format.formatter -> t -> unit
+(** [print fmt t] print the json value [t] in formatter [fmt]. Floats inside
+    [t] are printed with full precision. *)
 
 val is_empty : t -> bool
 

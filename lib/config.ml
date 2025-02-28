@@ -89,7 +89,7 @@ let load_config p =
 
 let save_config p config =
   let p = Filename.concat p conf_file in
-  Json.to_file p @@ config_to_json config
+  Json.to_file ~pretty_floats:true p @@ config_to_json config
 
 type wenv = {
   config : Why3.Whyconf.config ;
