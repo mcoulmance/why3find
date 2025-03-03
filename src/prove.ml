@@ -189,58 +189,28 @@ let print_stats allprovers alltactics =
 (* --- Proof Driver                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
-let accept ~goals thy task =
-  List.mem thy goals || List.mem (thy ^ "." ^ (Session.goal_name task)) goals
+let accept ~gnames thy goal =
+  List.mem thy gnames || List.mem (thy ^ "." ^ (Session.goal_name goal)) gnames
 
-(* TODO: factorize with Hammer *)
-let schedule ~replay profile task hint =
-  Hammer.schedule profile ~replay ~depth:0 task hint
-
-let rec subgoals ~replay profile goals hints =
-  match goals, hints with
-  | [], _ -> []
-  | g::gs, [] ->
-    let h = Crc.stuck () in
-    schedule ~replay profile g h :: subgoals ~replay profile gs []
-  | g::gs, h::hs ->
-    schedule ~replay profile g h :: subgoals ~replay profile gs hs
-
-let prove_goal ~env ~ptactic ~replay profile goal task hint =
-  match ptactic with
-  | None -> schedule ~replay profile task hint
-  | Some ptactic ->
-    match Session.apply env.Project.why3.env ptactic task with
-    | Some tasks ->
-      let hints = match hint.status with
-        | Tactic { id; children; _ } when id = Tactic.name ptactic -> children
-        | _ -> [] in
-      let crcs = subgoals ~replay profile tasks hints in
-      Crc.tactic ~goal:task ptactic @+ Fibers.all crcs
-    | None ->
-      Log.warning "Ignored goal %s: preprocessing tactic %a failed"
-        goal Tactic.pretty ptactic;
-      Fibers.return (Crc.stuck ~goal:task ())
-
-let prove_goal ~env ~file ~results ~ptactic mode profile buffer theory hint goal task =
-  let replay = (mode = `Replay) in
+let prove_goal ~file ~hammer ~results ~force buffer theory gname goal hint =
   let+ crc =
     Crc.merge hint @+
-    prove_goal ~env ~ptactic ~replay profile goal task
-      (if mode = `Force then Crc.stuck () else hint)
+    Hammer.schedule hammer goal (if force then Crc.stuck () else hint)
   in
-  Option.iter (Proofs.add theory task crc) buffer;
+  Option.iter (Proofs.add theory goal crc) buffer;
   if Utils.tty then stats hint crc ;
   if not (Crc.is_complete crc) then
     begin
       Utils.flush () ;
       Option.iter
         (Format.printf "%a: proof failed@." Why3.Loc.pp_position)
-        (Session.goal_loc task) ;
-      Format.printf "@[<v2>Goal @{<red>%s@}: %a@]@." goal Crc.pretty crc ;
+        (Session.goal_loc goal) ;
+      Format.printf "@[<v2>Goal @{<red>%s@}: %a@]@." gname Crc.pretty crc ;
       Crc.iter
         (fun g (s : Crc.status) ->
            match s with
-           | Prover _ | Tactic _ -> () | Stuck ->
+           | Prover _ | Tactic _ -> ()
+           | Stuck ->
              match results with
              | `Context context when Utils.tty && context >= 0 ->
                Vc.highlight ~file ~context
@@ -252,25 +222,21 @@ let prove_goal ~env ~file ~results ~ptactic mode profile buffer theory hint goal
     end ;
   goal, crc
 
-let prove_theory ~env ~goals ~file ~results ~ptactic mode profile buffer strategy theory =
+let prove_theory ~file ~hammer ~results ~force ~gnames buffer strategy theory =
   let thy = Session.name theory in
-  let tasks = Session.split theory in
+  let goals = Session.split theory in
   let hints = M.find_def M.empty thy strategy in
-  Option.iter (Proofs.init theory tasks hints) buffer ;
-  let tasks =
-    if goals = [] then tasks else List.filter (accept ~goals thy) tasks in
+  Option.iter (Proofs.init theory goals hints) buffer ;
+  let goals =
+    if gnames = [] then goals else List.filter (accept ~gnames thy) goals in
   let+ proofs =
     Fibers.all @@ List.map
-      (fun task ->
-         let goal = Session.goal_name task in
-         let hint = M.find_def (Crc.stuck ()) goal hints in
-         let+ crc =
-           prove_goal ~env ~file ~results mode profile buffer theory hint goal ~ptactic task
-         in
-         crc
-      ) tasks
-  in
-  theory, proofs
+      (fun goal ->
+         let gname = Session.goal_name goal in
+         let hint = try M.find gname hints with Not_found -> Crc.stuck () in
+         prove_goal ~file ~hammer ~results ~force buffer theory gname goal hint
+      ) goals
+  in theory, proofs
 
 (* -------------------------------------------------------------------------- *)
 (* --- Axioms Logger                                                      --- *)
@@ -420,12 +386,14 @@ let report ~(results:results) henv ~lib proofs =
                | `Goals ->
                  List.iter
                    (fun (g,c) ->
-                      Format.printf "  Goal %s: %a@." g Crc.pretty c
+                      Format.printf "  Goal %s: %a@."
+                        (Session.goal_name g) Crc.pretty c
                    ) goals
                | `Proofs ->
                  List.iter
                    (fun (g,c) ->
-                      Format.printf "  @[<hv 2>Goal %s %a@ %a@]@." g
+                      Format.printf "  @[<hv 2>Goal %s %a@ %a@]@."
+                        (Session.goal_name g)
                         Utils.pp_mark (Crc.is_complete c) Crc.dump c
                    ) goals
              end ;
@@ -442,7 +410,7 @@ let report ~(results:results) henv ~lib proofs =
 
 type mode = [ `Force | `Update | `Minimize | `Replay ]
 
-let process ~env ~(mode:mode) ~session ~results ~axioms ~unsuccess ~goals ~ptactic file =
+let process ~env ~level ~mode ~session ~results ~provers ~tactics ~axioms ~unsuccess ~gnames file =
   Fibers.background @@
   begin
     let save = session in
@@ -462,9 +430,17 @@ let process ~env ~(mode:mode) ~session ~results ~axioms ~unsuccess ~goals ~ptact
       if (mode = `Replay)
       then None
       else Some (Proofs.create file profile strategy) in
+    let force = (mode = `Force) in
+    let hammer =
+      Hammer.create
+        ~level
+        ~replay:(mode = `Replay)
+        ~minimize:(mode = `Minimize)
+        ~provers ~tactics ~profile
+        env in
     let* proofs =
       Fibers.all @@ List.map
-        (prove_theory ~env ~goals ~file ~results ~ptactic mode profile buffer strategy)
+        (prove_theory ~file ~hammer ~results ~force ~gnames buffer strategy)
         (Session.theories session)
     in
     if save then Session.save session ;
@@ -492,27 +468,20 @@ type outcome = {
 }
 
 let prove_files ~(env:Project.env)
-    ~mode ~hammer ~session ~results ~axioms ~details
-    ~files ~goals =
+    ~mode ~level ~session ~results ~axioms ~details
+    ~files ~gnames =
   begin
-    let fast = env.config.fast in
-    let time = env.config.time in
-    let maxdepth = env.config.depth in
-    let patterns = env.config.provers in
-    let tactics = Tactic.select env.why3.env env.config.tactics in
-    let ptactic = Option.bind env.config.preprocess (Tactic.lookup env.why3.env) in
-    let provers = Prover.select env.why3 ~patterns in
     let unsuccess = ref [] in
-    let minimize = (mode = `Minimize) in
-    let results = match results with
+    let results : results = match results with
       | `Default -> if List.length files > 1 then `Modules else `Theories
       | _ -> results in
-    List.iter (process ~env ~mode ~session ~results ~axioms ~unsuccess ~goals ~ptactic) files ;
-    Hammer.run {
-      env ;
-      client = Client.connect env ; level = hammer ;
-      fast ; time ; maxdepth ; patterns ; provers ; tactics ; minimize ;
-    } ;
+    let provers = Prover.select env.why3 ~patterns:env.config.provers in
+    let tactics = Tactic.select env.why3.env env.config.tactics in
+    List.iter
+      (process ~env ~level ~mode ~session ~results
+         ~provers ~tactics ~axioms ~unsuccess ~gnames)
+      files ;
+    Hammer.run () ;
     Utils.flush () ;
     if Utils.tty || details then
       begin
@@ -524,7 +493,7 @@ let prove_files ~(env:Project.env)
     if axioms then print_axioms_stats () ;
     {
       provers ; tactics ;
-      time = max 1 (int_of_float (0.5 +. time)) ;
+      time = max 1 (int_of_float (0.5 +. env.config.time)) ;
       mem = Runner.memlimit (Why3.Whyconf.get_main env.why3.config) ;
       unfixed = List.rev !unsuccess ;
     }

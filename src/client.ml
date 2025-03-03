@@ -65,6 +65,7 @@ type client = {
 (* --- Connection                                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
+let clients : (string,client) Hashtbl.t = Hashtbl.create 0
 let resolve () =
   if !server <> "" then Some !server else
   if !host <> "" then Some (Printf.sprintf "tcp://%s:%d" !host !port) else
@@ -73,15 +74,21 @@ let resolve () =
 let connect (env : Project.env) =
   Option.map
     begin fun address ->
-      let wmain = Why3.Whyconf.get_main env.why3.config in
-      let cache = env.cache in
-      let context = Zmq.Context.create () in
-      let socket = Zmq.Socket.(create context dealer) in
-      let profile = Calibration.create () in
-      let pending = Hashtbl.create 0 in
-      Zmq.Socket.connect socket address ;
-      Log.emit "Server %s" address ;
-      { wmain ; cache ; context ; socket ; profile ; pending ; terminated = false }
+      try Hashtbl.find clients address with Not_found ->
+        let wmain = Why3.Whyconf.get_main env.why3.config in
+        let cache = env.cache in
+        let context = Zmq.Context.create () in
+        let socket = Zmq.Socket.(create context dealer) in
+        let profile = Calibration.create () in
+        let pending = Hashtbl.create 0 in
+        Zmq.Socket.connect socket address ;
+        Log.emit "Server %s" address ;
+        let client = {
+          wmain ; cache ; context ; socket ;
+          profile ; pending ; terminated = false ;
+        } in
+        Hashtbl.add clients address client ;
+        client
     end @@ resolve ()
 
 (* -------------------------------------------------------------------------- *)
@@ -229,17 +236,24 @@ let handler client msg =
 (* --- Running                                                            --- *)
 (* -------------------------------------------------------------------------- *)
 
-let yield client =
-  try recv client (handler client)
-  with exn ->
-    Log.emit "Client Error (%s)" @@ Printexc.to_string exn
+let yield () =
+  Hashtbl.iter
+    (fun addr client ->
+       try recv client (handler client)
+       with exn ->
+         Log.emit "Client Error (%s:%s)" addr @@ Printexc.to_string exn
+    ) clients
 
-let terminate client =
-  try
-    send client ["HANGUP"] ;
-    Zmq.Socket.close client.socket ;
-    Zmq.Context.terminate client.context ;
-  with exn ->
-    Log.emit "Client Killed (%s)" @@ Printexc.to_string exn
+let terminate () =
+  Hashtbl.iter
+    (fun addr client ->
+       try
+         send client ["HANGUP"] ;
+         Zmq.Socket.close client.socket ;
+         Zmq.Context.terminate client.context ;
+       with exn ->
+         Log.emit "Client Killed (%s:%s)" addr @@ Printexc.to_string exn
+    ) clients ;
+  Hashtbl.clear clients
 
 (* -------------------------------------------------------------------------- *)

@@ -637,17 +637,17 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
          \n  Prove all why3 files and directories accessible from PATH.\n\n\
          OPTIONS:\n" ;
       let mode = !mode in
-      let hammer = !hammer in
+      let level = !hammer in
       let session = !session || !ide in
       let config = Wenv.load_config () in
       let env = Wenv.init config in
       let files = if !files = [] then ["."] else !files in
       let files = Wenv.argfiles @@ List.rev files in
-      let goals = List.rev !goals in
+      let gnames = List.rev !goals in
       let result = Prove.prove_files
-          ~env ~mode ~hammer ~session
+          ~env ~mode ~level ~session
           ~results:!results ~axioms:!axioms ~details:!details
-          ~files ~goals in
+          ~files ~gnames in
       let n = List.length result.unfixed in
       if n > 0 then
         begin

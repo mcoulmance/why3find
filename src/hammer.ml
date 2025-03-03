@@ -26,25 +26,25 @@
 open Crc
 open Fibers.Monad
 
-type henv = {
-  env : Project.env ;
-  fast : float ;
-  time : float ;
-  client : Client.client option ;
+type hammer = {
   level : int ;
-  maxdepth : int ;
-  patterns : string list ;
+  replay : bool ;
+  minimize : bool ;
+  cache : Cache.t ;
+  config : Config.config ;
+  why3 : Config.why3env ;
+  client : Client.client option ;
+  preprocess : Tactic.tactic option ;
   provers : Prover.prover list ;
   tactics : Tactic.tactic list ;
-  minimize : bool ;
+  profile : Calibration.profile ;
 }
 
 type node = {
-  depth : int ;
-  profile : Calibration.profile ;
   goal : Session.goal ;
   hint : crc ;
-  replay : bool ;
+  depth : int ;
+  hammer : hammer ;
   result : crc Fibers.t ;
 }
 
@@ -56,12 +56,21 @@ let q_broken = Queue.create () (* Stuck hints, scheduled first *)
 let q_proven = Queue.create () (* Complete hints, scheduled last *)
 
 (* idename should be the goal name as in Why3 IDE *)
-let schedule profile ~replay ~depth goal hint =
+let push hammer ~depth goal hint =
   let result = Fibers.var () in
   Queue.push
-    { profile ; goal ; hint ; replay ; depth ; result }
+    { goal ; hint ; depth ; hammer ; result }
     (if is_complete hint then q_proven else q_broken) ;
   result
+
+let rec push_all hammer ~depth goals hints =
+  match goals, hints with
+  | [], _ -> []
+  | g::gs, [] ->
+    let s = Crc.stuck () in
+    push hammer ~depth g s :: push_all hammer ~depth gs []
+  | g::gs, h::hs ->
+    push hammer ~depth g h :: push_all hammer ~depth gs hs
 
 let pop () =
   try Some (Queue.pop q_broken) with Queue.Empty ->
@@ -106,17 +115,18 @@ let interrupt () =
 (* --- Try Prover on Node                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
-let prove env ?client ?cancel prover timeout : strategy = fun n ->
-  let wmain = Why3.Whyconf.get_main env.Project.why3.config in
+let prove ?cancel timeout prover : strategy = fun n ->
+  let h = n.hammer in
+  let wmain = Why3.Whyconf.get_main h.why3.config in
   let name = Session.goal_name n.goal in
-  let* alpha = Calibration.velocity wmain env.cache n.profile prover in
+  let* alpha = Calibration.velocity wmain h.cache h.profile prover in
   let to_local = Result.map (fun t -> t *. alpha) in
   let to_profile = Result.map (fun t -> t /. alpha) in
   let runner_time = timeout *. alpha in
   let callback = Session.result n.goal in
   let task = Session.goal_task n.goal in
   let+ verdict =
-    match Runner.prove_cached env.cache prover task runner_time with
+    match Runner.prove_cached h.cache prover task runner_time with
     | Some result ->
       Runner.notify wmain prover result callback ;
       Fibers.return (to_profile result)
@@ -128,24 +138,26 @@ let prove env ?client ?cancel prover timeout : strategy = fun n ->
         Fibers.monitor ?signal:cancel ~handler @@
         Fibers.monitor ~signal:killall ~handler @@
         Fibers.map to_profile @@
-        Fibers.finally ~callback:(Cache.set env.cache task prover) @@
+        Fibers.finally ~callback:(Cache.set h.cache task prover) @@
         Runner.prove_prepared wmain ~name ~cancel:kill ~callback
           prover ptask runner_time ~idename:(Session.goal_idename n.goal)
-      in match client with
+      in match h.client with
       | None -> runner
       | Some cl ->
-        let signal = Client.request cl n.profile prover ptask timeout in
-        let handler result =
-          match Result.crop ~timeout result with
-          | Some result ->
-            let local = to_local result in
-            (* TODO: cache this not here but in the prooftree cache *)
-            (* Cache.set env.cache task prover local ; *)
-            Runner.notify wmain prover local callback ;
-            Fibers.set runner result ;
-            Fibers.emit kill ()
-          | None -> ()
-        in Fibers.monitor ~signal ~handler runner
+        (* Don't ask server for too low timeouts *)
+        if timeout < 0.2 *. h.config.time then runner else
+          let signal = Client.request cl h.profile prover ptask timeout in
+          let handler result =
+            match Result.crop ~timeout result with
+            | Some result ->
+              let local = to_local result in
+              (* TODO: cache this not here but in the prooftree cache *)
+              (* Cache.set h.cache task prover local ; *)
+              Runner.notify wmain prover local callback ;
+              Fibers.set runner result ;
+              Fibers.emit kill ()
+            | None -> ()
+          in Fibers.monitor ~signal ~handler runner
   in match verdict with
   | Valid t -> Crc.prover ~goal:n.goal prover.Prover.desc (Utils.round t)
   | _ -> Crc.stuck ~goal:n.goal ()
@@ -161,84 +173,129 @@ let pp_hint fmt (h : hint) = Tactic.pretty fmt (fst h)
 (* --- Try Transformation on Node                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
-let rec subgoals ({ profile ; replay ; depth } as n) goals hints =
-  match goals, hints with
-  | [], _ -> []
-  | g::gs, [] ->
-    let h = Crc.stuck () in
-    schedule profile ~replay ~depth:(succ depth) g h :: subgoals n gs []
-  | g::gs, h::hs ->
-    schedule profile ~replay ~depth:(succ depth) g h :: subgoals n gs hs
-
-let apply h tac ?(hint : hint option) : node -> crc option Fibers.t = fun n ->
-  if n.depth > h.maxdepth then Fibers.return @@ Some (stuck n) else
-    match Session.apply h.env.Project.why3.env tac n.goal with
+let apply tac ?(hint : hint option) : node -> crc option Fibers.t = fun n ->
+  if n.depth > n.hammer.config.depth then Fibers.return @@ Some (stuck n) else
+    match Session.apply n.hammer.why3.env tac n.goal with
     | None -> Fibers.return None
     | Some gs ->
       let hs =
         match hint with
         | Some(t,hs) when Tactic.equal t tac -> hs
+        | _ -> [] in
+      Option.some @+
+      Crc.tactic ~goal:n.goal tac @+
+      Fibers.all @@ push_all n.hammer ~depth:(succ n.depth) gs hs
+
+(* -------------------------------------------------------------------------- *)
+(* --- Hammer Entry Points                                                --- *)
+(* -------------------------------------------------------------------------- *)
+
+let create
+    ?(level=4)
+    ?(replay=false)
+    ?(minimize=false)
+    ?(preprocess : Tactic.tactic option option)
+    ?(provers : Prover.prover list option)
+    ?(tactics : Tactic.tactic list option)
+    ?(profile : Calibration.profile option)
+    (env : Project.env) : hammer =
+  let provers =
+    match provers with Some ps -> ps | None ->
+      Prover.select env.why3 ~patterns:env.config.provers in
+  let tactics =
+    match tactics with Some ts -> ts | None ->
+      Tactic.select env.why3.env env.config.tactics in
+  let preprocess =
+    match preprocess with Some pr -> pr | None ->
+      Option.bind env.config.preprocess (Tactic.lookup env.why3.env) in
+  let profile =
+    match profile with Some pr -> pr | None ->
+      Calibration.default env in
+  {
+    level ; replay ; minimize ;
+    why3 = env.Project.why3 ;
+    cache = env.cache ;
+    config = env.config ;
+    client = Client.connect env ;
+    provers ; tactics ; profile ; preprocess ;
+  }
+
+let schedule hammer goal hint =
+  match hammer.preprocess with
+  | None -> push hammer ~depth:0 goal hint
+  | Some tactic ->
+    match Session.apply hammer.why3.env tactic goal with
+    | None ->
+      Log.warning "Ignored goal %s: preprocessing tactic %a failed"
+        (Session.goal_name goal) Tactic.pretty tactic ;
+      Fibers.return (Crc.stuck ~goal ())
+    | Some goals ->
+      let hints = match hint.status with
+        | Tactic { id; children; _ } when id = Tactic.name tactic -> children
         | _ -> []
-      in Option.some @+ Crc.tactic ~goal:n.goal tac @+ Fibers.all @@ subgoals n gs hs
+      in Crc.tactic ~goal tactic @+
+         Fibers.all @@ push_all hammer ~depth:0 goals hints
 
 (* -------------------------------------------------------------------------- *)
 (* --- Hammer Strategy                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
-let hammer0 h : strategy =
-  if h.level > 0 && h.fast > 0.0 && List.length h.provers > 1
-  then sequence (fun prv -> prove h.env prv h.fast) h.provers
-  else fail
+let hammer0 : strategy = fun n ->
+  let h = n.hammer in
+  if h.level > 0 && h.config.fast > 0.0 && List.length h.provers > 1
+  then sequence (prove h.config.fast) h.provers n else fail n
 
-let hammer13 h time : strategy = fun n ->
-  let cancel = Fibers.signal () in
-  let watch r = if not @@ Crc.is_stuck r then Fibers.emit cancel () ; r in
-  let+ results =
-    Fibers.all @@ List.map
-      (fun prv -> watch @+ prove h.env ?client:h.client ~cancel prv time n)
-      h.provers in
-  try List.find (fun r -> not @@ Crc.is_stuck r) results
-  with Not_found -> Crc.stuck ~goal:n.goal ()
+let hammer13 minlevel timefactor n : crc Fibers.t =
+  if n.hammer.level <= minlevel then fail n else
+    let cancel = Fibers.signal () in
+    let watch r = if not @@ Crc.is_stuck r then Fibers.emit cancel () ; r in
+    let time = timefactor *. n.hammer.config.time in
+    let+ results =
+      Fibers.all @@ List.map
+        (fun prv -> watch @+ prove ~cancel time prv n)
+        n.hammer.provers in
+    try List.find (fun r -> not @@ Crc.is_stuck r) results
+    with Not_found -> Crc.stuck ~goal:n.goal ()
 
-let hammer1 h = if h.level > 1 then hammer13 h h.time else fail
-let hammer3 h = if h.level > 3 then hammer13 h (2.0 *. h.time) else fail
+let hammer1 : strategy = hammer13 1 1.0
+let hammer3 : strategy = hammer13 3 2.0
 
-let hammer2 ?hint h : strategy = fun n ->
+let hammer2 ?hint : strategy = fun n ->
   let rec aux = function
     | [] -> fail n
     | t :: ts ->
-      let* o = apply h t ?hint n in
+      let* o = apply t ?hint n in
       match o with
       | Some r -> Fibers.return r
       | None -> aux ts in
-  if h.level > 2
-  then aux h.tactics
+  if n.hammer.level > 2
+  then aux n.hammer.tactics
   else fail n
 
-let hammer henv =
-  hammer0 henv >>> (* level -H 1 *)
-  hammer1 henv >>> (* level -H 2 *)
-  hammer2 henv >>> (* level -H 3 *)
-  hammer3 henv     (* level -H 4 *)
+let hammer =
+  hammer0 >>> (* level -H 1 *)
+  hammer1 >>> (* level -H 2 *)
+  hammer2 >>> (* level -H 3 *)
+  hammer3     (* level -H 4 *)
 
 (* -------------------------------------------------------------------------- *)
 (* --- Node Processing                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
-let replay_prover h d t =
-  match Prover.check_and_get_prover h.env.why3 ~patterns:h.patterns d with
-  | None -> fail
+let replay_prover d t : strategy = fun n ->
+  let h = n.hammer in
+  match Prover.check_and_get_prover h.why3 ~patterns:h.config.provers d with
+  | None -> fail n
   | Some p ->
-    (* Do not ask the server for too short hint times *)
-    let client = if t > h.time *. 0.2 then h.client else None in
+    let base = h.config.time in
     (* Taking into account the current strategy *)
-    let time = min (max h.time t) (2.0 *. h.time) in
+    let time = min (max base t) (2.0 *. base) in
     (* Applying an overhead against possible fluctuations *)
-    prove h.env ?client p (time +. 0.5)
+    prove (time +. 0.5) p n
 
-let update_prover h p t = replay_prover h p t >>> hammer h
+let update_prover p t = replay_prover p t >>> hammer
 
-let replay_tactic ~hint h n =
+let replay_tactic ~hint n =
   let rec iter = function
     | [] ->
       Log.warning "Goal %S: tactic '%a' not in strategy"
@@ -246,49 +303,42 @@ let replay_tactic ~hint h n =
       fail n
     | t::ts ->
       if Tactic.equal t (fst hint) then
-        Option.value ~default:(stuck n) @+ apply h t ~hint n
+        Option.value ~default:(stuck n) @+ apply t ~hint n
       else
-        match Session.apply h.env.Project.why3.env t n.goal with
+        match Session.apply n.hammer.why3.env t n.goal with
         | None -> iter ts
         | Some _ ->
           Log.warning "Goal %S: tactic '%a' shadowed by '%a'"
             (Session.goal_name n.goal) pp_hint hint Tactic.pretty t ;
           fail n
-  in iter h.tactics
+  in iter n.hammer.tactics
 
-let reduce_tactic ?hint h =
-  hammer1 h >>>
-  hammer2 ?hint h >>>
-  hammer3 h
+let reduce_tactic ?hint n = (hammer1 >>> hammer2 ?hint >>> hammer3) n
+let update_tactic ~hint n = (hammer2 ~hint >>> hammer) n
 
-let update_tactic ~hint h =
-  hammer2 ~hint h >>> hammer h
+let explore n = if n.hammer.replay then fail n else hammer n
 
-let explore h n =
-  if n.replay then fail n else hammer h n
-
-let process_node h : strategy = fun n ->
+let process_node n =
   try
     match n.hint.status with
-    | Stuck -> explore h n
+    | Stuck -> explore n
     | Prover(p,t) ->
-      if n.replay then
-        replay_prover h p t n
+      if n.hammer.replay then
+        replay_prover p t n
       else
-        update_prover h p t n
+        update_prover p t n
     | Tactic { id ; children } ->
-      match Tactic.lookup h.env.why3.env id with
+      match Tactic.lookup n.hammer.why3.env id with
       | Some tac ->
         let hint = tac, children in
-        if n.replay then
-          replay_tactic ~hint h n
+        if n.hammer.replay then
+          replay_tactic ~hint n
         else
-        if h.minimize then
-          reduce_tactic ~hint h n
+        if n.hammer.minimize then
+          reduce_tactic ~hint n
         else
-          update_tactic ~hint h n
-      | None ->
-        explore h n
+          update_tactic ~hint n
+      | None -> explore n
   with exn ->
     Log.emit "Process Error (%s)" @@ Printexc.to_string exn ;
     fail n
@@ -333,25 +383,25 @@ let pp_status fmt s =
 (* --- Task Processing                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
-let process henv =
+let process () =
+  Client.yield () ;
   Fibers.yield () ;
-  Option.iter Client.yield henv.client ;
   match pop () with
   | Some node ->
     let pr = if is_complete node.hint then p_proven else p_broken in
     incr pr;
-    Fibers.background (process_node henv node)
+    Fibers.background (process_node node)
       ~callback:(fun r -> decr pr; Fibers.set node.result r);
     true
   | None -> false
 
-let run henv =
+let run () =
   while running () do
     let s = status () in
     Utils.progress "%a%t" pp_status s Runner.pp_goals ;
-    if not @@ process henv then Unix.sleepf 0.01 ;
+    if not @@ process () then Unix.sleepf 0.01 ;
   done ;
-  Option.iter Client.terminate henv.client
+  Client.terminate ()
 
 (* -------------------------------------------------------------------------- *)
 (* --- Why3 Hammer Config                                                 --- *)

@@ -41,11 +41,11 @@ type outcome = {
 val prove_files :
   env:Project.env ->
   mode:mode ->
-  hammer:int ->
+  level:int ->
   session:bool ->
   results:results ->
   axioms:bool ->
   details:bool ->
   files:string list ->
-  goals:string list ->
+  gnames:string list ->
   outcome

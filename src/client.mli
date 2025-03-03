@@ -31,7 +31,7 @@ val request : client ->
   Calibration.profile -> Prover.prover -> Runner.prooftask -> float ->
   Result.t Fibers.signal
 
-val yield : client -> unit
-val terminate : client -> unit
+val yield : unit -> unit
+val terminate : unit -> unit
 
 (* -------------------------------------------------------------------------- *)

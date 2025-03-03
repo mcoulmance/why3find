@@ -24,31 +24,32 @@
 (* -------------------------------------------------------------------------- *)
 
 open Crc
-open Calibration
 open Session
 
-(** Enqueue some goal to be processed. *)
-val schedule :
-  profile ->
-  replay:bool ->
-  depth:int ->
-  goal ->
-  crc ->
-  crc Fibers.t
+(** Hammer Strategy *)
+type hammer
 
-(** Hammer Strategy Environment *)
-type henv = {
-  env : Project.env ;
-  fast : float ;
-  time : float ;
-  client : Client.client option ;
-  level : int ;
-  maxdepth : int ;
-  patterns : string list ;
-  provers : Prover.prover list ;
-  tactics : Tactic.tactic list ;
-  minimize : bool ;
-}
+(** Options:
+    - [~level] max hammer strategy level used (0..4, default 4)
+    - [~replay] replay mode (default false)
+    - [~minimize] minimize mode (default false)
+    - [~provers] from environment's config
+    - [~tactics] from environment's config
+    - [~profile] from environment's config
+    - [~preprocess] from environment's config
+*)
+val create :
+  ?level:int ->
+  ?replay:bool ->
+  ?minimize:bool ->
+  ?preprocess:Tactic.tactic option ->
+  ?provers:Prover.prover list ->
+  ?tactics:Tactic.tactic list ->
+  ?profile:Calibration.profile ->
+  Project.env -> hammer
+
+(** Enqueue some goal to be processed. *)
+val schedule : hammer -> goal -> crc -> crc Fibers.t
 
 (** Current Task Server State *)
 type status = {
@@ -66,10 +67,10 @@ val interrupt : unit -> unit
 
 (** Process one pending node, if any.
     Returns true if some node has been processed. *)
-val process : henv -> bool
+val process : unit -> bool
 
 (** Loop process and log process on stdout until there is no more activity. *)
-val run : henv -> unit
+val run : unit -> unit
 
 (** Generate a why3 ide configuration file for the hammer strategy and
     write it in the specified file. *)
