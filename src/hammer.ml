@@ -107,7 +107,7 @@ let interrupt () =
 (* -------------------------------------------------------------------------- *)
 
 let prove env ?client ?cancel prover timeout : strategy = fun n ->
-  let wmain = Why3.Whyconf.get_main env.Project.wenv.config in
+  let wmain = Why3.Whyconf.get_main env.Project.why3.config in
   let name = Session.goal_name n.goal in
   let* alpha = Calibration.velocity wmain env.cache n.profile prover in
   let to_local = Result.map (fun t -> t *. alpha) in
@@ -172,7 +172,7 @@ let rec subgoals ({ profile ; replay ; depth } as n) goals hints =
 
 let apply h tac ?(hint : hint option) : node -> crc option Fibers.t = fun n ->
   if n.depth > h.maxdepth then Fibers.return @@ Some (stuck n) else
-    match Session.apply h.env.Project.wenv.env tac n.goal with
+    match Session.apply h.env.Project.why3.env tac n.goal with
     | None -> Fibers.return None
     | Some gs ->
       let hs =
@@ -226,7 +226,7 @@ let hammer henv =
 (* -------------------------------------------------------------------------- *)
 
 let replay_prover h d t =
-  match Prover.check_and_get_prover h.env.wenv ~patterns:h.patterns d with
+  match Prover.check_and_get_prover h.env.why3 ~patterns:h.patterns d with
   | None -> fail
   | Some p ->
     (* Do not ask the server for too short hint times *)
@@ -248,7 +248,7 @@ let replay_tactic ~hint h n =
       if Tactic.equal t (fst hint) then
         Option.value ~default:(stuck n) @+ apply h t ~hint n
       else
-        match Session.apply h.env.Project.wenv.env t n.goal with
+        match Session.apply h.env.Project.why3.env t n.goal with
         | None -> iter ts
         | Some _ ->
           Log.warning "Goal %S: tactic '%a' shadowed by '%a'"
@@ -277,7 +277,7 @@ let process_node h : strategy = fun n ->
       else
         update_prover h p t n
     | Tactic { id ; children } ->
-      match Tactic.lookup h.env.wenv.env id with
+      match Tactic.lookup h.env.why3.env id with
       | Some tac ->
         let hint = tac, children in
         if n.replay then

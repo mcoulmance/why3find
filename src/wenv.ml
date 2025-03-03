@@ -291,28 +291,21 @@ let load_raw_config () =
   Config.load_raw_config "."
 
 let add_options config =
-  Config.{
-    fast = fast config ;
-    time = time config ;
-    depth = depth config ;
-    packages = packages config ;
-    provers = provers config  ;
-    tactics = tactics config ;
-    drivers = drivers config ;
-    warnoff = warnoff config ;
-    preprocess = preprocess config ;
-    profile = config.profile ;
+  {
+    Config.fast = fast config ;
+    Config.time = time config ;
+    Config.depth = depth config ;
+    Config.packages = packages config ;
+    Config.provers = provers config  ;
+    Config.tactics = tactics config ;
+    Config.drivers = drivers config ;
+    Config.warnoff = warnoff config ;
+    Config.preprocess = preprocess config ;
+    Config.profile = config.profile ;
   }
 
 let load_config () =
   add_options @@ Config.config_of_json @@ load_raw_config ()
-
-type env = Project.env = private {
-  cache : Cache.t ;
-  config : Config.config ;
-  wenv : Config.wenv ;
-  pkgs : Meta.pkg list ;
-}
 
 (* TODO: fix this ugly workaround one way or another *)
 let disable_warning s =
@@ -321,10 +314,10 @@ let disable_warning s =
 
 let init ?root ?(loadplugins=true) config =
   begin
-    let wenv = Project.create_env ?root ~config ~usecache:!usecache () in
+    let wenv = Project.create ?root ~config ~usecache:!usecache () in
     if loadplugins then
       Why3.Whyconf.load_plugins @@
-      Why3.Whyconf.get_main wenv.wenv.config;
+      Why3.Whyconf.get_main wenv.why3.config;
     Debug.init_why3_debug ();
     List.iter disable_warning config.warnoff;
     wenv

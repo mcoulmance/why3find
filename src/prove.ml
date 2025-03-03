@@ -209,7 +209,7 @@ let prove_goal ~env ~ptactic ~replay profile goal task hint =
   match ptactic with
   | None -> schedule ~replay profile task hint
   | Some ptactic ->
-    match Session.apply env.Project.wenv.env ptactic task with
+    match Session.apply env.Project.why3.env ptactic task with
     | Some tasks ->
       let hints = match hint.status with
         | Tactic { id; children; _ } when id = Tactic.name ptactic -> children
@@ -454,7 +454,7 @@ let process ~env ~(mode:mode) ~session ~results ~axioms ~unsuccess ~goals ~ptact
         exit 2
       end ;
     let dir, lib = Wutil.filepath file in
-    let theories, format = Wutil.load_theories env.Wenv.wenv.env file in
+    let theories, format = Wutil.load_theories env.Project.why3.env file in
     let session = Session.create ~dir ~file ~format theories in
     let local = Calibration.default env in
     let profile, strategy = Proofs.load ~local file in
@@ -499,9 +499,9 @@ let prove_files ~(env:Project.env)
     let time = env.config.time in
     let maxdepth = env.config.depth in
     let patterns = env.config.provers in
-    let tactics = Tactic.select env.wenv.env env.config.tactics in
-    let ptactic = Option.bind env.config.preprocess (Tactic.lookup env.wenv.env) in
-    let provers = Prover.select env.wenv ~patterns in
+    let tactics = Tactic.select env.why3.env env.config.tactics in
+    let ptactic = Option.bind env.config.preprocess (Tactic.lookup env.why3.env) in
+    let provers = Prover.select env.why3 ~patterns in
     let unsuccess = ref [] in
     let minimize = (mode = `Minimize) in
     let results = match results with
@@ -525,7 +525,7 @@ let prove_files ~(env:Project.env)
     {
       provers ; tactics ;
       time = max 1 (int_of_float (0.5 +. time)) ;
-      mem = Runner.memlimit (Why3.Whyconf.get_main env.wenv.config) ;
+      mem = Runner.memlimit (Why3.Whyconf.get_main env.why3.config) ;
       unfixed = List.rev !unsuccess ;
     }
   end

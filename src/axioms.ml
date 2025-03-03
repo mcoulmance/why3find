@@ -94,11 +94,11 @@ let add_builtins bmap p =
     ) bmap @@ Driver.syntax_map p.Prover.driver
 
 let init (env : Why3find.Project.env) =
-  let provers = Prover.select env.wenv ~patterns:env.config.provers in
+  let provers = Prover.select env.why3 ~patterns:env.config.provers in
   let builtins = List.fold_left add_builtins Mid.empty provers in
   let drivers = List.concat_map pkg_drivers env.pkgs @ env.config.drivers in
-  let main = Whyconf.get_main env.wenv.config in
-  let pdriver = Pdriver.load_driver main env.wenv.env (ocaml64 main) drivers in
+  let main = Whyconf.get_main env.why3.config in
+  let pdriver = Pdriver.load_driver main env.why3.env (ocaml64 main) drivers in
   let externals = Mid.map fst pdriver.drv_syntax in
   { builtins ; externals ; signatures = Hid.create 0 }
 

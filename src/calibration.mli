@@ -46,8 +46,7 @@ val velocity : Why3.Whyconf.main -> Cache.t -> profile -> Prover.prover -> float
 val profile : Why3.Whyconf.main -> Cache.t -> profile -> Prover.prover
   -> (int * float) Fibers.t
 
-val calibrate_provers : saved:bool -> Project.env -> Prover.prover list
-  -> profile Fibers.t
+val calibrate_provers : saved:bool -> Project.env -> Prover.prover list -> profile Fibers.t
 val velocity_provers : Project.env -> Prover.prover list -> unit
 
 val options : (string * Arg.spec * string) list

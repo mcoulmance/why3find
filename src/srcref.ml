@@ -40,7 +40,7 @@ type frame = Frame of {
   }
 
 type env = {
-  env : Wenv.env ;
+  env : Project.env ;
   src : Docref.source ;
   input : Token.input ;
   mutable blanklines : int ; (* number of consecutive blanklines so far *)
@@ -144,7 +144,7 @@ let pop env =
 let add_symbol env id =
   try
     let kind : Lspserver.kind =
-      match Docref.find_decl env.env.wenv.env env.src id with
+      match Docref.find_decl env.env.why3.env env.src id with
       | Type _ -> `TypeParameter
       | Logic _ -> `Function
       | Var _ -> `Variable
@@ -192,8 +192,9 @@ let process_clone_token env token =
 
 let process_reference env s =
   try
-    let { src ; current ; env = { wenv }} = env in
-    let _, id = Docref.reference ~wenv:wenv.env ~src ~current s in
+    let { src ; current } = env in
+    let wenv = env.env.why3.env in
+    let _, id = Docref.reference ~wenv ~src ~current s in
     let id = Id.resolve ~lib:src.lib id in
     let pos = Token.position env.input in
     env.refs <- Rangemap.add (lexrange pos) (Ref id) env.refs ;

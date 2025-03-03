@@ -44,13 +44,6 @@ val load_config : unit -> Config.config
 
 val save : Config.config -> unit
 
-type env = Project.env = private {
-  cache : Cache.t ;
-  config : Config.config ;
-  wenv : Config.wenv ;
-  pkgs : Meta.pkg list ;
-}
-
 val init : ?root:string -> ?loadplugins:bool -> Config.config -> Project.env
 
 val update_why3_config : Why3.Whyconf.config -> unit

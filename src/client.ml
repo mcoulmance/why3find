@@ -73,7 +73,7 @@ let resolve () =
 let connect (env : Project.env) =
   Option.map
     begin fun address ->
-      let wmain = Why3.Whyconf.get_main env.wenv.config in
+      let wmain = Why3.Whyconf.get_main env.why3.config in
       let cache = env.cache in
       let context = Zmq.Context.create () in
       let socket = Zmq.Socket.(create context dealer) in
