@@ -27,9 +27,7 @@ type symbol =
   | Section of string
   (* foldable section *)
 
-type env
-
 val parse :
   ?doc:bool -> ?filename:string ->
-  env:Wenv.env -> src:Docref.source ->
+  env:Project.env -> src:Docref.source ->
   string -> symbol Rangemap.t * Lspserver.symbol list

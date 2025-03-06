@@ -59,7 +59,7 @@ module TaskIndex = Hashtbl.Make(Goal)
 
 type task = {
   goal : goal ;
-  mutable cached : Runner.result ; (* prover result *)
+  mutable cached : Result.t ; (* prover result *)
   mutable sourced : bool ; (* prover task has been downloaded *)
   mutable timeout : float ; (* max of requested timeout *)
   mutable waiting : emitter list ;
@@ -142,12 +142,12 @@ let get_cache server goal =
         let data = root ^ "/task.data" in
         let result =
           if Sys.file_exists json then
-            try Json.of_file json |> Runner.of_json
+            try Json.of_file json |> Result.of_json
             with _err ->
               Utils.flush () ;
               Log.error "incorrect database (removed entry)" ;
-              Sys.remove json ; Runner.NoResult
-          else Runner.NoResult in
+              Sys.remove json ; Result.NoResult
+          else Result.NoResult in
         result,Sys.file_exists data
       else
         lookup (succ n)
@@ -162,8 +162,7 @@ let filename server goal ext =
 
 let set_result server task result =
   let file = filename server task ".json" in
-  Runner.to_json result |> Json.to_file file
-[@@ warning "-32"]
+  Result.to_json result |> Json.to_file file
 
 let set_data server goal data =
   Utils.writefile ~file:(filename server goal ".data") data
@@ -320,10 +319,10 @@ let do_result server id goal status time =
   w.busy <- max 0 (pred w.busy) ;
   let result =
     match status with
-    | "Valid" -> Runner.Valid time
-    | "Unknown" -> Runner.Unknown time
-    | "Timeout" -> Runner.Timeout time
-    | _ -> Runner.NoResult
+    | "Valid" -> Result.Valid time
+    | "Unknown" -> Result.Unknown time
+    | "Timeout" -> Result.Timeout time
+    | _ -> Result.NoResult
   in
   if result <> NoResult then
     begin

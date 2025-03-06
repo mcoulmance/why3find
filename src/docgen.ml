@@ -1289,10 +1289,10 @@ let process ~wenv ~henv ~out ~title (file,kind) =
   | None -> process_markdown ~wenv ~henv ~out ~title file
   | Some src -> process_source ~wenv ~henv ~out file src
 
-let generate ~(env:Config.env) ~out ~title ~files ~url ~package_url =
+let generate ~(env:Project.env) ~out ~title ~files ~url ~package_url =
   begin
     (* Why3 environment *)
-    let wenv = env.wenv.env in
+    let wenv = env.why3.env in
     (* Axioms config *)
     let henv = Axioms.init env in
     (* Sounness config *)

@@ -19,6 +19,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
+(** {1 LSP Server Processing }*)
+
 type transport =
   | PIPE of string
   | PORT of int
@@ -34,14 +36,22 @@ val establish: transport -> channel
 val shutdown: channel -> unit
 
 (** Testing if the server is still running.
-    Wait for all pending notifications and queued message to be exchanged. *)
+    Returns true when there is no more in/out pending messages. *)
 val running: channel -> bool
 
-(** Process I/O (non-blocking) *)
+(** Only process pending I/O (non-blocking). *)
 val yield: channel -> unit
 
-(** Process (at most, non-blocking) one pending LSP Request & Response *)
-val process: channel -> unit
+(** Process (at most) one pending LSP message, if any (non-blocking).
+    First, yield the channel to process pending I/O.
+    Then, process one LSP message, if any.
+    Returns true is some request has been processed or not.
+    This function immediately returns false when it called during
+    a request handler.
+*)
+val process: channel -> bool
+
+(** {1 LSP Server Capabilities }*)
 
 type capability
 
@@ -53,6 +63,8 @@ val register_capability: channel -> string -> Json.t -> capability
 
 (** Unregister a server capability. *)
 val unregister_capability: channel -> capability -> unit
+
+(** {1 LSP Request Handlers }*)
 
 (**
    Register a request or notification handler. Some builtin request and
@@ -75,6 +87,3 @@ val notify: channel -> string -> Json.t -> unit
 
 (** Send a request or notification to the server *)
 val send: channel -> string -> ?callback:(response -> unit) -> Json.t -> unit
-
-(** Launch the server until it is terminated *)
-val run: transport -> unit

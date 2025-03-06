@@ -28,7 +28,6 @@ open Why3
 type session
 
 val create :
-  session:bool ->
   dir:string ->
   file:string ->
   format:string ->

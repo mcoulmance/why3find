@@ -35,6 +35,7 @@ type goal = { prover : Prover.desc ; digest : string }
 
 type worker = {
   wmain : Why3.Whyconf.main ;
+  cache : Cache.t ;
   context : Zmq.Context.t ;
   timeout : int ;
   address : string ;
@@ -103,11 +104,11 @@ let do_kill worker goal =
 
 let send_result worker goal (alpha,result) =
   let status,time = match result with
-    | Runner.NoResult -> "NoResult",0.0
-    | Runner.Failed -> "Failed",0.0
-    | Runner.Valid t -> "Valid",t
-    | Runner.Unknown t -> "Unknown",t
-    | Runner.Timeout t -> "Timeout",t
+    | Result.NoResult -> "NoResult",0.0
+    | Result.Failed -> "Failed",0.0
+    | Result.Valid t -> "Valid",t
+    | Result.Unknown t -> "Unknown",t
+    | Result.Timeout t -> "Timeout",t
   in
   let prover = Prover.desc_to_string goal.prover in
   send worker
@@ -120,18 +121,18 @@ let send_result worker goal (alpha,result) =
 let do_prove worker goal timeout data =
   do_kill worker goal ;
   try
-    let wmain = worker.wmain in
+    let { wmain ; profile } = worker in
     let cancel = Fibers.signal () in
     let prover = Prover.Mdesc.find goal.prover worker.provers in
     let buffer = Buffer.create (String.length data) in
     Buffer.add_string buffer data ;
     Hashtbl.add worker.pending goal cancel ;
-    if Calibration.lock worker.profile goal.prover then
+    if Calibration.lock profile goal.prover then
       send_profile worker goal.prover ;
     Fibers.background ~callback:(send_result worker goal)
       begin
         let open Fibers.Monad in
-        let* alpha = Calibration.velocity wmain worker.profile prover in
+        let* alpha = Calibration.velocity wmain worker.cache profile prover in
         let timeout = alpha *. timeout in
         let* result = Runner.prove_buffer wmain ~cancel prover buffer timeout in
         Hashtbl.remove worker.pending goal ;
@@ -209,9 +210,10 @@ let flush worker handler =
 let connect ~server ~polling =
   let wconfig = Why3.Whyconf.init_config None in
   let wmain = Why3.Whyconf.get_main wconfig in
-  let wenv = Config.create_wenv wconfig in
+  let wenv = Config.why3env wconfig in
   let prvs = Prover.all wenv in
-  let jobs = Runner.maxjobs wmain in
+  let jobs = Runner.get_jobs wmain in
+  let cache = Cache.create ~cdir:".why3find" () in
   Utils.flush () ;
   Prover.(Mdesc.iter (fun _ -> Format.printf "Prover %a@." pp_prover) prvs) ;
   Format.printf "Server %s@." server ;
@@ -221,6 +223,7 @@ let connect ~server ~polling =
   let profile = Calibration.create () in
   let worker = {
     wmain ;
+    cache ;
     context ;
     timeout ;
     address = server ;

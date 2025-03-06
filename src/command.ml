@@ -418,7 +418,6 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       parse_argv argv
         begin
           Wenv.options () @
-          Runner.options @
           [
             "--master", Arg.Set calibrate, "calibrate provers (master)";
             "--velocity", Arg.Set velocity, "evaluate prover velocity (local)";
@@ -458,7 +457,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           if !list_provers then
             begin
               Format.printf "Available Provers:@." ;
-              let allprovers = Prover.all env.wenv in
+              let allprovers = Prover.all env.why3 in
               if Prover.Mdesc.is_empty allprovers then
                 Format.printf "  (none, use --detect)@." ;
               Prover.Mdesc.iter (fun dp _ ->
@@ -493,7 +492,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           Utils.pp_time fast Utils.pp_time time ;
       let patterns, provers =
         if !default || !detect then
-          let provers = Prover.default env.wenv in
+          let provers = Prover.default env.why3 in
           let patterns =
             if !relax then List.map Prover.name provers else
               List.map Prover.fullname provers
@@ -503,7 +502,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           let config = config.provers in
           let patterns =
             if !relax then List.map Prover.pattern_name config else config in
-          let provers = Prover.select env.wenv ~patterns in
+          let provers = Prover.select env.why3 ~patterns in
           let patterns =
             if !strict then List.map Prover.fullname provers else
             if !relax then List.map Prover.name provers else
@@ -535,7 +534,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
             match crc.Crc.status with
             | Stuck -> ()
             | Prover (p, _) ->
-              if Prover.check_and_get_prover env.wenv ~patterns p = None then
+              if Prover.check_and_get_prover env.why3 ~patterns p = None then
                 retval := 1;
             | Tactic { children; _ } -> List.iter check_crc children in
           let check f =
@@ -544,7 +543,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           in
           Wenv.allfiles check "."
         end ;
-      let wmain = Why3.Whyconf.get_main env.wenv.config in
+      let wmain = Why3.Whyconf.get_main env.why3.config in
       List.iter (check_custom_drivers wmain) provers ;
       (* --- New Configuration --------- *)
       let newprofile = match profile with None -> config.profile | _ -> profile in
@@ -562,7 +561,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       (* --- Printing Final Config -------------- *)
       if !list then
         begin
-          let jobs = Runner.maxjobs wmain in
+          let jobs = Runner.get_jobs wmain in
           Format.printf "Configuration:@." ;
           Format.printf " - runner: %d jobs" jobs ;
           if fast <> 0.2 then Format.printf ", %a" Utils.pp_time fast ;
@@ -579,10 +578,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       if !list && drivers <> [] then
         Format.printf " - @[<hov 2>drivers: %a@]@." pp_list drivers ;
       (* --- Updating -------------- *)
-      if Runner.is_modified () then
-        Runner.save_config env ;
-      if !reset || modified then
-        Wenv.save newconfig;
+      if !reset || modified then Wenv.save newconfig;
+      Wenv.update_why3_config env.why3.config ;
       exit (!retval)
     end
 
@@ -608,7 +605,6 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       parse_argv argv
         begin
           Wenv.options () @
-          Runner.options @
           [
             "-g", Arg.String (add goals), "<name> goals selection";
             "-f", Arg.Unit (set mode `Force), "force rebuild proofs";
@@ -641,17 +637,17 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
          \n  Prove all why3 files and directories accessible from PATH.\n\n\
          OPTIONS:\n" ;
       let mode = !mode in
-      let hammer = !hammer in
+      let level = !hammer in
       let session = !session || !ide in
       let config = Wenv.load_config () in
       let env = Wenv.init config in
       let files = if !files = [] then ["."] else !files in
       let files = Wenv.argfiles @@ List.rev files in
-      let goals = List.rev !goals in
+      let gnames = List.rev !goals in
       let result = Prove.prove_files
-          ~env ~mode ~hammer ~session
+          ~env ~mode ~level ~session
           ~results:!results ~axioms:!axioms ~details:!details
-          ~files ~goals in
+          ~files ~gnames in
       let n = List.length result.unfixed in
       if n > 0 then
         begin
@@ -661,7 +657,8 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
           let pkgs = env.config.packages in
           let why3_warn_off = env.config.warnoff in
           let Prove.{ provers ; time ; mem ; tactics } = result in
-          let cfg = Hammer.config ~tactics ~provers ~time ~mem in
+          let cfg = ".why3find/hammer.cfg" in
+          Hammer.why3_ide_config ~tactics ~provers ~time ~mem cfg ;
           Format.printf "Fixing %s@." file ;
           exec ~prefix:["ide"] ~pkgs ~why3_warn_off [| "--extra-config" ; cfg ; file |]
         end
@@ -727,11 +724,11 @@ let () = register ~name:"print" ~args:"[OPTIONS] PATH..."
       let files = if !files = [] then ["."] else !files in
       let files = Wenv.argfiles ~exts:[".md";".mlw"] @@ List.rev files in
       let config = Wenv.load_config () in
-      let Wenv.{ wenv; _ } = Wenv.init config in
+      let env = Wenv.init config in
       List.iter
         begin fun file ->
           let lib = snd @@ Wutil.filepath file in
-          Wutil.load_theories wenv.env file |> fst |>
+          Wutil.load_theories env.why3.env file |> fst |>
           List.iter
             begin fun (thy : Why3.Theory.theory) ->
               let fullpath = lib @ [thy.th_name.id_string] in
@@ -844,7 +841,13 @@ let () = register ~name:"lsp" ~args:"[OPTIONS]"
          OPTIONS:\n" ;
       match !transport with
       | None -> Log.error "No transport protocol specified." ; exit 1
-      | Some transport -> Lspcc.init () ; Lsp.run transport
+      | Some transport ->
+        Lspcc.init () ;
+        let channel = Lsp.establish transport in
+        while Lsp.running channel || Fibers.pending () > 0 do
+          Fibers.yield () ;
+          if not @@ Lsp.process channel then Unix.sleepf 0.01 ;
+        done
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -905,7 +908,9 @@ let () = register ~name:"worker" ~args:"OPTIONS"
       let polling = ref 1.0 in
       parse_argv argv
         begin
-          Runner.options @ [
+          [
+            "-j", Arg.Int Runner.set_jobs,
+            "JOBS max parallel provers";
             "--server",Arg.Set_string server,
             "URL proof server address (default \"tcp://localhost:5555\")";
             "--polling",Arg.Set_float polling,

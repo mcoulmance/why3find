@@ -44,10 +44,7 @@ val load_config : unit -> Config.config
 
 val save : Config.config -> unit
 
-type env = Config.env = private {
-  config : Config.config ;
-  wenv : Config.wenv ;
-  pkgs : Meta.pkg list ;
-}
+val init : ?root:string -> ?loadplugins:bool -> Config.config -> Project.env
 
-val init : ?root:string -> ?loadplugins:bool -> Config.config -> Config.env
+val update_why3_config : Why3.Whyconf.config -> unit
+(** Update [~/.why3conf] with the specified number of jobs, if modified. *)

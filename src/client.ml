@@ -42,16 +42,18 @@ let options = [
 ]
 
 type goal = { prover : Prover.desc ; digest : string }
+
 type task = {
   goal : goal ;
   prv : Prover.prover ;
   tsk : Runner.prooftask ;
   mutable timeout : float ;
-  channel : Runner.result Fibers.signal ;
+  channel : Result.t Fibers.signal ;
 }
 
 type client = {
   wmain : Why3.Whyconf.main ;
+  cache : Cache.t ;
   context : Zmq.Context.t ;
   socket : [`Dealer] Zmq.Socket.t ;
   profile : Calibration.profile ;
@@ -63,22 +65,30 @@ type client = {
 (* --- Connection                                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
+let clients : (string,client) Hashtbl.t = Hashtbl.create 0
 let resolve () =
   if !server <> "" then Some !server else
   if !host <> "" then Some (Printf.sprintf "tcp://%s:%d" !host !port) else
     None
 
-let connect (env : Config.env) =
+let connect (env : Project.env) =
   Option.map
     begin fun address ->
-      let wmain = Why3.Whyconf.get_main env.wenv.config in
-      let context = Zmq.Context.create () in
-      let socket = Zmq.Socket.(create context dealer) in
-      let profile = Calibration.create () in
-      let pending = Hashtbl.create 0 in
-      Zmq.Socket.connect socket address ;
-      Log.emit "Server %s" address ;
-      { wmain ; context ; socket ; profile ; pending ; terminated = false }
+      try Hashtbl.find clients address with Not_found ->
+        let wmain = Why3.Whyconf.get_main env.why3.config in
+        let cache = env.cache in
+        let context = Zmq.Context.create () in
+        let socket = Zmq.Socket.(create context dealer) in
+        let profile = Calibration.create () in
+        let pending = Hashtbl.create 0 in
+        Zmq.Socket.connect socket address ;
+        Log.emit "Server %s" address ;
+        let client = {
+          wmain ; cache ; context ; socket ;
+          profile ; pending ; terminated = false ;
+        } in
+        Hashtbl.add clients address client ;
+        client
     end @@ resolve ()
 
 (* -------------------------------------------------------------------------- *)
@@ -133,35 +143,35 @@ let get_task client prv tsk =
 
 let request client profile prover task timeout =
   let open Fibers.Monad in
-  let wmain = client.wmain in
-  let task = get_task client prover task in
+  let { wmain ; cache } = client in
+  let htask = get_task client prover task in
   Fibers.background
     begin
       (* project profile *)
-      let* project = Calibration.profile wmain profile prover in
+      let* project = Calibration.profile wmain cache profile prover in
       if Calibration.lock client.profile prover.desc then
         send_profile client prover project ;
       (* server profile *)
-      let* server = Calibration.profile wmain client.profile prover in
+      let* server = Calibration.profile wmain cache client.profile prover in
       (* t-project / t-server *)
       let* gamma =
         let (np,tp) = project in
         let (ns,ts) = server in
         if np = ns then Fibers.return @@ tp /. ts else
           (* vp = tp / tr ; vs = tr / ts *)
-          let+ vp = Calibration.velocity wmain profile prover
-          and* vs = Calibration.velocity wmain client.profile prover
+          let+ vp = Calibration.velocity wmain cache profile prover
+          and* vs = Calibration.velocity wmain cache client.profile prover
           in vs /. vp in
       (* server timeout *)
       let time = timeout /. gamma in
-      if task.timeout < time then
+      if htask.timeout < time then
         begin
-          task.timeout <- time ;
-          send_get client task.goal time ;
+          htask.timeout <- time ;
+          send_get client htask.goal time ;
         end ;
       Fibers.return ()
     end ;
-  task.channel
+  htask.channel
 
 (* -------------------------------------------------------------------------- *)
 (* --- CALIBRATION                                                        --- *)
@@ -174,24 +184,25 @@ let do_profile client prover size time =
 (* --- RESULT                                                             --- *)
 (* -------------------------------------------------------------------------- *)
 
+let definitive ~timeout (result : Result.t) =
+  match result with
+  | NoResult -> false
+  | Timeout t -> timeout <= t
+  | Failed | Unknown _ | Valid _ -> true
+
 let do_result client goal status time =
   let task = Hashtbl.find client.pending goal in
   let result =
     match status with
-    | "NoResult" -> Runner.NoResult
-    | "Valid" -> Runner.Valid time
-    | "Unknown" -> Runner.Unknown time
-    | "Timeout" -> Runner.Timeout time
-    | _ -> Runner.Failed
+    | "NoResult" -> Result.NoResult
+    | "Valid" -> Result.Valid time
+    | "Unknown" -> Result.Unknown time
+    | "Timeout" -> Result.Timeout time
+    | _ -> Result.Failed
   in
   Fibers.background
-    (* TODO: replace by a store in the prooftree cache (?) *)
-    (*~callback:(fun alpha ->
-        Runner.update task.prv task.tsk @@
-        Runner.map (fun t -> t *. alpha) result
-      )*)
-    (Calibration.velocity client.wmain client.profile task.prv) ;
-  if Runner.definitive ~timeout:task.timeout result then
+    (Calibration.velocity client.wmain client.cache client.profile task.prv) ;
+  if definitive ~timeout:task.timeout result then
     Hashtbl.remove client.pending task.goal ;
   Fibers.emit task.channel result
 
@@ -225,17 +236,24 @@ let handler client msg =
 (* --- Running                                                            --- *)
 (* -------------------------------------------------------------------------- *)
 
-let yield client =
-  try recv client (handler client)
-  with exn ->
-    Log.emit "Client Error (%s)" @@ Printexc.to_string exn
+let yield () =
+  Hashtbl.iter
+    (fun addr client ->
+       try recv client (handler client)
+       with exn ->
+         Log.emit "Client Error (%s:%s)" addr @@ Printexc.to_string exn
+    ) clients
 
-let terminate client =
-  try
-    send client ["HANGUP"] ;
-    Zmq.Socket.close client.socket ;
-    Zmq.Context.terminate client.context ;
-  with exn ->
-    Log.emit "Client Killed (%s)" @@ Printexc.to_string exn
+let terminate () =
+  Hashtbl.iter
+    (fun addr client ->
+       try
+         send client ["HANGUP"] ;
+         Zmq.Socket.close client.socket ;
+         Zmq.Context.terminate client.context ;
+       with exn ->
+         Log.emit "Client Killed (%s:%s)" addr @@ Printexc.to_string exn
+    ) clients ;
+  Hashtbl.clear clients
 
 (* -------------------------------------------------------------------------- *)

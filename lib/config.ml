@@ -19,6 +19,10 @@
 (*                                                                        *)
 (**************************************************************************)
 
+(* -------------------------------------------------------------------------- *)
+(* --- Why3find Configuration                                             --- *)
+(* -------------------------------------------------------------------------- *)
+
 type config = {
   fast : float ;
   time : float ;
@@ -91,30 +95,26 @@ let save_config p config =
   let p = Filename.concat p conf_file in
   Json.to_file ~pretty_floats:true p @@ config_to_json config
 
-type wenv = {
-  config : Why3.Whyconf.config ;
-  env : Why3.Env.env ;
+(* -------------------------------------------------------------------------- *)
+(* --- Why3 Environments                                                  --- *)
+(* -------------------------------------------------------------------------- *)
+
+module WEnv = Why3.Env
+module WConf = Why3.Whyconf
+
+type why3env = {
+  config : WConf.config ;
+  env : WEnv.env ;
 }
 
-module WenvWhtbl = Why3.Weakhtbl.Make (struct
-    type t = wenv
-    let tag w = Why3.Env.env_tag w.env
+module Whtbl = Why3.Weakhtbl.Make (struct
+    type t = why3env
+    let tag w = WEnv.env_tag w.env
+    (* [LC] a new tag is generated for every why3 environment.
+       Hence it is sufficient to identify both the Whyconf and the Env. *)
   end)
 
-let create_wenv ?(loadpath=[]) config =
-  let loadpath = loadpath @ Why3.Whyconf.(loadpath @@ get_main config) in
-  let env = Why3.Env.create_env loadpath in
+let why3env ?(loadpath=[]) config =
+  let loadpath = loadpath @ WConf.(loadpath @@ get_main config) in
+  let env = WEnv.create_env loadpath in
   { config ; env }
-
-type env = {
-  config : config ;
-  wenv : wenv ;
-  pkgs : Meta.pkg list ;
-}
-
-let create_env ?(root=".") ~config () =
-  let pkgs = Meta.find_all config.packages in
-  let pkg_path = List.map (fun m -> m.Meta.path) pkgs in
-  let wconfig = Why3.Whyconf.init_config ~extra_config:[] None in
-  let wenv = create_wenv ~loadpath:(root :: pkg_path) wconfig in
-  { config ; wenv ; pkgs }

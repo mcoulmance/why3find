@@ -207,9 +207,10 @@ let process_response channel ~id ~result =
 
 let process channel =
   yield channel ;
-  if not channel.processing then
+  if channel.processing then false
+  else
     match pull channel with
-    | None -> Unix.sleepf 0.01
+    | None -> false
     | Some data ->
       try
         let rq = Json.of_string data in
@@ -224,11 +225,11 @@ let process channel =
             let result = jresponse rq in
             process_response channel ~id ~result
         end ;
-        flush channel
+        flush channel ; true
       with Invalid_argument msg ->
         Log.error "Invalid message (%s)" msg ;
         send_error channel ~id:(`Int 0) ~code:(-32700) ~msg ;
-        flush channel
+        flush channel ; true
 
 (* -------------------------------------------------------------------------- *)
 (* --- Decoding LSP Messages                                              --- *)
@@ -376,13 +377,5 @@ let unregister_capability channel = function Capability { id ; meth } ->
   send channel "client/unregisterCapability" @@ Json.assoc [
     "unregisterations", `List [ jregistration id meth `Null ]
   ]
-
-(* -------------------------------------------------------------------------- *)
-(* --- Launch Server                                                      --- *)
-(* -------------------------------------------------------------------------- *)
-
-let run transport =
-  let channel = establish transport in
-  while running channel do process channel done
 
 (* -------------------------------------------------------------------------- *)

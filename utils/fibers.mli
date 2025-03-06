@@ -149,7 +149,7 @@ val clear : 'a signal -> unit
 (** Broadcast a value on all registered hooks. *)
 val emit : 'a signal -> 'a -> unit
 
-(** {1 Variables} 
+(** {1 Variables}
 
     Variables are simply fibers to be assigned later on. *)
 
@@ -197,7 +197,8 @@ val sync : mutex -> ('a -> 'b t) -> 'a -> 'b t
     terminates the continuation with value [v]. *)
 val async : (unit -> 'a option) -> 'a t
 
-(** Ping all pending asynchronous tasks for termination. *)
+(** Ping all pending asynchronous tasks for termination.
+    Enabled continuations are executed and dequeued. *)
 val yield : unit -> unit
 
 (** Number of asynchronous tasks still waiting. *)
@@ -227,9 +228,8 @@ val finally : ?callback:('a -> unit) -> 'a t -> 'a t
 val background : ?callback:('a -> unit) -> 'a t -> unit
 
 (** [monitor ~signal ~handler f] starts computation [f] and returns [f]
-    immediately for chaining,
-    while connecting [handler] to [signal] until termination when specified.
-*)
+    immediately for chaining. When both are provided, the [handler] is
+    connected to [signal] until computation [f] is terminated. *)
 val monitor : ?signal:'a signal -> ?handler:('a -> unit) -> 'b t -> 'b t
 
 (** [await f] waits until the end of computation [f],
