@@ -45,7 +45,7 @@ let reformat ~cdir =
     begin
       if Sys.file_exists cdir then
         begin
-          Log.emit "Reformat cache (%s)" footprint;
+          Log.emit "Reformat cache (%s)" (String.trim footprint);
           Utils.rmpath cdir ;
         end ;
       Utils.mkdirs cdir ;
