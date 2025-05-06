@@ -408,8 +408,8 @@ let prove_buffer config ?cancel prover buffer timeout =
 (* -------------------------------------------------------------------------- *)
 
 let print_stats () =
-  let h = !hits in
-  let m = !miss in
-  Format.printf "Cache %d/%d@." h (h+m)
+  let hit = !hits in
+  let all = hit + !miss in
+  if all > 0 then Format.printf "Cache %d/%d@." hit all
 
 (* -------------------------------------------------------------------------- *)

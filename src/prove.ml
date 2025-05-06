@@ -161,7 +161,8 @@ let print_stats allprovers alltactics =
         if !broken > 0 then
           Format.printf " - broken: @{<red>%d@}@\n" !broken ;
       end ;
-    Format.printf "Provers %t%t@\n" print_time print_depth ;
+    if !btime > 0.0 || !bdepth > 0 then
+      Format.printf "Provers %t%t@\n" print_time print_depth ;
     List.iter
       (fun (prv : Prover.prover) ->
          try
