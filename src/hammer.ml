@@ -161,7 +161,7 @@ let prove ?cancel timeout prover : strategy = fun n ->
             | None -> ()
           in Fibers.monitor ~signal ~handler runner
   in match verdict with
-  | Valid t -> Crc.prover ~goal:n.goal prover.Prover.desc (Utils.round t)
+  | Valid t when t <= timeout -> Crc.prover ~goal:n.goal prover.Prover.desc (Utils.round t)
   | _ -> Crc.stuck ~goal:n.goal ()
 
 (* -------------------------------------------------------------------------- *)
@@ -290,10 +290,9 @@ let replay_prover d t : strategy = fun n ->
   | None -> fail n
   | Some p ->
     let base = h.config.time in
-    (* Taking into account the current strategy *)
-    let time = min (max base t) (2.0 *. base) in
-    (* Applying an overhead against possible fluctuations *)
-    prove (time +. 0.5) p n
+    (* Takes into account the current strategy and possible fluctuations *)
+    let time = min (max base (t +. 0.5)) (2.0 *. base) in
+    prove time p n
 
 let update_prover p t = replay_prover p t >>> hammer
 

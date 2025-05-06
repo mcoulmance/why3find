@@ -90,4 +90,4 @@ let crop ~timeout result =
   | Failed | Unknown _ -> Some result
   | Timeout t -> if timeout <= t then Some result else None
   | Valid t ->
-    if t <= timeout *. 1.25 then Some result else Some (Timeout timeout)
+    if t <= timeout then Some result else Some (Timeout timeout)
