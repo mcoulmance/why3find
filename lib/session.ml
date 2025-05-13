@@ -53,19 +53,17 @@ let task_expl t =
 (* ---  Sessions (File)                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
-type session =
-  | Session of { path : string ; file : S.file ; session : S.session }
+type session = Session of { file : S.file ; session : S.session }
 
 let create ~dir ~file ~format ths =
   let session = S.empty_session dir in
-  let path = Filename.chop_extension file in
   let file = S.add_file_section session
       (Why3.Sysutil.relativize_filename dir file)
       ~file_is_detached:false ths format
-  in Session { path ; file ; session }
+  in Session { file ; session }
 
-let save = function Session { path; session } ->
-  Utils.mkdirs path;
+let save = function Session { session } ->
+  Utils.mkdirs @@ S.get_dir session ;
   S.save_session session
 
 (* -------------------------------------------------------------------------- *)
