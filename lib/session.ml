@@ -62,7 +62,9 @@ let create ~dir ~file ~format ths =
       ~file_is_detached:false ths format
   in Session { file ; session }
 
-let save = function Session { session } -> S.save_session session
+let save = function Session { session } ->
+  Utils.mkdirs @@ S.get_dir session ;
+  S.save_session session
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Theories                                                          --- *)
