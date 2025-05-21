@@ -112,9 +112,24 @@ let pp_goal fmt g =
 
 let silent : S.notifier = fun _ -> ()
 
+let is_valid (pr : Why3.Call_provers.prover_result) = pr.pr_answer = Valid
+let is_valid_attempt (pa : S.proof_attempt_node) =
+  match pa.proof_state with Some pr -> is_valid pr | None -> false
+
 let result (Goal { session ; node }) prv limits result =
-  let _id = S.graft_proof_attempt session node prv ~limits in
-  S.update_proof_attempt silent session node prv result ;
+  let pa,na =
+    List.partition is_valid_attempt @@ S.get_proof_attempts session node in
+  begin
+    (* cleanup previously failed attempts on success *)
+    if is_valid result then
+      List.iter (fun p -> S.remove_proof_attempt session node p.S.prover) na ;
+  end ;
+  begin
+    (* filter out failed result if node is already proved *)
+    if is_valid result || pa = [] then
+      let _id = S.graft_proof_attempt session node prv ~limits in
+      S.update_proof_attempt silent session node prv result ;
+  end ;
   S.update_goal_node silent session node
 
 let apply env tactic (Goal { session ; node ; idename }) =
