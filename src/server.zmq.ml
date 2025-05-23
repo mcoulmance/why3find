@@ -20,7 +20,7 @@
 (**************************************************************************)
 
 (* -------------------------------------------------------------------------- *)
-(* --- Server                                                             --- *)
+(* --- Server (ZMQ Version)                                               --- *)
 (* -------------------------------------------------------------------------- *)
 
 type goal = { prover : Prover.desc ; digest : string }
@@ -557,5 +557,54 @@ let prune ~database ~age =
     ignore @@ shift 0 ;
     Format.printf "Database pruned@." ;
   end
+
+(* -------------------------------------------------------------------------- *)
+(* --- SERVER Command                                                     --- *)
+(* -------------------------------------------------------------------------- *)
+
+let register () =
+  Command.register ~name:"server" ~args:"OPTIONS"
+    begin fun argv ->
+      let stats = ref false in
+      let age = ref 0 in
+      let database = ref "why3server" in
+      let address = ref "tcp://*:5555" in
+      let polling = ref 1.0 in
+      Command.parse argv [
+        "--stats",Arg.Set stats,"Print cache disk usage";
+        "--prune",Arg.Set_int age,
+        "AGE Prune cache generations older than AGE";
+        "--address",Arg.Set_string address,
+        "URL server address (default \"tcp://*:5555\")";
+        "--database",Arg.Set_string database,
+        "DIR Database (default \"why3server\")";
+        "--polling",Arg.Set_float polling,
+        "TIME server polling interval (default 1.0s)";
+        "--trace",Arg.Set trace,"Trace server protocol";
+      ] Command.noargv
+        "USAGE:\n\
+         \n  why3find server [OPTIONS]\n\n\
+         DESCRIPTION:\n\
+         \n  Establishes a proof server.\
+         \n\n\
+         OPTIONS:\n" ;
+      Utils.flush () ;
+      let age = !age in
+      let address = !address in
+      let database = !database in
+      let polling = !polling in
+      Format.printf "Address  %s@." address ;
+      Format.printf "Database %s@." (Utils.absolute database) ;
+      if age > 0 then prune ~database ~age ;
+      if !stats then
+        begin
+          Format.printf "Disk usage:@." ;
+          if Sys.file_exists database then
+            ignore @@ Sys.command ("du -h -d 1 " ^ database)
+          else
+            Format.printf "  (empty)@."
+        end ;
+      establish ~address ~database ~polling ;
+    end
 
 (* -------------------------------------------------------------------------- *)

@@ -15,13 +15,13 @@
   why3find print [OPTIONS] PATH...
   why3find extract [OPTIONS] MODULE...
   why3find lsp [OPTIONS]
-  why3find server OPTIONS
-  why3find worker OPTIONS
   why3find install PKG PATH...
   why3find uninstall [PKG...]
   why3find compile [-p PKG] FILE
   why3find ide [-p PKG] FILE
   why3find replay [-p PKG] FILE
+  why3find server OPTIONS
+  why3find worker OPTIONS
   why3find CMD [ARGS...]
 --------------------------------------------------------------------------
 --- why3find where

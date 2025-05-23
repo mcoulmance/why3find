@@ -85,7 +85,7 @@ let contains ~pattern ~text =
   | exception Not_found -> false
   | _ -> true
 
-let parse_argv argv opts arg umsg =
+let parse argv opts arg umsg =
   Arg.parse_argv argv (opts @ Debug.options @ [ Utils.show_progress_opt ]) arg umsg
 
 let print_timings = Debug.create_flag "print-timings"
@@ -316,7 +316,7 @@ let () = register ~name:"query" ~args:"[PKG...]"
       let load = ref false in
       let deps = ref false in
       let query = ref [] in
-      parse_argv argv
+      parse argv
         [ "-p", Arg.Set path, "print package paths only"
         ; "-L", Arg.Set load, "prints -L <path> for all dependencies"
         ; "-r", Arg.Set deps, "recursive mode, query also dependencies" ]
@@ -415,7 +415,7 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       let list_provers = ref false in
       let list_tactics = ref false in
       let update () = strict := true; relax := true in
-      parse_argv argv
+      parse argv
         begin
           Wenv.options () @
           [
@@ -602,7 +602,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
       let add r p = r := p :: !r in
       let context n = results := `Context n in
       let failed () = context 2 in
-      parse_argv argv
+      parse argv
         begin
           Wenv.options () @
           [
@@ -675,7 +675,7 @@ let () = register ~name:"doc" ~args:"[OPTIONS] PATH..."
       let out = ref "" in
       let url = ref false in
       let package_url = ref None in
-      parse_argv argv
+      parse argv
         begin
           Wenv.options ~packages:true ~drivers:true () @ [
             "-t", Arg.Set_string title, "TITLE document title (default none)" ;
@@ -712,7 +712,7 @@ let () = register ~name:"doc" ~args:"[OPTIONS] PATH..."
 let () = register ~name:"print" ~args:"[OPTIONS] PATH..."
     begin fun argv ->
       let files = ref [] in
-      parse_argv argv
+      parse argv
         (Wenv.options ~packages:true ())
         (fun f -> files := f :: !files)
         "USAGE:\n\
@@ -759,7 +759,7 @@ let () = register ~name:"extract" ~args:"[OPTIONS] MODULE..."
       let modules = ref [] in
       let libraries = ref [] in
       let out = ref "lib" in
-      parse_argv argv
+      parse argv
         begin
           Wenv.options ~packages:true ~drivers:true () @ [
             "--lib", Arg.Set lib,
@@ -851,85 +851,6 @@ let () = register ~name:"lsp" ~args:"[OPTIONS]"
     end
 
 (* -------------------------------------------------------------------------- *)
-(* --- SERVER                                                             --- *)
-(* -------------------------------------------------------------------------- *)
-
-let () = register ~name:"server" ~args:"OPTIONS"
-    begin fun argv ->
-      let stats = ref false in
-      let prune = ref 0 in
-      let database = ref "why3server" in
-      let address = ref "tcp://*:5555" in
-      let polling = ref 1.0 in
-      parse_argv argv [
-        "--stats",Arg.Set stats,"Print cache disk usage";
-        "--prune",Arg.Set_int prune,
-        "AGE Prune cache generations older than AGE";
-        "--address",Arg.Set_string address,
-        "URL server address (default \"tcp://*:5555\")";
-        "--database",Arg.Set_string database,
-        "DIR Database (default \"why3server\")";
-        "--polling",Arg.Set_float polling,
-        "TIME server polling interval (default 1.0s)";
-        "--trace",Arg.Set Server.trace,"Trace server protocol";
-      ] noargv
-        "USAGE:\n\
-         \n  why3find server [OPTIONS]\n\n\
-         DESCRIPTION:\n\
-         \n  Establishes a proof server.\
-         \n\n\
-         OPTIONS:\n" ;
-      Utils.flush () ;
-      let prune = !prune in
-      let address = !address in
-      let database = !database in
-      let polling = !polling in
-      Format.printf "Address  %s@." address ;
-      Format.printf "Database %s@." (Utils.absolute database) ;
-      if prune > 0 then Server.prune ~database ~age:prune ;
-      if !stats then
-        begin
-          Format.printf "Disk usage:@." ;
-          if Sys.file_exists database then
-            ignore @@ Sys.command ("du -h -d 1 " ^ database)
-          else
-            Format.printf "  (empty)@."
-        end ;
-      Server.establish ~address ~database ~polling ;
-    end
-
-(* -------------------------------------------------------------------------- *)
-(* --- WORKER                                                             --- *)
-(* -------------------------------------------------------------------------- *)
-
-let () = register ~name:"worker" ~args:"OPTIONS"
-    begin fun argv ->
-      let server = ref "tcp://localhost:5555" in
-      let polling = ref 1.0 in
-      parse_argv argv
-        begin
-          [
-            "-j", Arg.Int Runner.set_jobs,
-            "JOBS max parallel provers";
-            "--server",Arg.Set_string server,
-            "URL proof server address (default \"tcp://localhost:5555\")";
-            "--polling",Arg.Set_float polling,
-            "TIME server polling interval (default 1.0s)";
-            "--trace",Arg.Set Worker.trace,"Trace server protocol";
-          ] @
-          Calibration.options
-        end
-        noargv
-        "USAGE:\n\
-         \n  why3find worker [OPTIONS]\n\n\
-         DESCRIPTION:\n\
-         \n  Provides a worker for the specified proof server.\
-         \n\n\
-         OPTIONS:\n" ;
-      Worker.connect ~server:!server ~polling:!polling ;
-    end
-
-(* -------------------------------------------------------------------------- *)
 (* --- INSTALL                                                            --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -940,7 +861,7 @@ let () = register ~name:"install" ~args:"PKG PATH..."
       let lib = ref "lib" in
       let html = ref "html" in
       let nodoc () = html := "" in
-      parse_argv argv [
+      parse argv [
         "--dune", Arg.Set dune,"Generate dune installer (default)" ;
         "--global", Arg.Clear dune,"Install in global repository (why3find where)" ;
         "--lib", Arg.Set_string lib,"DIR extraction directory (why3find extract -o DIR)";

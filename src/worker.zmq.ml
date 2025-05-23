@@ -20,11 +20,7 @@
 (**************************************************************************)
 
 (* -------------------------------------------------------------------------- *)
-(* --- Worker                                                             --- *)
-(* -------------------------------------------------------------------------- *)
-
-(* -------------------------------------------------------------------------- *)
-(* --- Proof Task                                                         --- *)
+(* --- Worker (ZMQ Version)                                               --- *)
 (* -------------------------------------------------------------------------- *)
 
 type goal = { prover : Prover.desc ; digest : string }
@@ -258,6 +254,37 @@ let connect ~server ~polling =
     Zmq.Context.terminate worker.context ;
     Log.emit "Terminated" ;
     exit 0
+
+(* -------------------------------------------------------------------------- *)
+(* --- WORKER Command                                                     --- *)
+(* -------------------------------------------------------------------------- *)
+
+let register () = Command.register ~name:"worker" ~args:"OPTIONS"
+    begin fun argv ->
+      let server = ref "tcp://localhost:5555" in
+      let polling = ref 1.0 in
+      Command.parse argv
+        begin
+          [
+            "-j", Arg.Int Runner.set_jobs,
+            "JOBS max parallel provers";
+            "--server",Arg.Set_string server,
+            "URL proof server address (default \"tcp://localhost:5555\")";
+            "--polling",Arg.Set_float polling,
+            "TIME server polling interval (default 1.0s)";
+            "--trace",Arg.Set trace,"Trace server protocol";
+          ] @
+          Calibration.options
+        end
+        Command.noargv
+        "USAGE:\n\
+         \n  why3find worker [OPTIONS]\n\n\
+         DESCRIPTION:\n\
+         \n  Provides a worker for the specified proof server.\
+         \n\n\
+         OPTIONS:\n" ;
+      connect ~server:!server ~polling:!polling ;
+    end
 
 
 (* -------------------------------------------------------------------------- *)
