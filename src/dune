@@ -3,8 +3,14 @@
   (package why3find)
   (public_name why3find)
   (flags (:standard "-w" "-9-69" "-open" "Why3find" "-open" "Why3findUtils"))
-  (libraries why3find Why3findUtils why3 str zmq)
+  (libraries why3find Why3findUtils why3 str
+    (select server.ml from (zmq -> server.zmq.ml) (!zmq -> server.disabled.ml))
+    (select worker.ml from (zmq -> worker.zmq.ml) (!zmq -> worker.disabled.ml))
+    (select client.ml from (zmq -> client.zmq.ml) (!zmq -> client.disabled.ml)))
   (instrumentation (backend bisect_ppx))
   (instrumentation (backend landmarks)))
+
+(rule (write-file "server.disabled.ml" "let register () = ()"))
+(rule (write-file "worker.disabled.ml" "let register () = ()"))
 
 (ocamllex lexer)

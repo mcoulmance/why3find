@@ -23,8 +23,9 @@
 (* --- Why3 find main entry point                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
-let () =
-  Log.set_log true
+let () = Log.set_log true
+let () = Server.register ()
+let () = Worker.register ()
 
 let version () : unit =
   begin

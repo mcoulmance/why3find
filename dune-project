@@ -27,9 +27,11 @@
      (why3 (>= 1.8.0))
      (ocaml (>= 4.13.0))
      (yojson (>= 1.7.0))
-     (zmq (>= 5.0.0))
      (terminal_size (>= 0.2.0))
+     (zmq :with-test)
      (alt-ergo (and :with-test (= 2.4.2))))
+  (depopts
+     (zmq (>= 5.0.0)))
   (sites
     (lib packages)
     (share resources))

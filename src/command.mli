@@ -25,5 +25,9 @@
 
 val iter : (string -> string -> unit) -> unit
 val process : string -> string array -> unit
+val register : name:string -> ?args:string -> (string array -> unit) -> unit
+
+val parse : string array -> (string * Arg.spec * string) list -> Arg.anon_fun -> string -> unit
+val noargv : string -> unit
 
 (* -------------------------------------------------------------------------- *)
