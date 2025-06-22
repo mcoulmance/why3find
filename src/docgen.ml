@@ -592,16 +592,17 @@ let mdecl env n ~local ~source ~target (pd: Why3.Pdecl.pdecl) =
 
 (* Declare 'id' from cloned definition 'def' in theory 'th' *)
 let declaration env n ~local ~source ~container ~target =
-  try
-    env.declared <- Sid.add target env.declared ;
-    let m = Why3.Pmodule.restore_module container in
-    let pd = Why3.Ident.Mid.find target m.mod_known in
-    mdecl env n ~local ~source pd ~target
-  with Not_found ->
-    let td = Why3.Ident.Mid.find target container.th_known in
-    try decl env n ~local ~source td ~target
+  if not @@ Sid.mem target env.declared then
+    try
+      env.declared <- Sid.add target env.declared ;
+      let m = Why3.Pmodule.restore_module container in
+      let pd = Why3.Ident.Mid.find target m.mod_known in
+      mdecl env n ~local ~source pd ~target
     with Not_found ->
-      assert false
+      let td = Why3.Ident.Mid.find target container.th_known in
+      try decl env n ~local ~source td ~target
+      with Not_found ->
+        assert false
 
 (* Declare 'id' to be cloned as instance 'order' *)
 let instance env n order (cloned : Why3.Theory.theory) =
