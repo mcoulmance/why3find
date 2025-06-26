@@ -1,0 +1,8 @@
+module A
+  type t
+  val function op t t : t
+end
+
+module B
+  clone A with type t = int
+end
