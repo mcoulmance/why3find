@@ -419,9 +419,9 @@ let pp_varg ~ghost fmt (pv : Why3.Ity.pvsymbol) =
 let pp_kind fmt (kind : Why3.Expr.rs_kind) =
   match kind with
   | RKnone | RKlocal -> ()
-  | RKfunc -> Format.pp_print_string fmt " function"
-  | RKpred -> Format.pp_print_string fmt " predicate"
-  | RKlemma -> Format.pp_print_string fmt " lemma"
+  | RKfunc -> Format.pp_print_string fmt "function "
+  | RKpred -> Format.pp_print_string fmt "predicate "
+  | RKlemma -> Format.pp_print_string fmt "lemma "
 
 let pp_decl fmt (d : Id.decl) =
   match d with
@@ -464,8 +464,8 @@ let pp_decl fmt (d : Id.decl) =
       let kind = Why3.Expr.rs_kind r in
       let ghost = Why3.Expr.rs_ghost r in
       if ghost && kind <> RKlemma then Format.fprintf fmt "ghost " ;
-      pp_scoped fmt r.rs_name ;
       pp_kind fmt kind ;
+      pp_scoped fmt r.rs_name ;
       let args = r.rs_cty.cty_args in
       List.iter (Format.fprintf fmt "@ %a" (pp_varg ~ghost)) args ;
       Format.fprintf fmt "@ : %a@]" pp_rty r.rs_cty.cty_result
