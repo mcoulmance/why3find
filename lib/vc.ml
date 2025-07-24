@@ -202,6 +202,8 @@ let dump ~file task =
     Format.printf "@{<orange>[%s:%a%a]@}@\n"
       file pp_range (p,q) pp_expl task ;
   Why3.Pretty.print_sequent Format.std_formatter task ;
+  Format.printf "@{<orange>[%s:%a%a]@}@\n"
+    file pp_range (p,q) pp_expl task ;
   Format.printf "%s@." (String.make 69 '-')
 
 (* -------------------------------------------------------------------------- *)
