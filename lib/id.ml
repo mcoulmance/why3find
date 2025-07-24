@@ -298,9 +298,8 @@ let find_decl id (d: Why3.Decl.decl) =
 let rec find_letdefs id = function
   | [] -> raise Not_found
   | (d : Why3.Expr.rec_defn) :: ds ->
-    let rs = d.rec_rsym in
-    if Why3.Ident.id_equal id rs.rs_name
-    then rs else find_letdefs id ds
+    let rs = d.rec_sym in
+    if Why3.Ident.id_equal id rs.rs_name then rs else find_letdefs id ds
 
 let find_pdecl id (pd : Why3.Pdecl.pdecl) =
   match pd.pd_node with
