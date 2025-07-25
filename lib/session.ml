@@ -124,7 +124,9 @@ let result (Goal { session ; node }) prv limits result =
     if is_valid result then
       begin
         List.iter (fun p -> S.remove_proof_attempt session node p.S.prover) na ;
-        List.iter (S.remove_transformation session) (S.get_transformations session node) ;
+        List.iter
+          (S.remove_transformation session)
+          (S.get_transformations session node) ;
       end
   end ;
   begin
@@ -141,6 +143,9 @@ let apply env tactic (Goal { session ; node ; idename }) =
       let allow_no_effect = false in
       let tr = Tactic.name tactic in
       let ts = S.apply_trans_to_goal session env ~allow_no_effect tr [] node in
+      List.iter
+        (S.remove_transformation session)
+        (S.get_transformations session node) ;
       let tid = S.graft_transf session node tr [] ts in
       let nodes = S.get_sub_tasks session tid in
       if ts = [] then S.update_trans_node silent session tid ;
