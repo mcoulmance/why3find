@@ -206,7 +206,8 @@ let prove_goal ~file ~hammer ~results ~force buffer theory gname goal hint =
       Option.iter
         (Format.printf "%a: proof failed@." Why3.Loc.pp_position)
         (Session.goal_loc goal) ;
-      Format.printf "@[<v2>Goal @{<red>%s@}: %a@]@." gname Crc.pretty crc ;
+      Format.printf "@[<v2>Goal @{<red>%s.%s@}: %a@]@."
+        (Session.name theory) gname Crc.pretty crc ;
       Crc.iter
         (fun g (s : Crc.status) ->
            match s with

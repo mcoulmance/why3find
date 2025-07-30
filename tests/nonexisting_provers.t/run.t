@@ -2,26 +2,26 @@
   Warning: prover foo not found (why3)
   Warning: prover bar not found (why3)
   "foo.mlw", line 3, characters 8-11: proof failed
-  Goal Add.com: ✘
+  Goal T.Add.com: ✘
     Add.com
   "foo.mlw", line 3, characters 8-11: proof failed
-  Goal Mul.com: ✘
+  Goal T.Mul.com: ✘
     Mul.com
   Library foo: ✘
   Warning: prover non-existing@1.0 not found (why3)
   Warning: prover non-existing@1.0 not configured (project)
   "bar.mlw", line 3, characters 8-13: proof failed
-  Goal Add.assoc: ✘
+  Goal T.Add.assoc: ✘
     Add.assoc
   "bar.mlw", line 4, characters 8-11: proof failed
-  Goal Add.com: ✘
+  Goal T.Add.com: ✘
     Add.com
   "bar.mlw", line 3, characters 8-13: proof failed
-  Goal Mul.assoc: ✘
+  Goal T.Mul.assoc: ✘
     Mul.assoc
   Warning: prover alt-ergo@2.4.2 not configured (project)
   "bar.mlw", line 4, characters 8-11: proof failed
-  Goal Mul.com: ✘
+  Goal T.Mul.com: ✘
     Mul.com
   Library bar: ✘
   Error: 2 unproved files
