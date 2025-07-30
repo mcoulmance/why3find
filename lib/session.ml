@@ -122,10 +122,15 @@ let result (Goal { session ; node }) prv limits result =
   begin
     (* cleanup previously failed attempts on success *)
     if is_valid result then
-      List.iter (fun p -> S.remove_proof_attempt session node p.S.prover) na ;
+      begin
+        List.iter (fun p -> S.remove_proof_attempt session node p.S.prover) na ;
+        List.iter
+          (S.remove_transformation session)
+          (S.get_transformations session node) ;
+      end
   end ;
   begin
-    (* filter out failed result if node is already proved *)
+    (* update proof attempt on success or when there is no successfull attempt yet *)
     if is_valid result || pa = [] then
       let _id = S.graft_proof_attempt session node prv ~limits in
       S.update_proof_attempt silent session node prv result ;
@@ -138,6 +143,9 @@ let apply env tactic (Goal { session ; node ; idename }) =
       let allow_no_effect = false in
       let tr = Tactic.name tactic in
       let ts = S.apply_trans_to_goal session env ~allow_no_effect tr [] node in
+      List.iter
+        (S.remove_transformation session)
+        (S.get_transformations session node) ;
       let tid = S.graft_transf session node tr [] ts in
       let nodes = S.get_sub_tasks session tid in
       if ts = [] then S.update_trans_node silent session tid ;
