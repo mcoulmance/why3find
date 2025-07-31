@@ -446,7 +446,7 @@ let process ~env ~level ~mode ~session ~results ~provers ~tactics ~axioms ~unsuc
         (Session.theories session)
     in
     if save then Session.save session ;
-    Option.iter (Proofs.save ~force:true) buffer ;
+    Option.iter Proofs.save buffer ;
     let henv =
       if axioms then
         Some (Axioms.init env)
