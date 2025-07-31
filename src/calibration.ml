@@ -113,6 +113,9 @@ let qenv wmain cache time = {
   time_out = time *. 2.0
 }
 
+let name p =
+  Printf.sprintf "calibration[%s]" (Prover.name p)
+
 let rec seqlookup ~progress q prv rg best =
   if singleton rg then Fibers.return best else
     let n = select rg in
@@ -302,7 +305,7 @@ let profile wmain cache profile prv =
 let alpha wmain cache prv ~size ~time : float Fibers.t =
   let timeout = 5.0 *. (max 1.0 time) in
   let+ result = Runner.prove wmain cache
-      ~name:(Prover.name prv)
+      ~name:(name prv)
       prv (generate size) timeout in
   match result with
   | Valid t -> t /. time
