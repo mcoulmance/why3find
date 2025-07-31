@@ -57,7 +57,7 @@ type buffer = {
   theories_seen : (string, unit) Hashtbl.t
 }
 
-let save =
+let dump =
   Timer.throttle @@
   Timer.timed ~name:"Proofs dump"
     begin function { file; profile; proofs } ->
@@ -76,7 +76,7 @@ let add theory goal crc buffer =
   let theory = Session.name theory in
   let goal = Session.goal_name goal in
   let tasks = M.add goal crc @@ M.find_def M.empty theory buffer.proofs in
-  buffer.proofs <- M.add theory tasks buffer.proofs ; save buffer
+  buffer.proofs <- M.add theory tasks buffer.proofs ; dump buffer
 
 let init theory goals hints buffer =
   let theory = Session.name theory in
@@ -90,9 +90,9 @@ let init theory goals hints buffer =
            | None -> rs
            | Some r -> M.add a r rs)
         M.empty goals
-  in buffer.proofs <- M.add theory results buffer.proofs ; save buffer
+  in buffer.proofs <- M.add theory results buffer.proofs ; dump buffer
 
 let save buf =
   let proofs =
     M.filter (fun th _ -> Hashtbl.mem buf.theories_seen th) buf.proofs in
-  save ~force:true { buf with proofs }
+  dump ~force:true { buf with proofs }
