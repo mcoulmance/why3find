@@ -20,7 +20,4 @@
   $ why3find prove test.mlw
 
   $ cat test/proof.json
-  {
-    "profile": [],
-    "proofs": { "T": { "g": { "tactic": "split_vc", "children": [] } } }
-  }
+  { "profile": [], "proofs": {} }
