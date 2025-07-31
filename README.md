@@ -11,7 +11,7 @@ debugging proofs. In additional, it can be used to build enhanced documentation,
 package and install libraries or setup a distributed solver cloud.
 
 - [Quick Setup](#quick-setup)
-- [VSCode Integration](#vscode-integration)
+- [IDE Support](#ide-support)
 - [Why3 Packages](#packages)
 - [Package Development](#package-development)
 - [Package Configuration](#package-configuration)
@@ -51,7 +51,7 @@ are very opened to discussions and propositions. Please, do not hesitate to open
 issues on our public BTS for submitting bugs or exchanging on feature wishes
 and new ideas.
 
-## LSP & VSCode Integration
+## IDE support
 
 Why3find features a Language Server Protocol (LSP) and a Visual Studio Code
 client for the Why3 language. The LSP is still at early stage and only provides
