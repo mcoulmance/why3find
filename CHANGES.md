@@ -18,6 +18,9 @@
   values on reruns which could lead to spurious cache misses. Cache entries
   are now printed with sufficient precision. (#125, !169)
 - Fix a failure when saving a new session (#137, !174)
+- Removed duplicated symbols from `val function` in generated doc and LSP server (!176)
+- Fixed missing symbol from `let rec` in generated doc and LSP server (!179)
+- Cleanup sessions on success (!173, !180)
 - Remove old theories from proof.json files (#130, !184)
 
 ### API
