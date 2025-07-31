@@ -7,7 +7,7 @@
   $ why3find prove -r
   Warning: Goal "merge": tactic 'split_vc' shadowed by 'compute_in_goal'
   "mergesort.mlw", line 17, characters 10-15: proof failed
-  Goal merge: ✘
+  Goal Mergesort.merge: ✘
     merge [VC for merge]
   Theory mergesort.Mergesort: ✘ (4/5)
   Error: 1 unproved file
