@@ -2,15 +2,11 @@
 
 ## Unreleased
 
-### Notable New Features
-
 ### Command Line Interface
 
 - New option `-X` to print failed tasks _in extenso_ (!165)
 - New option `--show-progress=(never|auto|always)` to control when progress is
   shown (#128, !170)
-
-### LSP and VSCode Extension
 
 ### Bug Fixes
 
@@ -22,8 +18,6 @@
 - Fixed missing symbol from `let rec` in generated doc and LSP server (!179)
 - Cleanup sessions on success (!173, !180)
 - Remove old theories from proof.json files (#130, !184)
-
-### API
 
 ## 1.1.1 - 2025-01-10
 
