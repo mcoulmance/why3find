@@ -51,7 +51,7 @@ variables:
   OCAML: "4.13"
 
 .opam_template: &opam_template
-  image: 'ocaml/opam:ubuntu-20.04-ocaml-$OCAML'
+  image: 'ocaml/opam:ubuntu-22.04-ocaml-$OCAML'
   stage: build
   tags:
     - docker
