@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Notable New Features
+
+### Command Line Interface
+
+### LSP and VSCode Extension
+
+### Bug Fixes
+
+### API
+
 ## 1.2.0 - 2025-08-01
 
 ### Command Line Interface
