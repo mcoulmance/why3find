@@ -304,6 +304,7 @@ let source ~wenv ~henv ~lib ?root ~filename inc =
     let path = String.concat "." lib in
     let thys = Why3.Env.read_channel Why3.Env.base_language wenv filename inc in
     let profile, proofs = Proofs.load filename in
+    let profile = Calibration.of_json profile in
     let theories =
       Mstr.mapi
         (fun name (theory : Thy.theory) ->

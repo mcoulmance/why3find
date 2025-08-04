@@ -9,7 +9,6 @@
 module M = Why3.Wstdlib.Mstr
 module Th = Why3.Theory
 
-type profile = Calibration.profile
 type proofs = Crc.crc M.t M.t (* Theory -> Task -> CRC *)
 
 (* -------------------------------------------------------------------------- *)
@@ -30,18 +29,18 @@ let jproofs : proofs -> Json.t = map (map  ~keepnull:true Crc.to_json)
 let filename file =
   Filename.concat (Filename.chop_extension file) "proof.json"
 
-let load ?local file : profile * proofs =
+let load file : Json.t * proofs =
   let file = filename file in
   let js = if Sys.file_exists file then Json.of_file file else `Null in
-  let profile = Calibration.of_json ?default:local @@ Json.jfield "profile" js in
+  let profile = if js = `Null then `List [] else Json.jfield "profile" js in
   let strategy = jmap (jmap Crc.of_json) @@ Json.jfield "proofs" js in
   profile , strategy
 
 type buffer = {
   file : string;
-  profile : Calibration.profile ;
+  profile : Json.t ;
   mutable proofs : proofs ;
-  theories_seen : (string, unit) Hashtbl.t
+  theories_seen : (string, unit) Hashtbl.t ;
 }
 
 let dump =
@@ -51,7 +50,7 @@ let dump =
       let file = filename file in
       Utils.mkdirs (Filename.dirname file) ;
       Json.to_file ~pretty_floats:true file @@ `Assoc [
-        "profile", Calibration.to_json profile ;
+        "profile", profile ;
         "proofs", jproofs proofs ;
       ]
     end

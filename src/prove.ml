@@ -434,12 +434,13 @@ let process ~env
     let dir, lib = Wutil.filepath file in
     let theories, format = Wutil.load_theories env.Project.why3.env file in
     let session = Session.create ~dir ~file ~format theories in
-    let local = Calibration.default env in
-    let profile, strategy = Proofs.load ~local file in
+    let jprofile, strategy = Proofs.load file in
     let buffer = (* the proof strategy must be kept to stabilize crc files *)
       if (mode = `Replay)
       then None
-      else Some (Proofs.create ~file profile strategy) in
+      else Some (Proofs.create ~file jprofile strategy) in
+    let default = Calibration.default env in
+    let profile = Calibration.of_json ~default jprofile in
     let force = (mode = `Force) in
     let hammer =
       Hammer.create
