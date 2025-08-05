@@ -189,12 +189,25 @@ let warn_prover_not_configured =
   Why3.Wstdlib.Hstr.memo 5
     (fun s -> Log.warning "prover %s not configured (project)" s)
 
-let select wenv ~patterns =
+let select_from_map ~patterns all =
   let find pattern =
-    try Some (find_exn wenv ~pattern) with
-    | InvalidPattern s -> Log.warning "invalid prover pattern %s" s; None
-    | Not_found -> warn_prover_not_found pattern; None in
-  List.filter_map find patterns
+    try
+      match split_pattern pattern with
+      | name, Some version -> `Ok (Mdesc.find { name ; version } all)
+      | name, None ->
+        let filter { name = s ; _ } _ = String.equal name s in
+        `Ok (snd @@ Mdesc.min_binding @@ Mdesc.filter filter all)
+    with
+    | InvalidPattern s -> `InvalidPattern s
+    | Not_found -> `PatternNotFound pattern in
+  List.map find patterns
+
+let select wenv ~patterns =
+  let filter = function
+    | `Ok p -> Some p
+    | `InvalidPattern s -> Log.warning "invalid prover pattern %s" s; None
+    | `PatternNotFound s -> warn_prover_not_found s; None in
+  List.filter_map filter @@ select_from_map ~patterns @@ all wenv
 
 let check_and_get_prover env ~patterns pr =
   let prmatch pattern =
