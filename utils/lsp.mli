@@ -29,7 +29,7 @@ val yield: server -> unit
     First, yield the server to process pending I/O.
     Then, process one LSP message, if any.
     Returns true is some request has been processed or not.
-    This function immediately returns false when it called during
+    This function immediately returns false when it is called during
     a request handler.
 *)
 val process: server -> bool

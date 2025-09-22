@@ -838,6 +838,37 @@ let () = register ~name:"lsp" ~args:"[OPTIONS]"
     end
 
 (* -------------------------------------------------------------------------- *)
+(* --- DAP                                                                --- *)
+(* -------------------------------------------------------------------------- *)
+
+let () = register ~name:"dap" ~args:"[OPTIONS]"
+    begin fun argv ->
+      let transport = ref None in
+      let set_port n = transport := Some (Rpc.PORT n) in
+      let set_pipe s = transport := Some (Rpc.PIPE s) in
+      Arg.parse_argv argv [
+        "--pipe", Arg.String set_pipe, "<SOCKFILE> unix linux socket" ;
+        "--port", Arg.Int set_port, "<PORT> use socket port" ;
+        "--socket", Arg.Int set_port, "<PORT> use socket port (same as --port)" ;
+      ] (Utils.failwith "Unexpected argument %S")
+        "USAGE:\n\
+         \n  why3find lsp [--pipe=<SOCKFILE>]\n\n\
+         DESCRIPTION:\n\
+         \n  Launch the Debug Adapter Protocol on the specified socket.\
+         \n\n\
+         OPTIONS:\n" ;
+      match !transport with
+      | None -> Log.error "No transport protocol specified." ; exit 1
+      | Some transport ->
+        Lspcc.init () ;
+        let server = Dap.establish transport in
+        while Dap.running server || Fibers.pending () > 0 do
+          Fibers.yield () ;
+          if not @@ Dap.process server then Unix.sleepf 0.01 ;
+        done
+    end
+
+(* -------------------------------------------------------------------------- *)
 (* --- INSTALL                                                            --- *)
 (* -------------------------------------------------------------------------- *)
 
