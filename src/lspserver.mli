@@ -30,10 +30,10 @@ val forward_range : range -> update -> range option
 
 val document : uri:string -> document
 
-val on_save : (Lsp.channel -> document -> unit) -> unit
-val on_open : (Lsp.channel -> document -> unit) -> unit
-val on_close : (Lsp.channel -> document -> unit) -> unit
-val on_update : (Lsp.channel -> uri:string -> update -> unit) -> unit
+val on_save : (Lsp.server -> document -> unit) -> unit
+val on_open : (Lsp.server -> document -> unit) -> unit
+val on_close : (Lsp.server -> document -> unit) -> unit
+val on_update : (Lsp.server -> uri:string -> update -> unit) -> unit
 
 (** {2 Document Diagnostic} *)
 
@@ -63,14 +63,14 @@ val diagnostic :
   ?data:Json.t ->
   unit -> diagnostic
 
-val publish_diagnostic : Lsp.channel -> uri:string -> diagnostic list -> unit
+val publish_diagnostic : Lsp.server -> uri:string -> diagnostic list -> unit
 
 (** {2 Goto Definitions} *)
 
 type defkind = [ `Def | `Typedef | `Implementation ]
 
 val on_definition : ?kind:defkind ->
-  (Lsp.channel -> uri:string -> position -> location list) -> unit
+  (Lsp.server -> uri:string -> position -> location list) -> unit
 
 (** {2 Code Hovers} *)
 
@@ -88,7 +88,7 @@ val code : ?lang:string -> string list -> string list
 (** Markdown hover. Default is `Plaintext *)
 val hover : ?range:range -> ?kind:markup -> string list -> hover
 
-val on_hover : (Lsp.channel -> uri:string -> position -> hover) -> unit
+val on_hover : (Lsp.server -> uri:string -> position -> hover) -> unit
 
 (** {2 Code Lenses} *)
 
@@ -105,9 +105,9 @@ val resolved : position -> command -> codelens
 
 val on_codelens :
   ?resolve:(position -> Json.t -> command) ->
-  (Lsp.channel -> uri:string -> codelens list) -> unit
+  (Lsp.server -> uri:string -> codelens list) -> unit
 
-val refresh_codelens : Lsp.channel -> unit
+val refresh_codelens : Lsp.server -> unit
 
 (** {2 Folding Ranges} *)
 
@@ -119,8 +119,8 @@ type folding = Folding of {
 
 val folding : range:range -> ?kind:string -> ?text:string -> unit -> folding
 
-val on_folding : (Lsp.channel -> uri:string -> folding list) -> unit
-val refresh_folding : Lsp.channel -> unit
+val on_folding : (Lsp.server -> uri:string -> folding list) -> unit
+val refresh_folding : Lsp.server -> unit
 
 (** {2 Document Symbols} *)
 
@@ -139,16 +139,16 @@ val symbol :
   ?selection:range -> ?children:symbol list ->
   unit -> symbol
 
-val on_document_symbol : (Lsp.channel -> uri:string -> symbol list) -> unit
+val on_document_symbol : (Lsp.server -> uri:string -> symbol list) -> unit
 
 (** {2 Worspace File Watching} *)
 
 type event = [ `Created | `Changed | `Deleted ]
 
-val on_file_event : (Lsp.channel -> uri:string -> event -> unit) -> unit
+val on_file_event : (Lsp.server -> uri:string -> event -> unit) -> unit
 
 (** Starts watching for file events on the given global file patterns. *)
-val watch : Lsp.channel ->
+val watch : Lsp.server ->
   ?events:event list -> ?uri:string -> string list -> Lsp.capability
 
 (** {2 Workspace Execute Command} *)

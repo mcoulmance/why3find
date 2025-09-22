@@ -813,8 +813,8 @@ let () = register ~name:"extract" ~args:"[OPTIONS] MODULE..."
 let () = register ~name:"lsp" ~args:"[OPTIONS]"
     begin fun argv ->
       let transport = ref None in
-      let set_port n = transport := Some (Lsp.PORT n) in
-      let set_pipe s = transport := Some (Lsp.PIPE s) in
+      let set_port n = transport := Some (Rpc.PORT n) in
+      let set_pipe s = transport := Some (Rpc.PIPE s) in
       Arg.parse_argv argv [
         "--pipe", Arg.String set_pipe, "<SOCKFILE> unix linux socket" ;
         "--port", Arg.Int set_port, "<PORT> use socket port" ;
@@ -830,10 +830,10 @@ let () = register ~name:"lsp" ~args:"[OPTIONS]"
       | None -> Log.error "No transport protocol specified." ; exit 1
       | Some transport ->
         Lspcc.init () ;
-        let channel = Lsp.establish transport in
-        while Lsp.running channel || Fibers.pending () > 0 do
+        let server = Lsp.establish transport in
+        while Lsp.running server || Fibers.pending () > 0 do
           Fibers.yield () ;
-          if not @@ Lsp.process channel then Unix.sleepf 0.01 ;
+          if not @@ Lsp.process server then Unix.sleepf 0.01 ;
         done
     end
 
