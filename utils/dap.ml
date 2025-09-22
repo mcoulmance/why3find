@@ -154,6 +154,33 @@ let setColStart = function `Bool false -> colStart := 0 | _ -> ()
 let setLineStart = function `Bool false -> lineStart := 0 | _ -> ()
 let set bref = function `Bool b -> bref := b | _ -> ()
 
+let of_line ~start js = (Json.jint js) - start + !lineStart
+let to_line ~start ln : Json.t = `Int (ln - !lineStart + start)
+
+let of_column ~start js = (Json.jint js) - start + !colStart
+let to_column ~start col : Json.t = `Int (col - !colStart + start)
+
+let uri_prefix = "file://"
+
+let of_path js =
+  let path = Json.jstring js in
+  match !pathFormat with
+  | `Path -> path
+  | `Uri ->
+    if String.starts_with ~prefix:uri_prefix path then
+      let n = String.length path in
+      let p = String.length uri_prefix in
+      String.sub path p (n-p)
+    else
+      raise (Invalid_argument "Dap.of_path")
+
+let to_path path : Json.t =
+  `String
+    begin match !pathFormat with
+      | `Path -> path
+      | `Uri -> uri_prefix ^ path
+    end
+
 (* -------------------------------------------------------------------------- *)
 (* --- Server Capabilities                                                --- *)
 (* -------------------------------------------------------------------------- *)
