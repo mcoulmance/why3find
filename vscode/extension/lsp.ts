@@ -49,7 +49,6 @@ export default class Client {
 	}
 
 	async start(): Promise<void> {
-
 		// Configure client
 		const clientOptions: LanguageClientOptions = {
 			outputChannel: this.output,
@@ -62,14 +61,12 @@ export default class Client {
 				]
 			}
 		};
-
 		// Create LSP
 		this.client = new LanguageClient(
 			'why3lsp', 'Why3 Language Server',
 			this.launchServer,
 			clientOptions
 		);
-
 		// Start LSP
 		this.output.appendLine('[VSCode] Launch lsp client');
 		await this.client.start();

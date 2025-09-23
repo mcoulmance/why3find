@@ -37,23 +37,6 @@
         "path": "./why3.syntax.json"
       }
     ],
-    "configuration": {
-      "type": "object",
-      "title": "Example configuration",
-      "properties": {
-        "why3lsp.trace.server": {
-          "scope": "window",
-          "type": "string",
-          "enum": [
-            "off",
-            "messages",
-            "verbose"
-          ],
-          "default": "off",
-          "description": "Trace exchanges with the LSP Server."
-        }
-      }
-    },
     "commands": [
       {
         "category": "Why3",
