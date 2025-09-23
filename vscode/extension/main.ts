@@ -11,21 +11,22 @@
 /* -------------------------------------------------------------------------- */
 
 import { window, commands, ExtensionContext } from 'vscode';
-import * as Client from './client';
+import Lsp from './lsp';
 
 export function activate(context: ExtensionContext): void {
 
-  // Register commands.
-  context.subscriptions.push(
-    commands.registerCommand('why3.lsp.start', Client.start),
-    commands.registerCommand('why3.lsp.stop', Client.stop),
-  );
+	const lsp = new Lsp();
 
-  // Start the client. This will also launch the server
-  Client.start();
+	// Register commands.
+	context.subscriptions.push(
+		commands.registerCommand('why3.lsp.start', lsp.start),
+		commands.registerCommand('why3.lsp.stop', lsp.stop),
+		lsp
+	);
+
+	// Start the LSP client. This will also launch the server
+	lsp.start();
 
 }
 
-export function deactivate(): void {
-  Client.deactivate();
-}
+export function deactivate(): void { }
