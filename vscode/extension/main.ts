@@ -16,20 +16,20 @@ import Dap from './dap';
 
 export function activate(context: ExtensionContext): void {
 
-	const lsp = new Lsp();
-	const dap = new Dap();
+  const lsp = new Lsp();
+  const dap = new Dap();
 
-	// Register commands.
-	context.subscriptions.push(
-		lsp, dap,
-		commands.registerCommand('why3.lsp.start', lsp.start),
-		commands.registerCommand('why3.lsp.stop', lsp.stop),
-		debug.registerDebugConfigurationProvider('why3', dap),
-		debug.registerDebugAdapterDescriptorFactory('why3', dap),
-	);
+  // Register commands.
+  context.subscriptions.push(
+    lsp, dap,
+    commands.registerCommand('why3.lsp.start', lsp.start),
+    commands.registerCommand('why3.lsp.stop', lsp.stop),
+    debug.registerDebugConfigurationProvider('why3', dap),
+    debug.registerDebugAdapterDescriptorFactory('why3', dap),
+  );
 
-	// Start the LSP client. This will also launch the server
-	lsp.start();
+  // Start the LSP client. This will also launch the server
+  lsp.start();
 
 }
 
