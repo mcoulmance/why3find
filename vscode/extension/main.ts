@@ -15,17 +15,17 @@ import * as Client from './client';
 
 export function activate(context: ExtensionContext): void {
 
-	// Register commands.
-	context.subscriptions.push(
-		commands.registerCommand('why3.lsp.start', Client.start),
-		commands.registerCommand('why3.lsp.stop', Client.stop),
-	);
+  // Register commands.
+  context.subscriptions.push(
+    commands.registerCommand('why3.lsp.start', Client.start),
+    commands.registerCommand('why3.lsp.stop', Client.stop),
+  );
 
-	// Start the client. This will also launch the server
-	Client.start();
+  // Start the client. This will also launch the server
+  Client.start();
 
 }
 
 export function deactivate(): void {
-	Client.deactivate();
+  Client.deactivate();
 }
