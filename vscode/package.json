@@ -72,7 +72,14 @@
           "when": "resourceLangId == why3"
         }
       ]
-    }
+    },
+    "debuggers": [
+      {
+        "type": "why3",
+        "label": "Why3 Debug",
+        "languages": ["why3"]
+      }
+    ]
   },
   "scripts": {
     "start": "tsc -b -w",

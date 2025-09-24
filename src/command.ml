@@ -846,13 +846,17 @@ let () = register ~name:"dap" ~args:"[OPTIONS]"
       let transport = ref None in
       let set_port n = transport := Some (Rpc.PORT n) in
       let set_pipe s = transport := Some (Rpc.PIPE s) in
+      let debug = ref true in
+      let files = ref [] in
       Arg.parse_argv argv [
         "--pipe", Arg.String set_pipe, "<SOCKFILE> unix linux socket" ;
         "--port", Arg.Int set_port, "<PORT> use socket port" ;
         "--socket", Arg.Int set_port, "<PORT> use socket port (same as --port)" ;
-      ] (Utils.failwith "Unexpected argument %S")
+        "--debug" , Arg.Set debug, "start in debug mode" ;
+        "--prove" , Arg.Set debug, "start in proof mode" ;
+      ] (fun f -> files := f :: !files)
         "USAGE:\n\
-         \n  why3find lsp [--pipe=<SOCKFILE>]\n\n\
+         \n  why3find dap [--pipe=<SOCKFILE>]\n\n\
          DESCRIPTION:\n\
          \n  Launch the Debug Adapter Protocol on the specified socket.\
          \n\n\
@@ -860,7 +864,9 @@ let () = register ~name:"dap" ~args:"[OPTIONS]"
       match !transport with
       | None -> Log.error "No transport protocol specified." ; exit 1
       | Some transport ->
-        Lspcc.init () ;
+        Format.eprintf "DAP %s %S"
+          (if !debug then "DEBUG" else "PROVE")
+          (String.concat ";" @@ List.rev !files) ;
         let server = Dap.establish transport in
         while Dap.running server || Fibers.pending () > 0 do
           Fibers.yield () ;

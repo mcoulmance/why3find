@@ -184,13 +184,15 @@ let shutdown server = server.shutdown <- true
 let running { shutdown ; processing ; channel } =
   not shutdown || processing || Rpc.processing channel
 
-let establish transport = {
-  shutdown = false ;
-  processing = false ;
-  queue = Queue.create () ;
-  callbacks = Hashtbl.create 0 ;
-  channel = Rpc.establish transport ;
-}
+let establish transport =
+  let channel = Rpc.establish transport in
+  Log.message "why3find language server started." ; {
+    channel ;
+    shutdown = false ;
+    processing = false ;
+    queue = Queue.create () ;
+    callbacks = Hashtbl.create 0 ;
+  }
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Default LSP Behavior (refined in lspserver)                       --- *)

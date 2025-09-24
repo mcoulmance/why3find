@@ -11,88 +11,86 @@
 /* -------------------------------------------------------------------------- */
 
 import {
-	OutputChannel,
-	window,
-	workspace,
+  window,
+  OutputChannel,
+  workspace,
+  Disposable,
 } from 'vscode';
 
 import {
-	LanguageClient,
-	LanguageClientOptions,
-	StreamInfo,
+  LanguageClient,
+  LanguageClientOptions,
+  StreamInfo,
 } from 'vscode-languageclient/node';
 
-import Server, { type SocketInfo } from './rpc';
+import Server from './rpc';
 
 /* -------------------------------------------------------------------------- */
 /* --- Child Process Management                                           --- */
 /* -------------------------------------------------------------------------- */
 
-export default class Client {
-	private readonly output: OutputChannel;
-	private readonly trace: OutputChannel;
-	private server: Server | undefined;
-	private client: LanguageClient | undefined;
+const SOCKADDR = '/tmp/why3find.lsp.io';
 
-	constructor() {
-		this.output = window.createOutputChannel("WhyCode Server");
-		this.trace = window.createOutputChannel("WhyCode Server Trace");
-		this.launchServer = this.launchServer.bind(this);
-		this.start = this.start.bind(this);
-		this.stop = this.stop.bind(this);
-	}
+export default class Client implements Disposable {
+  private readonly output: OutputChannel;
+  private server: Server | undefined;
+  private client: LanguageClient | undefined;
 
-	async dispose(): Promise<void> {
-		await this.stop();
-		this.output.dispose();
-		this.trace.dispose();
-	}
+  constructor() {
+    this.output = window.createOutputChannel('Why3 LSP');
+    this.launchServer = this.launchServer.bind(this);
+    this.start = this.start.bind(this);
+    this.stop = this.stop.bind(this);
+  }
 
-	async start(): Promise<void> {
-		// Configure client
-		const clientOptions: LanguageClientOptions = {
-			outputChannel: this.output,
-			traceOutputChannel: this.trace,
-			documentSelector: [{ scheme: 'file', language: 'why3' }],
-			synchronize: {
-				fileEvents: [
-					workspace.createFileSystemWatcher('**/*.mlw'),
-					workspace.createFileSystemWatcher('**/why3find.json'),
-				]
-			}
-		};
-		// Create LSP
-		this.client = new LanguageClient(
-			'why3lsp', 'Why3 Language Server',
-			this.launchServer,
-			clientOptions
-		);
-		// Start LSP
-		this.output.appendLine('[VSCode] Launch lsp client');
-		await this.client.start();
-	}
+  async dispose(): Promise<void> {
+    await this.client?.stop();
+    await this.server?.shutdown();
+    this.output.dispose();
+  }
 
-	private async launchServer(): Promise<StreamInfo> {
-		this.server = new Server('lsp', this.output);
-		await this.server.cleanup();
-		const { socket } = await this.server.spawn();
-		return { reader: socket, writer: socket };
-	}
+  async start(): Promise<void> {
+    // Configure client
+    const clientOptions: LanguageClientOptions = {
+      outputChannel: this.output,
+      documentSelector: [{ scheme: 'file', language: 'why3' }],
+      synchronize: {
+        fileEvents: [
+          workspace.createFileSystemWatcher('**/*.mlw'),
+          workspace.createFileSystemWatcher('**/why3find.json'),
+        ]
+      }
+    };
+    // Create LSP
+    this.client = new LanguageClient(
+      'why3lsp', 'Why3 Language Server',
+      this.launchServer,
+      clientOptions
+    );
+    // Start LSP
+    this.output.appendLine('[VSCode] launch lsp client');
+    await this.client.start();
+  }
 
-	async stop(): Promise<void> {
-		if (this.client) {
-			this.output.appendLine('[VSCode] Stop lsp client');
-			const client = this.client;
-			this.client = undefined;
-			await client.stop();
-		}
-		if (this.server) {
-			this.output.appendLine('[VSCode] Shutdown lsp server');
-			const server = this.server;
-			this.server = undefined;
-			await server.kill();
-		}
-	}
+  private async launchServer(): Promise<StreamInfo> {
+    this.server = new Server(SOCKADDR, this.output);
+    const socket =
+      await this.server.spawn('why3find', 'lsp', '--pipe', SOCKADDR);
+    return { reader: socket, writer: socket };
+  }
+
+  async stop(): Promise<void> {
+    if (this.client) {
+      this.output.appendLine('[VSCode] Stop lsp client');
+      await this.client.stop();
+      this.client = undefined;
+    }
+    if (this.server) {
+      this.output.appendLine('[VSCode] Shutdown lsp server');
+      await this.server.shutdown();
+      this.server = undefined;
+    }
+  }
 
 }
 

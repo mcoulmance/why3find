@@ -102,7 +102,6 @@ let set_socket_size socket opt s =
 let establish transport =
   let exception Channel of channel in
   try
-    Log.message "Why3 LSP Server" ;
     let fd = try socket transport with exn ->
       Log.error "Socket: %s" (Printexc.to_string exn) ;
       exit 1 in

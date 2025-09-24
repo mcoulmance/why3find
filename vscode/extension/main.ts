@@ -10,18 +10,22 @@
 /* --- Why3 Platform Extension                                            --- */
 /* -------------------------------------------------------------------------- */
 
-import { window, commands, ExtensionContext } from 'vscode';
+import { commands, debug, ExtensionContext } from 'vscode';
 import Lsp from './lsp';
+import Dap from './dap';
 
 export function activate(context: ExtensionContext): void {
 
 	const lsp = new Lsp();
+	const dap = new Dap();
 
 	// Register commands.
 	context.subscriptions.push(
+		lsp, dap,
 		commands.registerCommand('why3.lsp.start', lsp.start),
 		commands.registerCommand('why3.lsp.stop', lsp.stop),
-		lsp
+		debug.registerDebugConfigurationProvider('why3', dap),
+		debug.registerDebugAdapterDescriptorFactory('why3', dap),
 	);
 
 	// Start the LSP client. This will also launch the server

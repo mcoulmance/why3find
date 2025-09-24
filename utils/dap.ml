@@ -16,11 +16,13 @@ type adapter = {
   channel : Rpc.channel ;
 }
 
-let establish transport = {
-  shutdown = false ;
-  processing = false ;
-  channel = Rpc.establish transport ;
-}
+let establish transport =
+  let channel = Rpc.establish transport in
+  Log.message "why3find debug adapter started." ; {
+    channel ;
+    shutdown = false ;
+    processing = false ;
+  }
 
 let shutdown server = server.shutdown <- true
 
