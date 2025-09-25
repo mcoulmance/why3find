@@ -14,6 +14,7 @@ type adapter = {
   mutable shutdown : bool ; (* has been shutdown *)
   mutable processing : bool ; (* processing request *)
   channel : Rpc.channel ;
+  callback : (unit -> unit) Queue.t ;
 }
 
 let establish transport =
@@ -22,6 +23,7 @@ let establish transport =
     channel ;
     shutdown = false ;
     processing = false ;
+    callback = Queue.create () ;
   }
 
 let shutdown server = server.shutdown <- true
@@ -90,6 +92,8 @@ let process_request adapter ~seq command arguments =
     match Hashtbl.find protocol command adapter arguments with
     | body ->
       send_response adapter ~seq command body
+    | exception Exit ->
+      send_response adapter ~seq command `Null
     | exception Not_found ->
       Log.error "Unsupported command (%s)" command ;
       send_error adapter ~seq command "unsupported"
@@ -108,6 +112,18 @@ let process_request adapter ~seq command arguments =
 let process adapter =
   Rpc.yield adapter.channel ;
   if adapter.processing then false
+  else
+  if not @@ Queue.is_empty adapter.callback then
+    begin
+      try
+        adapter.processing <- true ;
+        Queue.pop adapter.callback () ;
+        adapter.processing <- false ;
+        true
+      with exn ->
+        adapter.processing <- false ;
+        raise exn
+    end
   else
     match Rpc.pull adapter.channel with
     | None -> false
@@ -184,14 +200,43 @@ let register_capability cap ?(value=`Bool true) () =
 (* -------------------------------------------------------------------------- *)
 
 let () = register "initialize"
-    begin fun _adapter client ->
-      let clientName = Json.jfield "clientName" client |> Json.jstring in
+    begin fun _adapter args ->
+      let clientName = Json.jfield "clientName" args |> Json.jstring in
       Log.message "Connected to client (%s)" clientName ;
-      Json.jfield "pathFormat" client |> setPathFormat ;
-      Json.jfield "linesStartAt1" client |> setLineStart ;
-      Json.jfield "columnsStartAt1" client |> setColStart ;
-      Json.jfield "supportsProgressReporting" client |> set supportedProgress ;
+      Json.jfield "pathFormat" args |> setPathFormat ;
+      Json.jfield "linesStartAt1" args |> setLineStart ;
+      Json.jfield "columnsStartAt1" args |> setColStart ;
+      Json.jfield "supportsProgressReporting" args |> set supportedProgress ;
       `Assoc (List.rev !capabilities)
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* --- Attach Request                                                     --- *)
+(* -------------------------------------------------------------------------- *)
+
+let attached = ref (fun ~debug -> ignore debug)
+let on_attached fn = attached := fn
+
+let () = register "attached"
+    begin fun adapter args ->
+      let debug = not (Json.jfield "noDebug" args |> Json.jbool) in
+      Log.message "Debugger attached (%s)" (if debug then "debug" else "run") ;
+      Queue.push (fun () -> !attached ~debug) adapter.callback ; `Null
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* --- Launch Request                                                     --- *)
+(* -------------------------------------------------------------------------- *)
+
+let launched = ref (fun ~debug ~restart -> ignore debug ; ignore restart)
+let on_launched fn = launched := fn
+
+let () = register "launch"
+    begin fun adapter args ->
+      let debug = Json.jfield "noDebug" args |> Json.jbool in
+      let restart = Json.jfield "__restart" args in
+      Log.message "Debugger launched (%s)" (if debug then "debug" else "run") ;
+      Queue.push (fun () -> !launched ~debug ~restart) adapter.callback ; `Null
     end
 
 (* -------------------------------------------------------------------------- *)

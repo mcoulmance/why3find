@@ -50,3 +50,9 @@ val to_path : string -> Json.t
 
 (** Register adapter capbility. Default value `true`. *)
 val register_capability : string -> ?value:Json.t -> unit -> unit
+
+(** Attached Request callback *)
+val on_attached : (debug:bool -> unit) -> unit
+
+(** Launched Request callback *)
+val on_launched : (debug:bool -> restart:Json.t -> unit) -> unit
