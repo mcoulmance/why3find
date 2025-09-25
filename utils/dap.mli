@@ -21,23 +21,29 @@ val shutdown: adapter -> unit
     Returns true when there is no more in/out pending messages. *)
 val running: adapter -> bool
 
-(** Only process pending I/O (non-blocking). *)
-val yield: adapter -> unit
-
 (** Send and Event to the client *)
 val emit: adapter -> string -> Json.t -> unit
 
 (** Register a request handler *)
 val register : ?force:bool -> string -> handler -> unit
 
-(** Process (at most) one pending LSP message, if any (non-blocking).
-    First, yield the adapter to process pending I/O.
-    Then, process one LSP message, if any.
-    Returns true is some request has been processed or not.
-    This function immediately returns false when it called during
-    a request handler.
+(** Process (at most) one pending LSP message of one scheduled callback, if any.
+
+    Always process pending non-blocking I/O.
+
+    Then, provided no request nor callback is being processed:
+    flush one pending callback, if any, or
+    process one LSP message, if any.
+
+    Returns true is some request or callback has been processed.
 *)
-val process: adapter -> bool
+val process : adapter -> bool
+
+(** Same as [process]. *)
+val yield: adapter -> unit
+
+(** Schedule a callback to be executed during subsequent calls to `process` or `yield`. *)
+val schedule: adapter -> (unit -> unit) -> unit
 
 (** Conversions from/to Json with respect to server capabilities *)
 

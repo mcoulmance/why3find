@@ -12,7 +12,8 @@
 
 type adapter = {
   mutable shutdown : bool ; (* has been shutdown *)
-  mutable processing : bool ; (* processing request *)
+  mutable handling_request : bool ; (* processing request *)
+  mutable handling_callback : bool ; (* processing callback *)
   channel : Rpc.channel ;
   callback : (unit -> unit) Queue.t ;
 }
@@ -22,7 +23,8 @@ let establish transport =
   Log.message "why3find debug adapter started." ; {
     channel ;
     shutdown = false ;
-    processing = false ;
+    handling_request = false ;
+    handling_callback = false ;
     callback = Queue.create () ;
   }
 
@@ -30,14 +32,6 @@ let shutdown server = server.shutdown <- true
 
 let running { shutdown ; channel }=
   not shutdown || Rpc.processing channel
-
-let yield { channel } = Rpc.yield channel
-
-let flush adapter =
-  begin
-    adapter.processing <- false ;
-    Rpc.flush adapter.channel ;
-  end
 
 (* -------------------------------------------------------------------------- *)
 (* --- Message Encoding                                                   --- *)
@@ -88,7 +82,6 @@ let register ?(force=false) name fn =
 
 let process_request adapter ~seq command arguments =
   begin
-    adapter.processing <- true ;
     match Hashtbl.find protocol command adapter arguments with
     | body ->
       send_response adapter ~seq command body
@@ -111,17 +104,19 @@ let process_request adapter ~seq command arguments =
 
 let process adapter =
   Rpc.yield adapter.channel ;
-  if adapter.processing then false
+  if adapter.handling_request then false
   else
-  if not @@ Queue.is_empty adapter.callback then
+  if not adapter.handling_callback &&
+     not (Queue.is_empty adapter.callback)
+  then
     begin
       try
-        adapter.processing <- true ;
+        adapter.handling_callback <- true ;
         Queue.pop adapter.callback () ;
-        adapter.processing <- false ;
+        adapter.handling_callback <- false ;
         true
       with exn ->
-        adapter.processing <- false ;
+        adapter.handling_callback <- false ;
         raise exn
     end
   else
@@ -129,6 +124,7 @@ let process adapter =
     | None -> false
     | Some data ->
       try
+        adapter.handling_request <- true ;
         let rq = Json.of_string data in
         let seq = Json.jfield "seq" rq |> Json.jint in
         let kind = Json.jfield "type" rq |> Json.jstring in
@@ -136,10 +132,16 @@ let process adapter =
         let command = Json.jfield "command" rq |> Json.jstring in
         let arguments = Json.jfield "arguments" rq in
         process_request adapter ~seq command arguments ;
-        flush adapter ; true
+        adapter.handling_request <- false ;
+        Rpc.flush adapter.channel ; true
       with Invalid_argument msg ->
         Log.error "Invalid message (%s)" msg ;
-        flush adapter ; true
+        adapter.handling_request <- false ;
+        Rpc.flush adapter.channel ; true
+
+let yield adapter = ignore @@ process adapter
+
+let schedule adapter fn = Queue.add fn adapter.callback
 
 (* -------------------------------------------------------------------------- *)
 (* --- Client Capabilities                                                --- *)
