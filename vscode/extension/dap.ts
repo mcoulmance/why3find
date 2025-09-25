@@ -21,7 +21,6 @@ import {
   DebugAdapterDescriptor,
   DebugAdapterExecutable,
   DebugSession,
-  OutputChannel,
   DebugAdapterNamedPipeServer,
 } from 'vscode';
 
@@ -33,22 +32,12 @@ import Server from './rpc';
 
 const SOCKADDR = '/tmp/why3find.dap.io';
 
-export default class Adapter implements
+export default class Adapter extends Server implements
   DebugConfigurationProvider,
   DebugAdapterDescriptorFactory,
   Disposable {
 
-  private output: OutputChannel;
-  private server: Server | undefined;
-
-  constructor() {
-    this.output = window.createOutputChannel('Why3 DAP');
-  }
-
-  async dispose(): Promise<void> {
-    await this.server?.shutdown();
-    this.output.dispose();
-  }
+  constructor() { super(SOCKADDR, 'Why3 DAP'); }
 
   // Debug Configuration
   resolveDebugConfiguration(
@@ -75,12 +64,10 @@ export default class Adapter implements
   ): ProviderResult<DebugAdapterDescriptor> {
     if (session.type !== 'why3') return null;
     if (executable !== undefined) return null;
-    this.server?.shutdown();
     const { file, debug } = session.configuration;
-    this.output.appendLine(`WHY3 ${debug ? 'DEBUG' : 'PROVE'} "${file}"`);
-    this.server = new Server(SOCKADDR, this.output);
-    return this.server
-      .spawn("why3find", "dap", "--pipe", SOCKADDR, debug && '--debug')
+    this.log(`${debug ? 'debug' : 'prove'} ${file}`);
+    return this
+      .spawn("why3find", "dap", "--pipe", SOCKADDR, debug ? '--debug' : '--prove')
       .then(() => new DebugAdapterNamedPipeServer(SOCKADDR));
   }
 

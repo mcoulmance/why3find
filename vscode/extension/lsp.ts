@@ -10,6 +10,8 @@
 /* --- Why3 LSP Client                                                    --- */
 /* -------------------------------------------------------------------------- */
 
+import { Socket, connect } from 'net';
+
 import {
   window,
   OutputChannel,
@@ -29,24 +31,72 @@ import Server from './rpc';
 /* --- Child Process Management                                           --- */
 /* -------------------------------------------------------------------------- */
 
+const RETRIES = 20;
+const TIMEOUT = 250;
 const SOCKADDR = '/tmp/why3find.lsp.io';
 
-export default class Client implements Disposable {
-  private readonly output: OutputChannel;
-  private server: Server | undefined;
+export default class Client extends Server implements Disposable {
+  private socket: Socket | undefined;
+  private timer: NodeJS.Timeout | undefined;
+  private retries: number = 0;
   private client: LanguageClient | undefined;
 
   constructor() {
-    this.output = window.createOutputChannel('Why3 LSP');
-    this.launchServer = this.launchServer.bind(this);
+    super(SOCKADDR, 'Why3 LSP');
     this.start = this.start.bind(this);
     this.stop = this.stop.bind(this);
+    this.launchServer = this.launchServer.bind(this);
+    this.resolveConnection= this.resolveConnection.bind(this);
   }
 
   async dispose(): Promise<void> {
     await this.client?.stop();
-    await this.server?.shutdown();
-    this.output.dispose();
+    this.disconnectFromServer();
+    await super.dispose();
+  }
+
+  private disconnectFromServer(): void {
+    if (this.socket) {
+      this.log('disconnect');
+      this.socket.destroy();
+      this.socket = undefined;
+    }
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = undefined;
+    }
+    this.retries = 0;
+  }
+
+  private resolveConnection(
+    resolve: (pipe: StreamInfo) => void,
+    reject: (err: Error) => void,
+  ): void {
+    this.retries++;
+    const socket = connect(this.sockaddr);
+    socket.once('connect', () => {
+      this.log('connected');
+      this.retries = 0;
+      resolve({ reader: socket, writer: socket });
+    });
+    socket.on('error', (err: Error) => {
+      if (this.retries < RETRIES) {
+        this.log(`reconnect #${this.retries}`);
+        this.socket = undefined;
+        this.timer = setTimeout(() => {
+          this.resolveConnection(resolve, reject);
+        }, TIMEOUT);
+      } else {
+        this.disconnectFromServer();
+        reject(err);
+      }
+    });
+    this.socket = socket;
+  }
+
+  private async launchServer(): Promise<StreamInfo> {
+    await this.spawn('why3find', 'lsp', '--pipe', SOCKADDR);
+    return new Promise(this.resolveConnection);
   }
 
   async start(): Promise<void> {
@@ -68,28 +118,18 @@ export default class Client implements Disposable {
       clientOptions
     );
     // Start LSP
-    this.output.appendLine('[VSCode] launch lsp client');
+    this.log('start client');
     await this.client.start();
-  }
-
-  private async launchServer(): Promise<StreamInfo> {
-    this.server = new Server(SOCKADDR, this.output);
-    const socket =
-      await this.server.spawn('why3find', 'lsp', '--pipe', SOCKADDR);
-    return { reader: socket, writer: socket };
   }
 
   async stop(): Promise<void> {
     if (this.client) {
-      this.output.appendLine('[VSCode] Stop lsp client');
+      this.log('stop client');
       await this.client.stop();
       this.client = undefined;
     }
-    if (this.server) {
-      this.output.appendLine('[VSCode] Shutdown lsp server');
-      await this.server.shutdown();
-      this.server = undefined;
-    }
+    this.disconnectFromServer();
+    await this.shutdown();
   }
 
 }
