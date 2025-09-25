@@ -10,6 +10,9 @@
 /* --- Why3 LSP Client                                                    --- */
 /* -------------------------------------------------------------------------- */
 
+import { access } from 'fs/promises';
+import { setTimeout } from 'timers/promises';
+
 import {
   window,
   Disposable,
@@ -57,6 +60,31 @@ export default class Adapter extends Server implements
     return config;
   }
 
+  private async launchAdapter(
+    file: string,
+    debug: boolean
+  ): Promise<DebugAdapterDescriptor> {
+    // Spawn Server
+    this.log(`${debug ? 'debug' : 'prove'} ${file}`);
+    await this.spawn("why3find", "dap", "--pipe", SOCKADDR,
+      file, debug ? '--debug' : '--prove'
+    );
+    // Wait for the socket to be accessible
+    let starting = true;
+    while (starting) {
+      try {
+        await access(SOCKADDR);
+        starting = false;
+      } catch {
+        this.log('waiting...');
+        await setTimeout(100);
+      }
+    }
+    // Connect to the Adapter
+    this.log('connecting');
+    return new DebugAdapterNamedPipeServer(SOCKADDR);
+  }
+
   // Adapter Factory
   createDebugAdapterDescriptor(
     session: DebugSession,
@@ -64,11 +92,9 @@ export default class Adapter extends Server implements
   ): ProviderResult<DebugAdapterDescriptor> {
     if (session.type !== 'why3') return null;
     if (executable !== undefined) return null;
-    const { file, debug } = session.configuration;
-    this.log(`${debug ? 'debug' : 'prove'} ${file}`);
-    return this
-      .spawn("why3find", "dap", "--pipe", SOCKADDR, debug ? '--debug' : '--prove')
-      .then(() => new DebugAdapterNamedPipeServer(SOCKADDR));
+    const file = session.configuration.file.toString();
+    const debug = !!session.configuration.debug;
+    return this.launchAdapter(file, debug);
   }
 
 }
