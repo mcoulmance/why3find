@@ -864,13 +864,15 @@ let () = register ~name:"dap" ~args:"[OPTIONS]"
       match !transport with
       | None -> Log.error "No transport protocol specified." ; exit 1
       | Some transport ->
-        Format.eprintf "DAP %s %S"
-          (if !debug then "DEBUG" else "PROVE")
-          (String.concat ";" @@ List.rev !files) ;
-        let server = Dap.establish transport in
-        while Dap.running server || Fibers.pending () > 0 do
+        Dap.on_launch (fun _ ~nodebug ~restart ->
+            Log.message "Launched nodebug:%b restart:%a@."
+              nodebug Json.pretty restart ;
+          ) ;
+        Dap.on_disconnect (fun _ _ -> Log.message "Disconnected@.") ;
+        let adapter = Dap.establish transport in
+        while Dap.running adapter || Fibers.pending () > 0 do
           Fibers.yield () ;
-          if not @@ Dap.process server then Unix.sleepf 0.01 ;
+          if not @@ Dap.process adapter then Unix.sleepf 0.01 ;
         done
     end
 

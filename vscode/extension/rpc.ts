@@ -30,7 +30,7 @@ export default class Server implements Disposable {
   }
 
   log(msg: any) { this.output.appendLine(`[VSCode] ${msg.toString()}`); }
-  private out(msg: any) { this.output.appendLine(msg.toString()); }
+  private out(msg: any) { this.output.append(msg.toString()); }
 
   async spawn(program: string, ...args: string[]): Promise<void> {
     // Disconnect current

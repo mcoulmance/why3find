@@ -44,7 +44,7 @@ val process : adapter -> bool
 val yield: adapter -> unit
 
 (** Schedule a callback to be executed during subsequent calls to `process` or `yield`. *)
-val schedule: adapter -> (unit -> unit) -> unit
+val schedule: adapter -> (adapter -> unit) -> unit
 
 (** Conversions from/to Json with respect to server capabilities *)
 
@@ -61,10 +61,10 @@ val register_capability : string -> ?value:Json.t -> unit -> unit
 (** {2 Launch Sequence} *)
 
 (** Attached Request callback *)
-val on_attach : (nodebug:bool -> unit) -> unit
+val on_attach : (adapter -> nodebug:bool -> unit) -> unit
 
 (** Launched Request callback *)
-val on_launch : (nodebug:bool -> restart:Json.t -> unit) -> unit
+val on_launch : (adapter -> nodebug:bool -> restart:Json.t -> unit) -> unit
 
 (** {2 End Sequence} *)
 
@@ -75,9 +75,9 @@ val exited : adapter -> int -> unit
 val terminated : adapter -> ?restart:Json.t -> unit -> unit
 
 (** Terminate request callback. *)
-val on_terminate : (restart:bool -> unit) -> unit
+val on_terminate : (adapter -> restart:bool -> unit) -> unit
 
 (** Disconnect request arguments *)
 type disconnect = Disconnect of { restart : bool ; terminate : bool ; suspend : bool }
 (** Disconnect request callback. Use the options to register the associated capabilities. *)
-val on_disconnect : ?terminate:bool -> ?suspend:bool -> (disconnect -> unit) -> unit
+val on_disconnect : ?terminate:bool -> ?suspend:bool -> (adapter -> disconnect -> unit) -> unit

@@ -15,7 +15,7 @@ type adapter = {
   mutable handling_request : bool ; (* processing request *)
   mutable handling_callback : bool ; (* processing callback *)
   channel : Rpc.channel ;
-  callback : (unit -> unit) Queue.t ;
+  callback : (adapter -> unit) Queue.t ;
 }
 
 let establish transport =
@@ -112,7 +112,7 @@ let process adapter =
     begin
       try
         adapter.handling_callback <- true ;
-        Queue.pop adapter.callback () ;
+        Queue.pop adapter.callback adapter ;
         adapter.handling_callback <- false ;
         true
       with exn ->
@@ -221,7 +221,7 @@ let () = register "initialize"
 let on_attach fn = register "attach"
     begin fun adapter args ->
       let nodebug = Json.jfield "noDebug" args |> Json.jbool in
-      Queue.push (fun () -> fn ~nodebug) adapter.callback ; `Null
+      Queue.push (fun s -> fn s ~nodebug) adapter.callback ; `Null
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -233,7 +233,7 @@ let on_launch fn =
     begin fun adapter args ->
       let nodebug = Json.jfield "noDebug" args |> Json.jbool in
       let restart = Json.jfield "__restart" args in
-      Queue.push (fun () -> fn ~nodebug ~restart) adapter.callback ; `Null
+      Queue.push (fun s -> fn s ~nodebug ~restart) adapter.callback ; `Null
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -255,7 +255,7 @@ let on_terminate fn =
   register "terminate"
     begin fun adapter args ->
       let restart = Json.jfield "restart" args |> Json.jbool in
-      Queue.push (fun () -> fn ~restart) adapter.callback ; `Null
+      Queue.push (fun s -> fn s ~restart) adapter.callback ; `Null
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -263,7 +263,7 @@ let on_terminate fn =
 (* -------------------------------------------------------------------------- *)
 
 type disconnect = Disconnect of { restart : bool ; terminate : bool ; suspend : bool }
-let disconnect = ref ignore
+let disconnect = ref (fun _ _ -> ())
 let on_disconnect ?(terminate=false) ?(suspend=false) fn =
   if terminate then register_capability "supportTerminateDebuggee" () ;
   if suspend then register_capability "supportSuspendDebuggee" () ;
@@ -274,8 +274,9 @@ let () = register "disconnect"
       let restart = Json.jfield "restart" args |> Json.jbool in
       let terminate = Json.jfield "terminateDebuggee" args |> Json.jbool in
       let suspend = Json.jfield "suspendDebuggee" args |> Json.jbool in
+      if not restart then adapter.shutdown <- true ;
       Queue.push
-        (fun () -> !disconnect @@ Disconnect { restart ; terminate ; suspend })
+        (fun s -> !disconnect s @@ Disconnect { restart ; terminate ; suspend })
         adapter.callback ; `Null
     end
 
