@@ -10,6 +10,9 @@
 
 ### Bug Fixes
 
+- Fix treating a preprocessing tactic returning the goal unchanged as an error.
+  (#141, !187)
+
 ### API
 
 ## 1.2.0 - 2025-08-01

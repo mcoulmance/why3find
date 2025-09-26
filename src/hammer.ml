@@ -213,7 +213,7 @@ let schedule hammer ?cancel goal hint =
   match hammer.preprocess with
   | None -> push hammer ~depth:0 ~cancel goal hint
   | Some tactic ->
-    match Session.apply hammer.why3.env tactic goal with
+    match Session.apply hammer.why3.env tactic ~allow_no_effect:true goal with
     | None ->
       Log.warning "Ignored goal %s: preprocessing tactic %a failed"
         (Session.goal_name goal) Tactic.pretty tactic ;
