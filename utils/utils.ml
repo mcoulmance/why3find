@@ -82,6 +82,17 @@ let mark_close_stag = function
   | String_tag ("magenta"|"bright red"|"gray"|"green"|"orange"|"red") -> "\027[39m"
   | _ -> ""
 
+let set_ansi_tags fmt =
+  begin
+    pp_set_tags fmt true ;
+    pp_set_formatter_stag_functions fmt {
+      mark_open_stag ;
+      mark_close_stag ;
+      print_open_stag = nop ;
+      print_close_stag = nop ;
+    }
+  end
+
 let set_tty std fmt =
   if escape_codes std then
     begin
@@ -89,13 +100,7 @@ let set_tty std fmt =
       pp_set_formatter_out_functions fmt {
         ff with out_newline = (fun () -> incr lines ; out_newline ())
       } ;
-      pp_set_tags fmt true ;
-      pp_set_formatter_stag_functions fmt {
-        mark_open_stag ;
-        mark_close_stag ;
-        print_open_stag = nop ;
-        print_close_stag = nop ;
-      }
+      set_ansi_tags fmt ;
     end
 
 let () = set_tty Unix.stdout std_formatter

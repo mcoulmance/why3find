@@ -864,11 +864,23 @@ let () = register ~name:"dap" ~args:"[OPTIONS]"
       match !transport with
       | None -> Log.error "No transport protocol specified." ; exit 1
       | Some transport ->
-        Dap.on_launch (fun _ ~nodebug ~restart ->
-            Log.message "Launched nodebug:%b restart:%a@."
-              nodebug Json.pretty restart ;
+        let restarted = ref 0 in
+        Dap.on_launch
+          (fun adapter ~nodebug ~restart ->
+             Dap.output adapter
+               "Launched nodebug:@{<red>%b@} restart:@{<green>%a@}@."
+               nodebug Json.pretty restart ;
           ) ;
-        Dap.on_disconnect (fun _ _ -> Log.message "Disconnected@.") ;
+        Dap.on_terminate
+          (fun adapter ~restart ->
+             incr restarted ;
+             Dap.output adapter
+               "Terminated restart:@{<red>%b@} @{<green>#%d@}@."
+               restart !restarted ;
+             if not restart then Dap.terminated adapter ()
+          ) ;
+        Dap.on_disconnect
+          (fun adapter _ -> Dap.output adapter "Disconnected@.") ;
         let adapter = Dap.establish transport in
         while Dap.running adapter || Fibers.pending () > 0 do
           Fibers.yield () ;

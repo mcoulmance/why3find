@@ -68,6 +68,33 @@ let send_error { channel } ~seq command message =
   ]
 
 (* -------------------------------------------------------------------------- *)
+(* --- Output & Logging                                                   --- *)
+(* -------------------------------------------------------------------------- *)
+
+type category = [ `console | `important | `stdout | `stderr ]
+let ansi_styling = ref false
+
+let output adapter ?(category : category = `console) msg =
+  let buffer = Buffer.create 80 in
+  let fmt = Format.formatter_of_buffer buffer in
+  if !ansi_styling then Utils.set_ansi_tags fmt ;
+  Format.kfprintf
+    begin
+      fun fmt ->
+        Format.pp_print_flush fmt () ;
+        let output = Buffer.contents buffer in
+        let category = match category with
+          | `console -> "console"
+          | `important -> "important"
+          | `stdout -> "stdout"
+          | `stderr -> "stderr" in
+        emit adapter "output" @@ Json.assoc [
+          "category", `String category ;
+          "output", `String output ;
+        ]
+    end fmt msg
+
+(* -------------------------------------------------------------------------- *)
 (* --- Message Processing                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -159,7 +186,7 @@ let setPathFormat = function
 
 let setColStart = function `Bool false -> colStart := 0 | _ -> ()
 let setLineStart = function `Bool false -> lineStart := 0 | _ -> ()
-let set bref = function `Bool b -> bref := b | _ -> ()
+let setb r = function `Bool b -> r := b | _ -> ()
 
 let of_line ~start js = (Json.jint js) - start + !lineStart
 let to_line ~start ln : Json.t = `Int (ln - !lineStart + start)
@@ -197,6 +224,8 @@ let capabilities : (string, Json.t) Hashtbl.t = Hashtbl.create 0
 let register_capability cap ?(value=`Bool true) () =
   Hashtbl.replace capabilities cap value
 
+let () = register_capability "supportsANSIStyling" ()
+
 (* -------------------------------------------------------------------------- *)
 (* --- Initialize Request                                                 --- *)
 (* -------------------------------------------------------------------------- *)
@@ -208,7 +237,8 @@ let () = register "initialize"
       Json.jfield "pathFormat" args |> setPathFormat ;
       Json.jfield "linesStartAt1" args |> setLineStart ;
       Json.jfield "columnsStartAt1" args |> setColStart ;
-      Json.jfield "supportsProgressReporting" args |> set supportedProgress ;
+      Json.jfield "supportsANSIStyling" args |> setb ansi_styling ;
+      Json.jfield "supportsProgressReporting" args |> setb supportedProgress ;
       let pool = ref [] in
       Hashtbl.iter (fun c v -> pool := (c,v) :: !pool) capabilities ;
       Json.assoc !pool

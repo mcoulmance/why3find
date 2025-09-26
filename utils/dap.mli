@@ -58,6 +58,13 @@ val to_path : string -> Json.t
 (** Register adapter capbility. Default value `true`. *)
 val register_capability : string -> ?value:Json.t -> unit -> unit
 
+(** {2 Output & Logging} *)
+
+type category = [ `console | `important | `stdout | `stderr ]
+
+val output : adapter -> ?category:category ->
+  ('a, Format.formatter, unit, unit) format4 -> 'a
+
 (** {2 Launch Sequence} *)
 
 (** Attached Request callback *)
