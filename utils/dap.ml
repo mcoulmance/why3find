@@ -40,7 +40,7 @@ let running { shutdown ; channel }=
 let next = let k = ref 0 in fun () -> incr k ; !k
 
 let emit { channel } event body =
-  Rpc.push channel @@ Json.to_string @@ `Assoc [
+  Rpc.push channel @@ Json.to_string @@ Json.assoc [
     "seq" , `Int (next ()) ;
     "type", `String "event" ;
     "event", `String event ;
@@ -48,7 +48,7 @@ let emit { channel } event body =
   ]
 
 let send_response { channel } ~seq command body =
-  Rpc.push channel @@ Json.to_string @@ `Assoc [
+  Rpc.push channel @@ Json.to_string @@ Json.assoc [
     "seq" , `Int (next ()) ;
     "type" , `String "response" ;
     "request_seq" , `Int seq ;
@@ -58,7 +58,7 @@ let send_response { channel } ~seq command body =
   ]
 
 let send_error { channel } ~seq command message =
-  Rpc.push channel @@ Json.to_string @@ `Assoc [
+  Rpc.push channel @@ Json.to_string @@ Json.assoc [
     "seq" , `Int (next ()) ;
     "type" , `String "response" ;
     "request_seq" , `Int seq ;
@@ -192,10 +192,10 @@ let to_path path : Json.t =
 (* --- Server Capabilities                                                --- *)
 (* -------------------------------------------------------------------------- *)
 
-let capabilities : (string * Json.t) list ref = ref []
+let capabilities : (string, Json.t) Hashtbl.t = Hashtbl.create 0
 
 let register_capability cap ?(value=`Bool true) () =
-  capabilities := (cap,value) :: !capabilities
+  Hashtbl.replace capabilities cap value
 
 (* -------------------------------------------------------------------------- *)
 (* --- Initialize Request                                                 --- *)
@@ -209,36 +209,74 @@ let () = register "initialize"
       Json.jfield "linesStartAt1" args |> setLineStart ;
       Json.jfield "columnsStartAt1" args |> setColStart ;
       Json.jfield "supportsProgressReporting" args |> set supportedProgress ;
-      `Assoc (List.rev !capabilities)
+      let pool = ref [] in
+      Hashtbl.iter (fun c v -> pool := (c,v) :: !pool) capabilities ;
+      Json.assoc !pool
     end
 
 (* -------------------------------------------------------------------------- *)
 (* --- Attach Request                                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
-let attached = ref (fun ~debug -> ignore debug)
-let on_attached fn = attached := fn
-
-let () = register "attached"
+let on_attach fn = register "attach"
     begin fun adapter args ->
-      let debug = not (Json.jfield "noDebug" args |> Json.jbool) in
-      Log.message "Debugger attached (%s)" (if debug then "debug" else "run") ;
-      Queue.push (fun () -> !attached ~debug) adapter.callback ; `Null
+      let nodebug = Json.jfield "noDebug" args |> Json.jbool in
+      Queue.push (fun () -> fn ~nodebug) adapter.callback ; `Null
     end
 
 (* -------------------------------------------------------------------------- *)
 (* --- Launch Request                                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
-let launched = ref (fun ~debug ~restart -> ignore debug ; ignore restart)
-let on_launched fn = launched := fn
-
-let () = register "launch"
+let on_launch fn =
+  register "launch"
     begin fun adapter args ->
-      let debug = Json.jfield "noDebug" args |> Json.jbool in
+      let nodebug = Json.jfield "noDebug" args |> Json.jbool in
       let restart = Json.jfield "__restart" args in
-      Log.message "Debugger launched (%s)" (if debug then "debug" else "run") ;
-      Queue.push (fun () -> !launched ~debug ~restart) adapter.callback ; `Null
+      Queue.push (fun () -> fn ~nodebug ~restart) adapter.callback ; `Null
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* --- Exited & Terminated Events                                         --- *)
+(* -------------------------------------------------------------------------- *)
+
+let exited adapter code =
+  emit adapter "exited" @@ Json.assoc [ "exitCode" , `Int code ]
+
+let terminated adapter ?(restart=`Null) () =
+  emit adapter "terminated" @@ Json.assoc [ "restart" , restart ]
+
+(* -------------------------------------------------------------------------- *)
+(* --- Terminate Request                                                  --- *)
+(* -------------------------------------------------------------------------- *)
+
+let on_terminate fn =
+  register_capability "supportsTerminateRequest" () ;
+  register "terminate"
+    begin fun adapter args ->
+      let restart = Json.jfield "restart" args |> Json.jbool in
+      Queue.push (fun () -> fn ~restart) adapter.callback ; `Null
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* --- Disconnect Request                                                 --- *)
+(* -------------------------------------------------------------------------- *)
+
+type disconnect = Disconnect of { restart : bool ; terminate : bool ; suspend : bool }
+let disconnect = ref ignore
+let on_disconnect ?(terminate=false) ?(suspend=false) fn =
+  if terminate then register_capability "supportTerminateDebuggee" () ;
+  if suspend then register_capability "supportSuspendDebuggee" () ;
+  disconnect := fn
+
+let () = register "disconnect"
+    begin fun adapter args ->
+      let restart = Json.jfield "restart" args |> Json.jbool in
+      let terminate = Json.jfield "terminateDebuggee" args |> Json.jbool in
+      let suspend = Json.jfield "suspendDebuggee" args |> Json.jbool in
+      Queue.push
+        (fun () -> !disconnect @@ Disconnect { restart ; terminate ; suspend })
+        adapter.callback ; `Null
     end
 
 (* -------------------------------------------------------------------------- *)
