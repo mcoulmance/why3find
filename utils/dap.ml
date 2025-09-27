@@ -6,6 +6,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
+let nop _ _ = ()
+
 (* -------------------------------------------------------------------------- *)
 (* --- Debug Adapter Base Protocol                                        --- *)
 (* -------------------------------------------------------------------------- *)
@@ -293,7 +295,7 @@ let on_terminate fn =
 (* -------------------------------------------------------------------------- *)
 
 type disconnect = Disconnect of { restart : bool ; terminate : bool ; suspend : bool }
-let disconnect = ref (fun _ _ -> ())
+let disconnect = ref nop
 let on_disconnect ?(terminate=false) ?(suspend=false) fn =
   if terminate then register_capability "supportTerminateDebuggee" () ;
   if suspend then register_capability "supportSuspendDebuggee" () ;
@@ -308,6 +310,95 @@ let () = register "disconnect"
       Queue.push
         (fun s -> !disconnect s @@ Disconnect { restart ; terminate ; suspend })
         adapter.callback ; `Null
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Threads                                                           --- *)
+(* -------------------------------------------------------------------------- *)
+
+type thread = Thread of {
+    id : int ;
+    name : string ;
+    mutable paused : bool ;
+  }
+
+let threads = Hashtbl.create 0
+let threadk = ref 0
+
+let updated adapter ?(reason="updated") (Thread th) =
+  emit adapter "thread" @@ Json.assoc [
+    "reason", `String reason ;
+    "threadId" , `Int th.id ;
+  ]
+
+let kill adapter (Thread { id } as th) =
+  Hashtbl.remove threads id ; updated adapter ~reason:"exited" th
+
+  let thread adapter ~name ?(paused=false) () =
+  let id = incr threadk ; !threadk in
+  let th = Thread { id ; name ; paused }
+  in Hashtbl.add threads id th ; updated adapter ~reason:"started" th ; th
+
+let pause = function Thread th -> th.paused <- true
+let resume = function Thread th -> th.paused <- false
+
+type reason = [ `step | `breakpoint | `error | `pause | `entry ]
+
+let stopped adapter ~(reason : reason) ?description ?text ?thread ?(all=false) ?preserveFocus () =
+  let reason =
+    match reason with
+    | `entry -> "entry"
+    | `step -> "step"
+    | `error -> "exception"
+    | `pause -> "pause"
+    | `breakpoint -> "breakpoint" in
+  let threadId =
+    match thread with
+    | None -> `Null
+    | Some (Thread th) -> th.paused <- true ; `Int th.id in
+  if all then
+    begin
+      Hashtbl.iter (fun _ th -> pause th) threads ;
+    end ;
+  emit adapter "stopped" @@ Json.assoc [
+    "reason" , `String reason ;
+    "description" , Json.option_map Json.string description ;
+    "text" , Json.option_map Json.string text ;
+    "threadId" , threadId ;
+    "allThreadsStopped" , if all then `Bool true else `Null ;
+    "preserveFocusHint" , Json.option_map Json.bool preserveFocus ;
+  ]
+
+let paused = ref nop
+let continued = ref (fun _ ~single _ -> ignore single)
+let singleThreadSupport = ref false
+let on_pause fn = paused := fn
+let on_continue ?(single=false) fn =
+  if single then
+    begin
+      singleThreadSupport := true ;
+      register_capability "supportsSingleThreadExecutionRequests" () ;
+    end ;
+  continued := fn
+
+let () = register "pause"
+    begin fun adapter args ->
+      let threadId = Json.jfield "threadId" args |> Json.jint in
+      Option.iter
+        (fun th -> Queue.push (fun s -> !paused s th) adapter.callback)
+        (Hashtbl.find_opt threads threadId) ;
+      `Null
+    end
+
+let () = register "continue"
+    begin fun adapter args ->
+      let threadId = Json.jfield "threadId" args |> Json.jint in
+      let single = Json.jfield "sinleThread" args |> Json.jbool in
+      Option.iter
+        (fun th -> Queue.push (fun s -> !continued s ~single th) adapter.callback)
+        (Hashtbl.find_opt threads threadId) ;
+      if not !singleThreadSupport || not single then `Null else
+        Json.assoc [ "allThreadsContinued", `Bool (not single) ]
     end
 
 (* -------------------------------------------------------------------------- *)

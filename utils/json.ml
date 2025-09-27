@@ -123,6 +123,7 @@ let is_empty = function
 let is_nonnull = function `Null -> false | _ -> true
 
 let int n  = `Int n
+let bool b = `Bool b
 let string s = `String s
 
 let assoc ?(keepnull=false) fts =

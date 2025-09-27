@@ -88,3 +88,28 @@ val on_terminate : (adapter -> restart:bool -> unit) -> unit
 type disconnect = Disconnect of { restart : bool ; terminate : bool ; suspend : bool }
 (** Disconnect request callback. Use the options to register the associated capabilities. *)
 val on_disconnect : ?terminate:bool -> ?suspend:bool -> (adapter -> disconnect -> unit) -> unit
+
+(** {2 Debuggee State} *)
+
+type thread = private Thread of { id : int ; name : string ; mutable paused : bool }
+
+val updated : adapter -> ?reason:string -> thread -> unit
+val thread : adapter -> name:string -> ?paused:bool -> unit -> thread
+val kill : adapter -> thread -> unit
+
+val pause : thread -> unit
+val resume : thread -> unit
+
+type reason = [ `step | `breakpoint | `error | `pause | `entry ]
+
+(** Emit a stopped event.
+    If ``~thread` is set, pause this thread.
+    If `~all:true` is set, pause all threads. *)
+val stopped : adapter -> reason:reason ->
+  ?description:string -> ?text:string ->
+  ?thread:thread -> ?all:bool ->
+  ?preserveFocus:bool ->
+  unit -> unit
+
+val on_pause : (adapter -> thread -> unit) -> unit
+val on_continue : ?single:bool -> (adapter -> single:bool -> thread -> unit) -> unit

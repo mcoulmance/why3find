@@ -60,6 +60,7 @@ val jmem : string -> t -> bool
 val jiter : (string -> t -> unit) -> t -> unit
 
 val int : int -> t
+val bool : bool -> t
 val string : string -> t
 val assoc : ?keepnull:bool -> (string * t) list -> t
 val list : ?keepnull:bool -> t list -> t

@@ -40,6 +40,8 @@ val addi : 'a buffer -> 'a -> int
     the newly added elements. *)
 val contents : 'a buffer -> 'a t
 
+val deferred : 'a t Lazy.t -> 'a t
+
 (** Low-level constructor *)
 val make : length:int Lazy.t -> value:(int -> 'a) -> 'a t
 

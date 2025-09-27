@@ -39,6 +39,11 @@ let add buf e = ignore @@ addi buf e
 let contents buf = let n = Hashtbl.length buf in
   { length = lazy n ; value = Hashtbl.find buf }
 
+let deferred collection =
+  let length = lazy (Lazy.force (Lazy.force collection).length) in
+  let value k = (Lazy.force collection).value k in
+  { length ; value }
+
 let make ~length ~value = { length ; value }
 let cache ~length ~value =
   let h = Hashtbl.create 0 in
