@@ -92,6 +92,7 @@ val on_disconnect : ?terminate:bool -> ?suspend:bool -> (adapter -> disconnect -
 (** {2 Debuggee State} *)
 
 type reason = [ `step | `breakpoint | `error | `pause | `entry ]
+type resume = [ `continue | `next | `step_in | `step_out ]
 
 val set_single_thread_support : unit -> unit
 
@@ -111,5 +112,5 @@ class virtual thread :
       unit -> unit
 
     method virtual on_paused : unit
-    method virtual on_continued : unit
+    method virtual on_resumed : resume -> unit
   end

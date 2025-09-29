@@ -323,13 +323,14 @@ let updated adapter ?(reason="updated") th =
   ]
 
 type reason = [ `step | `breakpoint | `error | `pause | `entry ]
+type resume = [ `continue | `next | `step_in | `step_out ]
 
 class type threadable =
   object
     method id : int
     method name : string
     method on_paused : unit
-    method on_continued : unit
+    method on_resumed : resume -> unit
   end
 
 let threads : (int,threadable) Hashtbl.t = Hashtbl.create 0
@@ -373,7 +374,7 @@ class virtual thread adapter ~name =
         "preserveFocusHint" , Json.option_map Json.bool preserveFocus ;
       ]
     method virtual on_paused : unit
-    method virtual on_continued : unit
+    method virtual on_resumed : resume -> unit
   end
 
 let () = register "pause"
@@ -385,16 +386,19 @@ let () = register "pause"
       `Null
     end
 
-let () = register "continue"
-    begin fun adapter args ->
-      let threadId = Json.jfield "threadId" args |> Json.jint in
-      let single = Json.jfield "sinleThread" args |> Json.jbool in
-      Option.iter
-        (fun th -> Queue.push (fun _ -> th#on_continued) adapter.callback)
-        (Hashtbl.find_opt threads threadId) ;
-      if not !singleThreadSupport || not single then `Null else
-        Json.assoc [ "allThreadsContinued", `Bool (not single) ]
-    end
+let resumed mode adapter args =
+  let threadId = Json.jfield "threadId" args |> Json.jint in
+  let single = Json.jfield "sinleThread" args |> Json.jbool in
+  Option.iter
+    (fun th -> Queue.push (fun _ -> th#on_resumed mode) adapter.callback)
+    (Hashtbl.find_opt threads threadId) ;
+  if not !singleThreadSupport || not single then `Null else
+    Json.assoc [ "allThreadsContinued", `Bool (not single) ]
+
+let () = register "next" (resumed `next)
+let () = register "stepIn" (resumed `step_in)
+let () = register "stepOut" (resumed `step_out)
+let () = register "continue" (resumed `continue)
 
 let () = register "threads"
     begin fun _adapter _args ->
