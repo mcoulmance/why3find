@@ -32,18 +32,14 @@ val add : 'a buffer -> 'a -> unit
 (** Returns the index of the added element. *)
 val addi : 'a buffer -> 'a -> int
 
-(** Returns all the elements added to the buffer {i so far}.
-
-    The buffer can still receive new elements, but this returned
-    collection only contains the already added elements.
-    Later call to [contents] will return a collection that {i also} contains
-    the newly added elements. *)
+(** Returns all the elements added to the buffer {i so far}. *)
 val contents : 'a buffer -> 'a t
 
-val deferred : 'a t Lazy.t -> 'a t
+(** Build the collection from a sequence. *)
+val sequence : ?overhead:int -> 'a Seq.t -> 'a t
 
 (** Low-level constructor *)
-val make : length:int Lazy.t -> value:(int -> 'a) -> 'a t
+val make : length:(unit -> int) -> value:(int -> 'a) -> 'a t
 
 (** Low-level constructor, with cache *)
-val cache : length:int Lazy.t -> value:(int -> 'a) -> 'a t
+val cache : length:(unit -> int) -> value:(int -> 'a) -> 'a t
