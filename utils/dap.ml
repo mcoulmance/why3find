@@ -316,76 +316,71 @@ let () = register "disconnect"
 (* ---  Threads                                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-type thread = Thread of {
-    id : int ;
-    name : string ;
-    mutable paused : bool ;
-  }
-
-let threads = Hashtbl.create 0
-let threadk = ref 0
-
-let updated adapter ?(reason="updated") (Thread th) =
+let updated adapter ?(reason="updated") th =
   emit adapter "thread" @@ Json.assoc [
     "reason", `String reason ;
-    "threadId" , `Int th.id ;
+    "threadId" , `Int th ;
   ]
-
-let kill adapter (Thread { id } as th) =
-  Hashtbl.remove threads id ; updated adapter ~reason:"exited" th
-
-  let thread adapter ~name ?(paused=false) () =
-  let id = incr threadk ; !threadk in
-  let th = Thread { id ; name ; paused }
-  in Hashtbl.add threads id th ; updated adapter ~reason:"started" th ; th
-
-let pause = function Thread th -> th.paused <- true
-let resume = function Thread th -> th.paused <- false
 
 type reason = [ `step | `breakpoint | `error | `pause | `entry ]
 
-let stopped adapter ~(reason : reason) ?description ?text ?thread ?(all=false) ?preserveFocus () =
-  let reason =
-    match reason with
-    | `entry -> "entry"
-    | `step -> "step"
-    | `error -> "exception"
-    | `pause -> "pause"
-    | `breakpoint -> "breakpoint" in
-  let threadId =
-    match thread with
-    | None -> `Null
-    | Some (Thread th) -> th.paused <- true ; `Int th.id in
-  if all then
-    begin
-      Hashtbl.iter (fun _ th -> pause th) threads ;
-    end ;
-  emit adapter "stopped" @@ Json.assoc [
-    "reason" , `String reason ;
-    "description" , Json.option_map Json.string description ;
-    "text" , Json.option_map Json.string text ;
-    "threadId" , threadId ;
-    "allThreadsStopped" , if all then `Bool true else `Null ;
-    "preserveFocusHint" , Json.option_map Json.bool preserveFocus ;
-  ]
+class type threadable =
+  object
+    method id : int
+    method name : string
+    method on_paused : unit
+    method on_continued : unit
+  end
 
-let paused = ref nop
-let continued = ref (fun _ ~single _ -> ignore single)
+let threads : (int,threadable) Hashtbl.t = Hashtbl.create 0
+let threadk = ref 0
 let singleThreadSupport = ref false
-let on_pause fn = paused := fn
-let on_continue ?(single=false) fn =
-  if single then
-    begin
-      singleThreadSupport := true ;
-      register_capability "supportsSingleThreadExecutionRequests" () ;
-    end ;
-  continued := fn
+
+let set_single_thread_support () =
+  begin
+    singleThreadSupport := true ;
+    register_capability "supportsSingleThreadExecutionRequests" () ;
+  end
+
+class virtual thread adapter ~name =
+  let id = incr threadk ; !threadk in
+  object(self)
+    initializer
+      begin
+        Hashtbl.add threads id (self :> threadable) ;
+        updated adapter ~reason:"started" id ;
+      end
+    method id = id
+    method name = name
+    method updated = updated adapter id
+    method terminated = updated adapter ~reason:"exited" id
+    method stopped ~(reason : reason) ?description ?text ?(all=false) ?preserveFocus () =
+      if not all && not !singleThreadSupport then
+        raise (Invalid_argument "no single thread support") ;
+      let reason = match reason with
+        | `entry -> "entry"
+        | `step -> "step"
+        | `error -> "error"
+        | `pause -> "pause"
+        | `breakpoint -> "exception"
+      in
+      emit adapter "stopped" @@ Json.assoc [
+        "reason" , `String reason ;
+        "description" , Json.option_map Json.string description ;
+        "text" , Json.option_map Json.string text ;
+        "threadId" , `Int id ;
+        "allThreadsStopped" , if all then `Bool true else `Null ;
+        "preserveFocusHint" , Json.option_map Json.bool preserveFocus ;
+      ]
+    method virtual on_paused : unit
+    method virtual on_continued : unit
+  end
 
 let () = register "pause"
     begin fun adapter args ->
       let threadId = Json.jfield "threadId" args |> Json.jint in
       Option.iter
-        (fun th -> Queue.push (fun s -> !paused s th) adapter.callback)
+        (fun th -> Queue.push (fun _ -> th#on_paused) adapter.callback)
         (Hashtbl.find_opt threads threadId) ;
       `Null
     end
@@ -395,10 +390,22 @@ let () = register "continue"
       let threadId = Json.jfield "threadId" args |> Json.jint in
       let single = Json.jfield "sinleThread" args |> Json.jbool in
       Option.iter
-        (fun th -> Queue.push (fun s -> !continued s ~single th) adapter.callback)
+        (fun th -> Queue.push (fun _ -> th#on_continued) adapter.callback)
         (Hashtbl.find_opt threads threadId) ;
       if not !singleThreadSupport || not single then `Null else
         Json.assoc [ "allThreadsContinued", `Bool (not single) ]
+    end
+
+let () = register "threads"
+    begin fun _adapter _args ->
+      let pool = ref [] in
+      Hashtbl.iter (fun _ th -> pool := th :: !pool) threads ;
+      let byId a b = Int.compare a#id b#id in
+      let jthread th = Json.assoc [
+          "id" , `Int th#id ;
+          "name", `String th#name ;
+        ] in
+      Json.assoc [ "treads" , `List (List.map jthread @@ List.sort byId !pool)]
     end
 
 (* -------------------------------------------------------------------------- *)
