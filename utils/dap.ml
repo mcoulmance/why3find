@@ -177,8 +177,10 @@ let schedule adapter fn = Queue.add fn adapter.callback
 (* -------------------------------------------------------------------------- *)
 
 let pathFormat : [ `Path | `Uri ] ref = ref `Path
-let colStart = ref 1
-let lineStart = ref 1
+let clientColStart = ref 1
+let clientLineStart = ref 1
+let serverColStart = ref 1
+let serverLineStart = ref 1
 let supportedProgress = ref false
 
 let setPathFormat = function
@@ -186,19 +188,24 @@ let setPathFormat = function
   | `String "uri" -> pathFormat := `Uri
   | fmt -> Log.error "Unknown path format (%a)" Json.pretty fmt
 
-let setColStart = function `Bool false -> colStart := 0 | _ -> ()
-let setLineStart = function `Bool false -> lineStart := 0 | _ -> ()
+let set_line_start n = serverLineStart := n
+let set_column_start n = serverColStart := n
+
+let setColStartAt1 = function `Bool false -> clientColStart := 0 | _ -> clientColStart := 1
+let setLineStartAt1 = function `Bool false -> clientLineStart := 0 | _ -> clientLineStart := 1
 let setb r = function `Bool b -> r := b | _ -> ()
 
-let of_line ~start js = (Json.jint js) - start + !lineStart
-let to_line ~start ln : Json.t = `Int (ln - !lineStart + start)
+let of_line js = (Json.jint js) - !clientLineStart + !serverLineStart
+let to_line ln : Json.t =
+  if ln < 0 then `Null else `Int (ln - !serverLineStart + !clientLineStart)
 
-let of_column ~start js = (Json.jint js) - start + !colStart
-let to_column ~start col : Json.t = `Int (col - !colStart + start)
+let of_column js = (Json.jint js) - !clientColStart + !serverColStart
+let to_column col : Json.t =
+  if col < 0 then `Null else `Int (col - !serverColStart + !serverColStart)
 
 let uri_prefix = "file://"
 
-let of_path js =
+let of_source js =
   let path = Json.jstring js in
   match !pathFormat with
   | `Path -> path
@@ -210,7 +217,7 @@ let of_path js =
     else
       raise (Invalid_argument "Dap.of_path")
 
-let to_path path : Json.t =
+let to_source path : Json.t =
   `String
     begin match !pathFormat with
       | `Path -> path
@@ -237,8 +244,8 @@ let () = register "initialize"
       let clientName = Json.jfield "clientName" args |> Json.jstring in
       Log.message "Connected to client (%s)" clientName ;
       Json.jfield "pathFormat" args |> setPathFormat ;
-      Json.jfield "linesStartAt1" args |> setLineStart ;
-      Json.jfield "columnsStartAt1" args |> setColStart ;
+      Json.jfield "linesStartAt1" args |> setLineStartAt1 ;
+      Json.jfield "columnsStartAt1" args |> setColStartAt1 ;
       Json.jfield "supportsANSIStyling" args |> setb ansi_styling ;
       Json.jfield "supportsProgressReporting" args |> setb supportedProgress ;
       let pool = ref [] in
@@ -313,19 +320,53 @@ let () = register "disconnect"
     end
 
 (* -------------------------------------------------------------------------- *)
-(* ---  Threads                                                           --- *)
+(* ---  Locations                                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
-let updated adapter ?(reason="updated") th =
-  emit adapter "thread" @@ Json.assoc [
-    "reason", `String reason ;
-    "threadId" , `Int th ;
-  ]
+let none : int = (-1)
+
+type location = Loc of {
+  source : string ;
+  line : int ;
+  column : int ;
+  end_line : int ;
+  end_column : int ;
+}
+
+let locrefs : (location, int) Hashtbl.t = Hashtbl.create 0
+let locations : (int, location) Hashtbl.t = Hashtbl.create 0
+
+let loc ~source ?(line=none) ?(column=none) ?(end_line=none) ?(end_column=none) () =
+  Loc { source ; line ; column ; end_line ; end_column }
+
+let locref (loc : location) : int =
+  try Hashtbl.find locrefs loc with Not_found ->
+    let r = Hashtbl.length locrefs in
+    Hashtbl.add locrefs loc r ;
+    Hashtbl.add locations r loc ; r
+[@@ warning "-32"]
+
+let () = register "locations"
+    begin fun _adapter args ->
+      let r = Json.jfield "locationReference" args |> Json.jint in
+      let Loc l = Hashtbl.find locations r in
+      Json.assoc [
+        "source" , to_source l.source ;
+        "line" , to_line l.line ;
+        "column" , to_column l.column ;
+        "endLine" , to_column l.end_line ;
+        "endColumn" , to_column l.end_column ;
+      ]
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  State Datatypes                                                   --- *)
+(* -------------------------------------------------------------------------- *)
 
 type reason = [ `step | `breakpoint | `error | `pause | `entry ]
 type resume = [ `continue | `next | `step_in | `step_out ]
 
-class type threadable =
+class type thread_t =
   object
     method id : int
     method name : string
@@ -333,9 +374,18 @@ class type threadable =
     method on_resumed : resume -> unit
   end
 
-let threads : (int,threadable) Hashtbl.t = Hashtbl.create 0
-let threadk = ref 0
+(* -------------------------------------------------------------------------- *)
+(* ---  Threads                                                           --- *)
+(* -------------------------------------------------------------------------- *)
+
+let threads : (int,thread_t) Hashtbl.t = Hashtbl.create 0
 let singleThreadSupport = ref false
+
+let updated adapter ?(reason="updated") th =
+  emit adapter "thread" @@ Json.assoc [
+    "reason", `String reason ;
+    "threadId" , `Int th ;
+  ]
 
 let set_single_thread_support () =
   begin
@@ -344,17 +394,17 @@ let set_single_thread_support () =
   end
 
 class virtual thread adapter ~name =
-  let id = incr threadk ; !threadk in
   object(self)
     initializer
       begin
-        Hashtbl.add threads id (self :> threadable) ;
-        updated adapter ~reason:"started" id ;
+        Hashtbl.add threads (Oo.id self) (self :> thread_t) ;
+        updated adapter ~reason:"started" (Oo.id self) ;
       end
-    method id = id
+    method id = Oo.id self
     method name = name
-    method updated = updated adapter id
-    method terminated = updated adapter ~reason:"exited" id
+    method updated = updated adapter (Oo.id self)
+    method terminated = updated adapter ~reason:"exited" (Oo.id self)
+
     method stopped ~(reason : reason) ?description ?text ?(all=false) ?preserveFocus () =
       if not all && not !singleThreadSupport then
         raise (Invalid_argument "no single thread support") ;
@@ -369,10 +419,11 @@ class virtual thread adapter ~name =
         "reason" , `String reason ;
         "description" , Json.option_map Json.string description ;
         "text" , Json.option_map Json.string text ;
-        "threadId" , `Int id ;
+        "threadId" , `Int (Oo.id self) ;
         "allThreadsStopped" , if all then `Bool true else `Null ;
         "preserveFocusHint" , Json.option_map Json.bool preserveFocus ;
       ]
+
     method virtual on_paused : unit
     method virtual on_resumed : resume -> unit
   end

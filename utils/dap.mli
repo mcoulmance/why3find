@@ -48,12 +48,15 @@ val schedule: adapter -> (adapter -> unit) -> unit
 
 (** Conversions from/to Json with respect to server capabilities *)
 
-val of_line : start:int -> Json.t -> int
-val to_line : start:int -> int -> Json.t
-val of_column : start:int -> Json.t -> int
-val to_column : start:int -> int -> Json.t
-val of_path : Json.t -> string
-val to_path : string -> Json.t
+val set_line_start : int -> unit
+val set_column_start : int -> unit
+
+val of_line : Json.t -> int
+val to_line : int -> Json.t
+val of_column : Json.t -> int
+val to_column : int -> Json.t
+val of_source : Json.t -> string
+val to_source : string -> Json.t
 
 (** Register adapter capbility. Default value `true`. *)
 val register_capability : string -> ?value:Json.t -> unit -> unit
@@ -90,6 +93,12 @@ type disconnect = Disconnect of { restart : bool ; terminate : bool ; suspend : 
 val on_disconnect : ?terminate:bool -> ?suspend:bool -> (adapter -> disconnect -> unit) -> unit
 
 (** {2 Debuggee State} *)
+
+type location
+val loc : source:string ->
+  ?line:int -> ?column:int ->
+  ?end_line:int -> ?end_column:int ->
+  unit -> location
 
 type reason = [ `step | `breakpoint | `error | `pause | `entry ]
 type resume = [ `continue | `next | `step_in | `step_out ]
