@@ -46,18 +46,6 @@ val yield: adapter -> unit
 (** Schedule a callback to be executed during subsequent calls to `process` or `yield`. *)
 val schedule: adapter -> (adapter -> unit) -> unit
 
-(** Conversions from/to Json with respect to server capabilities *)
-
-val set_line_start : int -> unit
-val set_column_start : int -> unit
-
-val of_line : Json.t -> int
-val to_line : int -> Json.t
-val of_column : Json.t -> int
-val to_column : int -> Json.t
-val of_source : Json.t -> string
-val to_source : string -> Json.t
-
 (** Register adapter capbility. Default value `true`. *)
 val register_capability : string -> ?value:Json.t -> unit -> unit
 
@@ -92,13 +80,67 @@ type disconnect = Disconnect of { restart : bool ; terminate : bool ; suspend : 
 (** Disconnect request callback. Use the options to register the associated capabilities. *)
 val on_disconnect : ?terminate:bool -> ?suspend:bool -> (adapter -> disconnect -> unit) -> unit
 
-(** {2 Debuggee State} *)
+(** {2 Locations} *)
+
+val set_line_start : int -> unit
+val set_column_start : int -> unit
+
+val of_line : Json.t -> int
+val to_line : int -> Json.t
+val of_column : Json.t -> int
+val to_column : int -> Json.t
+val of_source : Json.t -> string
+val to_source : string -> Json.t
 
 type location
-val loc : source:string ->
+val loc :
+  ?source:string ->
   ?line:int -> ?column:int ->
   ?end_line:int -> ?end_column:int ->
   unit -> location
+
+(** {2 Variables} *)
+
+type variable
+val variable :
+  name:string ->
+  ?value:string ->
+  ?vtype:string ->
+  ?kind:string ->
+  ?attributes:string list ->
+  ?visiblity:string ->
+  ?index:variable Darray.t ->
+  ?named:variable Darray.t ->
+  ?decl:location ->
+  ?vdecl:location ->
+  unit -> variable
+
+(** {2 Scopes} *)
+
+type scope
+val scope :
+  name:string ->
+  ?kind:string ->
+  ?index:variable Darray.t ->
+  ?named:variable Darray.t ->
+  ?expensive:bool ->
+  ?range:location ->
+  unit -> scope
+
+(** {2 Stack Frames} *)
+
+val setRestartableFrames : unit -> unit
+
+type frame
+val label : name:string -> frame
+val frame :
+  name:string ->
+  ?range:location ->
+  ?restart:(adapter -> unit) ->
+  ?scopes:scope list ->
+  unit -> frame
+
+(** {2 Threads} *)
 
 type reason = [ `step | `breakpoint | `error | `pause | `entry ]
 type resume = [ `continue | `next | `step_in | `step_out ]
@@ -122,4 +164,5 @@ class virtual thread :
 
     method virtual on_paused : unit
     method virtual on_resumed : resume -> unit
+    method virtual frames : frame Darray.t
   end

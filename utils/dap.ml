@@ -218,11 +218,12 @@ let of_source js =
       raise (Invalid_argument "Dap.of_path")
 
 let to_source path : Json.t =
-  `String
-    begin match !pathFormat with
-      | `Path -> path
-      | `Uri -> uri_prefix ^ path
-    end
+  if path = "" then `Null else
+    `String
+      begin match !pathFormat with
+        | `Path -> path
+        | `Uri -> uri_prefix ^ path
+      end
 
 (* -------------------------------------------------------------------------- *)
 (* --- Server Capabilities                                                --- *)
@@ -326,25 +327,26 @@ let () = register "disconnect"
 let none : int = (-1)
 
 type location = Loc of {
-  source : string ;
-  line : int ;
-  column : int ;
-  end_line : int ;
-  end_column : int ;
-}
+    source : string ;
+    line : int ;
+    column : int ;
+    end_line : int ;
+    end_column : int ;
+  }
 
 let locrefs : (location, int) Hashtbl.t = Hashtbl.create 0
 let locations : (int, location) Hashtbl.t = Hashtbl.create 0
 
-let loc ~source ?(line=none) ?(column=none) ?(end_line=none) ?(end_column=none) () =
+let loc ?(source="") ?(line=none) ?(column=none) ?(end_line=none) ?(end_column=none) () =
   Loc { source ; line ; column ; end_line ; end_column }
+
+let empty = loc ()
 
 let locref (loc : location) : int =
   try Hashtbl.find locrefs loc with Not_found ->
     let r = Hashtbl.length locrefs in
     Hashtbl.add locrefs loc r ;
     Hashtbl.add locations r loc ; r
-[@@ warning "-32"]
 
 let () = register "locations"
     begin fun _adapter args ->
@@ -360,7 +362,189 @@ let () = register "locations"
     end
 
 (* -------------------------------------------------------------------------- *)
-(* ---  State Datatypes                                                   --- *)
+(* ---  Variables                                                         --- *)
+(* -------------------------------------------------------------------------- *)
+
+type variable = Var of {
+    name : string ;
+    value : string ;
+    vtype : string ;
+    kind : string ;
+    attributes : string list ;
+    visiblity : string ;
+    contents : variables ;
+    decl : location option ;
+    vdecl : location option ;
+  }
+
+and variables =
+  | Vempty
+  | Vars of {
+      index : variable Darray.t ;
+      named : variable Darray.t ;
+    }
+
+let vrefs = Hashtbl.create 0
+
+let vref = function
+  | Vempty -> 0,0,0
+  | Vars { index ; named } ->
+    let r = Hashtbl.length vrefs + 1 in
+    Hashtbl.add vrefs r (index,named) ;
+    r, Darray.length index, Darray.length named
+
+let vempty = function None -> Darray.empty | Some vs -> vs
+
+let variables index named =
+  match index , named with
+  | None , None -> Vempty
+  | _ -> Vars { index = vempty index ; named = vempty named }
+
+let variable ~name
+    ?(value = "") ?(vtype = "") ?(kind = "") ?(attributes=[]) ?(visiblity="")
+    ?index ?named ?decl ?vdecl () =
+  let contents = variables index named in
+  Var { name ; value ; vtype ; kind ; attributes ; visiblity ; contents ; decl ; vdecl }
+
+let js_int_opt = function 0 -> `Null | n -> `Int n
+let js_string_opt = function "" -> `Null | s -> `String s
+let js_locref = function None -> `Null | Some loc -> `Int (locref loc)
+
+let js_variable (Var v) : Json.t =
+  let vref,indexed,named = vref v.contents in
+  Json.assoc [
+    "name" , `String v.name ;
+    "value" , `String v.value ;
+    "type" , js_string_opt v.vtype ;
+    "presentationHint" , Json.assoc ~nullempty:true [
+      "kind" , js_string_opt v.kind ;
+      "attributes" , Json.list_map ~nullempty:true js_string_opt v.attributes ;
+      "visibility" , js_string_opt v.visiblity ;
+    ] ;
+    "variablesReference" , `Int vref ;
+    "indexedVariables" , js_int_opt indexed ;
+    "namedVariables" , js_int_opt named ;
+    "declarationLocationReference" , js_locref v.decl ;
+    "valueLocationReference" , js_locref v.vdecl ;
+  ]
+
+let () = register_capability "supportsVariablePaging" ()
+let () = register "variables"
+    begin fun _adapter args ->
+      let vref = Json.jfield "variablesReference" args |> Json.jint in
+      let filter = Json.jfield "filter" args |> Json.jstring in
+      let start = Json.jfield "start" args |> Json.jint in
+      let count = Json.jfield "count" args |> Json.jdefault max_int Json.jint in
+      let varray =
+        try
+          let (index,named) = Hashtbl.find vrefs vref in
+          match filter with
+          | "named" -> named
+          | "indexed" -> index
+          | _ -> Darray.concat named index
+        with Not_found -> Darray.empty in
+      let last = min (start + count) (Darray.length varray) - 1 in
+      let pool = ref [] in
+      for k = last downto start do
+        pool := (js_variable @@ Darray.get varray k) :: !pool
+      done ;
+      Json.assoc [ "variables" , `List !pool ] ;
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Scopes                                                            --- *)
+(* -------------------------------------------------------------------------- *)
+
+type scope = Scope of {
+    name: string ;
+    kind: string ;
+    variables: variables ;
+    expensive: bool ;
+    range: location ;
+  }
+
+let scope ~name ?(kind="") ?index ?named ?(expensive=true) ?(range=empty) () =
+  Scope { name ; kind; variables = variables index named ; expensive ; range }
+
+let js_scope (Scope s) =
+  let vref, indexed, named = vref s.variables in
+  let Loc r = s.range in
+  Json.assoc [
+    "name" , `String s.name ;
+    "presentationHint" , js_string_opt s.kind ;
+    "variablesReference" , `Int vref ;
+    "indexedVariables" , js_int_opt indexed ;
+    "namedVariables" , js_int_opt named ;
+    "expensive" , `Bool s.expensive ;
+    "source" , to_source r.source ;
+    "line" , to_line r.line ;
+    "column" , to_column r.column ;
+    "endLine" , to_column r.end_line ;
+    "endColumn" , to_column r.end_column ;
+  ]
+
+let scopes : (int,scope list) Hashtbl.t = Hashtbl.create 0
+let () = register "scopes"
+    begin fun _adapter args ->
+      let id = Json.jfield "frameId" args |> Json.jint in
+      let ds = try Hashtbl.find scopes id with Not_found -> [] in
+      Json.assoc [ "scopes" , Json.list_map js_scope ds ]
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Frames                                                            --- *)
+(* -------------------------------------------------------------------------- *)
+
+type frame =
+  | Label of string
+  | Frame of {
+      name : string ;
+      range : location ;
+      restart : (adapter -> unit) option ;
+      scopes : scope list ;
+    }
+
+let restart = Hashtbl.create 0
+let restartableFrames = ref false
+let setRestartableFrames ()  =
+  begin
+    restartableFrames := true ;
+    register_capability "supportsRestartFrame" () ;
+  end
+
+let label ~name = Label name
+let frame ~name ?(range=empty) ?restart ?(scopes=[]) () =
+  if not (!restartableFrames || restart = None) then
+    raise (Invalid_argument "Dap.restartableFrames") ;
+  Frame { name ; range ; restart ; scopes }
+
+let js_frame (fr : frame) =
+  let id = Hashtbl.length scopes in
+  match fr with
+  | Label name ->
+    Hashtbl.add scopes id [] ;
+    Json.assoc [
+      "id" , `Int id ;
+      "name" , `String name ;
+      "presentationHint" , `String "label" ;
+    ]
+  | Frame fr ->
+    Hashtbl.add scopes id fr.scopes ;
+    Option.iter (Hashtbl.add restart id) fr.restart ;
+    let Loc r = fr.range in
+    Json.assoc [
+      "id" , `Int id ;
+      "name" , `String fr.name ;
+      "source" , to_source r.source ;
+      "line" , to_line r.line ;
+      "column" , to_column r.column ;
+      "endLine" , to_column r.end_line ;
+      "endColumn" , to_column r.end_column ;
+      "canRestart" , `Bool (fr.restart <> None) ;
+    ]
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Threads                                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
 type reason = [ `step | `breakpoint | `error | `pause | `entry ]
@@ -372,14 +556,20 @@ class type thread_t =
     method name : string
     method on_paused : unit
     method on_resumed : resume -> unit
+    method frames : frame Darray.t
   end
 
-(* -------------------------------------------------------------------------- *)
-(* ---  Threads                                                           --- *)
-(* -------------------------------------------------------------------------- *)
-
 let threads : (int,thread_t) Hashtbl.t = Hashtbl.create 0
+let stacks : (int,frame Darray.t) Hashtbl.t = Hashtbl.create 0
 let singleThreadSupport = ref false
+
+let clear () =
+  begin
+    Hashtbl.clear vrefs ;
+    Hashtbl.clear scopes ;
+    Hashtbl.clear stacks ;
+    Hashtbl.clear restart ;
+  end
 
 let updated adapter ?(reason="updated") th =
   emit adapter "thread" @@ Json.assoc [
@@ -415,6 +605,7 @@ class virtual thread adapter ~name =
         | `pause -> "pause"
         | `breakpoint -> "exception"
       in
+      clear () ;
       emit adapter "stopped" @@ Json.assoc [
         "reason" , `String reason ;
         "description" , Json.option_map Json.string description ;
@@ -426,6 +617,7 @@ class virtual thread adapter ~name =
 
     method virtual on_paused : unit
     method virtual on_resumed : resume -> unit
+    method virtual frames : frame Darray.t
   end
 
 let () = register "pause"
@@ -461,6 +653,27 @@ let () = register "threads"
           "name", `String th#name ;
         ] in
       Json.assoc [ "treads" , `List (List.map jthread @@ List.sort byId !pool)]
+    end
+
+let () = register "stackFrame"
+    begin fun _adapter args ->
+      let thId = Json.jfield "threadId" args |> Json.jint in
+      let start = Json.jfield "startFrame" args |> Json.jint in
+      let levels = Json.jfield "levels" args |> Json.jdefault max_int Json.jint in
+      let frames =
+        try Hashtbl.find stacks thId with Not_found ->
+          let fr = (Hashtbl.find threads thId)#frames in
+          Hashtbl.add stacks thId fr ; fr in
+      let total = Darray.length frames in
+      let last = min (start + levels) total - 1 in
+      let pool = ref [] in
+      for k = last downto start do
+        pool := js_frame (Darray.get frames k) :: !pool ;
+      done ;
+      Json.assoc [
+        "stackFrames", `List !pool ;
+        "totalFrames", `Int total ;
+      ]
     end
 
 (* -------------------------------------------------------------------------- *)
