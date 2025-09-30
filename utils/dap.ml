@@ -504,7 +504,7 @@ type frame =
       scopes : scope list ;
     }
 
-let restart = Hashtbl.create 0
+let restartframes = Hashtbl.create 0
 let restartableFrames = ref false
 let setRestartableFrames ()  =
   begin
@@ -513,7 +513,7 @@ let setRestartableFrames ()  =
     register "restartFrame"
       begin fun adapter args ->
         let id = Json.jfield "frameId" args |> Json.jint in
-        let callback = Hashtbl.find restart id in
+        let callback = Hashtbl.find restartframes id in
         Queue.add callback adapter.callback ; `Null
       end
   end
@@ -536,7 +536,7 @@ let js_frame (fr : frame) =
     ]
   | Frame fr ->
     Hashtbl.add scopes id fr.scopes ;
-    Option.iter (Hashtbl.add restart id) fr.restart ;
+    Option.iter (Hashtbl.add restartframes id) fr.restart ;
     let Loc r = fr.range in
     Json.assoc [
       "id" , `Int id ;
@@ -574,7 +574,7 @@ let clear () =
     Hashtbl.clear vrefs ;
     Hashtbl.clear scopes ;
     Hashtbl.clear stacks ;
-    Hashtbl.clear restart ;
+    Hashtbl.clear restartframes ;
   end
 
 let updated adapter ?(reason="updated") th =

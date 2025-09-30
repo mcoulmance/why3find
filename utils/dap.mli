@@ -114,6 +114,12 @@ val variable :
   ?decl:location ->
   ?vdecl:location ->
   unit -> variable
+(**
+   @param kind ["property"], ["method"], ["class"], ["data"], ["event"],
+   ["baseClass"], ["innerClass"], ["interface"], ["mostDerivedClass"], ["virtual"], etc.
+   @param attributes ["static"], ["constant"], ["readOnly"], ["rawString"], etc.
+   @param visibility ["public"], ["private"], ["protected"], ["internal"], ["final"], etc.
+*)
 
 (** {2 Scopes} *)
 
