@@ -10,7 +10,7 @@
 
 ### Bug Fixes
 
-- Fix treating a preprocessing tactic returning the goal unchanged as an error.
+- Allow preprocessing tactics to leave the goal unchanged
   (#141, !187)
 
 ### API
