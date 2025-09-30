@@ -124,26 +124,28 @@ let result (Goal { session ; node }) prv limits result =
   end ;
   S.update_goal_node silent session node
 
-let apply env tactic (Goal { session ; node ; idename }) =
-  begin
-    try
-      let allow_no_effect = false in
-      let tr = Tactic.name tactic in
-      let ts = S.apply_trans_to_goal session env ~allow_no_effect tr [] node in
-      List.iter
-        (S.remove_transformation session)
-        (S.get_transformations session node) ;
-      let tid = S.graft_transf session node tr [] ts in
-      let nodes = S.get_sub_tasks session tid in
-      if ts = [] then S.update_trans_node silent session tid ;
-      let child i node =
-        let task = S.get_task session node in
-        let idename = Printf.sprintf "%s.%d" idename i in
-        Goal { session ; node ; task ; idename }
-      in Some (List.mapi child nodes)
-    with _ -> None
-  end
+let apply env tactic ?(allow_no_effect=false) (Goal { session ; node ; idename }) =
+  try
+    let tr = Tactic.name tactic in
+    let ts = S.apply_trans_to_goal session env ~allow_no_effect tr [] node in
+    List.iter
+      (S.remove_transformation session)
+      (S.get_transformations session node) ;
+    let tid = S.graft_transf session node tr [] ts in
+    let nodes = S.get_sub_tasks session tid in
+    if ts = [] then S.update_trans_node silent session tid ;
+    let child i node =
+      let task = S.get_task session node in
+      let idename = Printf.sprintf "%s.%d" idename i in
+      Goal { session ; node ; task ; idename }
+    in Some (List.mapi child nodes)
+  with S.NoProgress | Why3.Trans.TransFailure _ -> None
 
-let apply = Timer.timed3 ~name:"Transformation" apply
+let apply =
+  let timer = Timer.create_global "Transformation" in
+  fun env tactic ?allow_no_effect goal ->
+    Timer.start timer;
+    Fun.protect ~finally:(fun () -> Timer.stop timer)
+      (fun () -> apply env tactic ?allow_no_effect goal)
 
 (* -------------------------------------------------------------------------- *)

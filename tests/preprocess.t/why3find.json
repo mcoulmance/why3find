@@ -7,6 +7,6 @@
   "tactics": [ "inline_goal" ],
   "drivers": [],
   "warnoff": [],
-  "preprocess": "split_vc",
+  "preprocess": "compute_specified",
   "profile": [ { "prover": "alt-ergo@2.4.2", "size": 16, "time": 0.173 } ]
 }

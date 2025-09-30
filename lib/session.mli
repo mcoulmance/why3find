@@ -50,6 +50,11 @@ val result : goal ->
   Call_provers.prover_result ->
   unit
 
-val apply : Env.env -> Tactic.tactic -> goal -> goal list option
+val apply : Env.env -> Tactic.tactic -> ?allow_no_effect:bool -> goal
+  -> goal list option
+(** Apply a tactic to a goal. When allow_no_effect is [false] (the default),
+    the function treat the tactic returning the goal unchanged as an "error"
+    and return {!None}. When it is [true] this condition is treated as a normal
+    result and the goal is returned. *)
 
 (* -------------------------------------------------------------------------- *)
