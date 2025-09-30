@@ -510,6 +510,12 @@ let setRestartableFrames ()  =
   begin
     restartableFrames := true ;
     register_capability "supportsRestartFrame" () ;
+    register "restartFrame"
+      begin fun adapter args ->
+        let id = Json.jfield "frameId" args |> Json.jint in
+        let callback = Hashtbl.find restart id in
+        Queue.add callback adapter.callback ; `Null
+      end
   end
 
 let label ~name = Label name
