@@ -15,6 +15,7 @@ import { setTimeout } from 'timers/promises';
 
 import {
   window,
+  debug,
   Disposable,
   DebugConfiguration,
   DebugConfigurationProvider,
@@ -40,7 +41,10 @@ export default class Adapter extends Server implements
   DebugAdapterDescriptorFactory,
   Disposable {
 
-  constructor() { super(SOCKADDR, 'Why3 DAP'); }
+  constructor() {
+    super(SOCKADDR, 'Why3 DAP');
+    this.startDebugging = this.startDebugging.bind(this);
+  }
 
   // Debug Configuration
   resolveDebugConfiguration(
@@ -54,21 +58,27 @@ export default class Adapter extends Server implements
         config.name = 'Debug';
         config.request = 'launch';
         config.file = '${file}';
-        config.debug = true;
       }
     }
     return config;
   }
 
-  private async launchAdapter(
-    file: string,
-    debug: boolean
-  ): Promise<DebugAdapterDescriptor> {
+  startDebugging() {
+    const editor = window.activeTextEditor;
+    if (editor && editor.document.languageId === 'why3') {
+      const config: DebugConfiguration = {
+        type: 'why3',
+        name: 'Debug',
+        request: 'launch',
+        file: editor.document.uri.fsPath,
+      }
+      debug.startDebugging(undefined, config);
+    }
+  }
+
+  private async launchAdapter(file: string): Promise<DebugAdapterDescriptor> {
     // Spawn Server
-    this.log(`${debug ? 'debug' : 'prove'} ${file}`);
-    await this.spawn("why3find", "dap", "--pipe", SOCKADDR,
-      file, debug ? '--debug' : '--prove'
-    );
+    await this.spawn("why3find", "dap", "--pipe", SOCKADDR, file);
     // Wait for the socket to be accessible
     let starting = true;
     while (starting) {
@@ -93,8 +103,7 @@ export default class Adapter extends Server implements
     if (session.type !== 'why3') return null;
     if (executable !== undefined) return null;
     const file = session.configuration.file.toString();
-    const debug = !!session.configuration.debug;
-    return this.launchAdapter(file, debug);
+    return this.launchAdapter(file);
   }
 
 }

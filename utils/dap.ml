@@ -7,6 +7,7 @@
 (**************************************************************************)
 
 let nop _ _ = ()
+let trace = ref false
 
 (* -------------------------------------------------------------------------- *)
 (* --- Debug Adapter Base Protocol                                        --- *)
@@ -42,6 +43,7 @@ let running { shutdown ; channel }=
 let next = let k = ref 0 in fun () -> incr k ; !k
 
 let emit { channel } event body =
+  if !trace then Format.eprintf "@[<hov 2>EMIT %S %a@]@." event Json.pretty body ;
   Rpc.push channel @@ Json.to_string @@ Json.assoc [
     "seq" , `Int (next ()) ;
     "type", `String "event" ;
@@ -50,6 +52,7 @@ let emit { channel } event body =
   ]
 
 let send_response { channel } ~seq command body =
+  if !trace then Format.eprintf "@[<hov 2>RESPONSE %S %a@]@." command Json.pretty body ;
   Rpc.push channel @@ Json.to_string @@ Json.assoc [
     "seq" , `Int (next ()) ;
     "type" , `String "response" ;
@@ -60,6 +63,7 @@ let send_response { channel } ~seq command body =
   ]
 
 let send_error { channel } ~seq command message =
+  if !trace then Format.eprintf "@[<hov 2>ERROR %S %S@]@." command message ;
   Rpc.push channel @@ Json.to_string @@ Json.assoc [
     "seq" , `Int (next ()) ;
     "type" , `String "response" ;
@@ -68,33 +72,6 @@ let send_error { channel } ~seq command message =
     "success" , `Bool false ;
     "message" , `String message ;
   ]
-
-(* -------------------------------------------------------------------------- *)
-(* --- Output & Logging                                                   --- *)
-(* -------------------------------------------------------------------------- *)
-
-type category = [ `console | `important | `stdout | `stderr ]
-let ansi_styling = ref false
-
-let output adapter ?(category : category = `console) msg =
-  let buffer = Buffer.create 80 in
-  let fmt = Format.formatter_of_buffer buffer in
-  if !ansi_styling then Utils.set_ansi_tags fmt ;
-  Format.kfprintf
-    begin
-      fun fmt ->
-        Format.pp_print_flush fmt () ;
-        let output = Buffer.contents buffer in
-        let category = match category with
-          | `console -> "console"
-          | `important -> "important"
-          | `stdout -> "stdout"
-          | `stderr -> "stderr" in
-        emit adapter "output" @@ Json.assoc [
-          "category", `String category ;
-          "output", `String output ;
-        ]
-    end fmt msg
 
 (* -------------------------------------------------------------------------- *)
 (* --- Message Processing                                                 --- *)
@@ -111,6 +88,8 @@ let register ?(force=false) name fn =
 
 let process_request adapter ~seq command arguments =
   begin
+    if !trace then
+      Format.eprintf "@[<hov 2>REQUEST %S %a@]@." command Json.pretty arguments ;
     match Hashtbl.find protocol command adapter arguments with
     | body ->
       send_response adapter ~seq command body
@@ -206,7 +185,7 @@ let to_column col : Json.t =
 let uri_prefix = "file://"
 
 let of_source js =
-  let path = Json.jstring js in
+  let path = Json.jfield "path" js |> Json.jstring in
   match !pathFormat with
   | `Path -> path
   | `Uri ->
@@ -219,11 +198,12 @@ let of_source js =
 
 let to_source path : Json.t =
   if path = "" then `Null else
-    `String
-      begin match !pathFormat with
-        | `Path -> path
-        | `Uri -> uri_prefix ^ path
-      end
+    let jpath =
+      match !pathFormat with `Path -> path | `Uri -> uri_prefix ^ path in
+    Json.assoc [ "path" , `String jpath ]
+
+let js_int_opt n = if n <= 0 then `Null else `Int n
+let js_string_opt = function "" -> `Null | s -> `String s
 
 (* -------------------------------------------------------------------------- *)
 (* --- Server Capabilities                                                --- *)
@@ -234,14 +214,44 @@ let capabilities : (string, Json.t) Hashtbl.t = Hashtbl.create 0
 let register_capability cap ?(value=`Bool true) () =
   Hashtbl.replace capabilities cap value
 
+(* -------------------------------------------------------------------------- *)
+(* --- Output & Logging                                                   --- *)
+(* -------------------------------------------------------------------------- *)
+
+let ansi_styling = ref false
 let () = register_capability "supportsANSIStyling" ()
+
+type category = [ `console | `important | `stdout | `stderr ]
+let output adapter ?(category : category = `console) msg =
+  let buffer = Buffer.create 80 in
+  let fmt = Format.formatter_of_buffer buffer in
+  if !ansi_styling then Utils.set_ansi_tags fmt ;
+  Format.kfprintf
+    begin
+      fun fmt ->
+        Format.pp_print_flush fmt () ;
+        let output = Buffer.contents buffer in
+        let category = match category with
+          | `console -> "console"
+          | `important -> "important"
+          | `stdout -> "stdout"
+          | `stderr -> "stderr" in
+        emit adapter "output" @@ Json.assoc [
+          "category", `String category ;
+          "output", `String output ;
+        ]
+    end fmt msg
 
 (* -------------------------------------------------------------------------- *)
 (* --- Initialize Request                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
+let initialized adapter = emit adapter "initialized" `Null
+let initcallback = ref initialized
+let on_init fn = initcallback := fn
+
 let () = register "initialize"
-    begin fun _adapter args ->
+    begin fun adapter args ->
       let clientName = Json.jfield "clientName" args |> Json.jstring in
       Log.message "Connected to client (%s)" clientName ;
       Json.jfield "pathFormat" args |> setPathFormat ;
@@ -251,8 +261,20 @@ let () = register "initialize"
       Json.jfield "supportsProgressReporting" args |> setb supportedProgress ;
       let pool = ref [] in
       Hashtbl.iter (fun c v -> pool := (c,v) :: !pool) capabilities ;
+      Queue.add !initcallback adapter.callback ;
       Json.assoc !pool
     end
+
+(* -------------------------------------------------------------------------- *)
+(* --- Configuration                                                      --- *)
+(* -------------------------------------------------------------------------- *)
+
+let on_configured fn =
+  begin
+    register_capability "supportsConfigurationDoneRequest" () ;
+    register "configurationDone"
+      (fun adapter _args -> Queue.add fn adapter.callback ; `Null) ;
+  end
 
 (* -------------------------------------------------------------------------- *)
 (* --- Attach Request                                                     --- *)
@@ -348,6 +370,8 @@ let locref (loc : location) : int =
     Hashtbl.add locrefs loc r ;
     Hashtbl.add locations r loc ; r
 
+let js_locref = function None -> `Null | Some loc -> `Int (locref loc)
+
 let () = register "locations"
     begin fun _adapter args ->
       let r = Json.jfield "locationReference" args |> Json.jint in
@@ -359,6 +383,84 @@ let () = register "locations"
         "endLine" , to_column l.end_line ;
         "endColumn" , to_column l.end_column ;
       ]
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Breakpoints                                                       --- *)
+(* -------------------------------------------------------------------------- *)
+
+type breakpoint = Break of Json.t [@@ unboxed]
+
+let breakpoint
+    ?(id=none) ?(verified=true) ?(message="") ?(source="")
+    ?(line=none) ?(column=none) ?(end_line=none) ?(end_column=none)
+    ?(reason="") ()
+  = Break (Json.assoc [
+      "id" , js_int_opt id ;
+      "source" , to_source source ;
+      "verified" , `Bool verified ;
+      "message" , js_string_opt message ;
+      "line" , js_int_opt line ;
+      "column" , js_int_opt column ;
+      "endLine" , js_int_opt end_line ;
+      "endColumn" , js_int_opt end_column ;
+      "reason", js_string_opt reason ;
+    ])
+
+type source_breakpoint =
+    SourceBreakpoint of {
+      source : string ;
+      line : int ;
+      column : int ;
+      condition : string ;
+      hit_condition : string ;
+      log_message : string ;
+    }
+
+let of_source_breakpoint source js =
+  let line = Json.jfield "line" js |> Json.jint in
+  let column = Json.jfield "number" js |> Json.jdefault none Json.jint in
+  let condition = Json.jfield "condition" js |> Json.jstring in
+  let hit_condition = Json.jfield "hitCondition" js |> Json.jstring in
+  let log_message = Json.jfield "logMessage" js |> Json.jstring in
+  SourceBreakpoint { source ; line ; column ; condition ; hit_condition ; log_message }
+
+let of_line_breakpoint source js =
+  let line = Json.jint js in
+  SourceBreakpoint { source ; line ; column = none ; condition = "" ; hit_condition = "" ; log_message = "" }
+
+let verify_source_breakpoint = ref (fun _ -> failwith "unsupported breakpoints")
+
+let on_breakpoint
+    ?(condition=false)
+    ?(hit_condition=false)
+    ?(log_message=false)
+    fn =
+  begin
+    if condition then register_capability "supportsConditionalBreakpoints" () ;
+    if hit_condition then register_capability "supportsHitConditionalBreakpoints" () ;
+    if log_message then register_capability "supportsLogPoints" () ;
+    verify_source_breakpoint := fn ;
+  end
+
+let () = register "setBreakpoints"
+    begin fun _adapter args ->
+      let source = Json.jfield "source" args |> of_source in
+      let breakpoints =
+        List.map
+          begin fun brk ->
+            let Break js =
+              try !verify_source_breakpoint brk with err ->
+                breakpoint ~verified:false ~message:(Printexc.to_string err) ()
+            in js
+          end @@
+        let breakpoints = Json.jfield "breakpoints" args |> Json.jlist in
+        if breakpoints <> [] then
+          List.map (of_source_breakpoint source) breakpoints
+        else
+          let lines = Json.jfield "lines" args |> Json.jlist in
+          List.map (of_line_breakpoint source) lines
+      in Json.assoc [ "breakpoints" , `List breakpoints ]
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -405,10 +507,6 @@ let variable ~name
     ?index ?named ?decl ?vdecl () =
   let contents = variables index named in
   Var { name ; value ; vtype ; kind ; attributes ; visiblity ; contents ; decl ; vdecl }
-
-let js_int_opt = function 0 -> `Null | n -> `Int n
-let js_string_opt = function "" -> `Null | s -> `String s
-let js_locref = function None -> `Null | Some loc -> `Int (locref loc)
 
 let js_variable (Var v) : Json.t =
   let vref,indexed,named = vref v.contents in

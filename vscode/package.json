@@ -47,6 +47,13 @@
         "category": "Why3",
         "command": "why3.lsp.stop",
         "title": "Stop the Why3 LSP Server"
+      },
+      {
+        "category": "Why3",
+        "command": "why3.dap.start",
+        "title": "Start the Why3 Debugger",
+        "enablement": "!inDebugMode",
+        "icon": "$(debug-alt)"
       }
     ],
     "submenus": [
@@ -62,6 +69,13 @@
           "group": "action"
         }
       ],
+      "editor/title/run": [
+        {
+          "command": "why3.dap.start",
+          "when": "resourceLangId == why3",
+          "group": "navigation@1"
+        }
+      ],
       "why3.menu": [
         {
           "command": "why3.lsp.start",
@@ -73,11 +87,12 @@
         }
       ]
     },
+    "breakpoints": [ { "language": "why3" } ],
     "debuggers": [
       {
         "type": "why3",
         "label": "Why3 Debug",
-        "languages": ["why3"]
+        "languages": [ "why3" ]
       }
     ]
   },

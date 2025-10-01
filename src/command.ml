@@ -846,14 +846,11 @@ let () = register ~name:"dap" ~args:"[OPTIONS]"
       let transport = ref None in
       let set_port n = transport := Some (Rpc.PORT n) in
       let set_pipe s = transport := Some (Rpc.PIPE s) in
-      let debug = ref true in
       let files = ref [] in
       Arg.parse_argv argv [
         "--pipe", Arg.String set_pipe, "<SOCKFILE> unix linux socket" ;
         "--port", Arg.Int set_port, "<PORT> use socket port" ;
         "--socket", Arg.Int set_port, "<PORT> use socket port (same as --port)" ;
-        "--debug" , Arg.Set debug, "start in debug mode" ;
-        "--prove" , Arg.Set debug, "start in proof mode" ;
       ] (fun f -> files := f :: !files)
         "USAGE:\n\
          \n  why3find dap [--pipe=<SOCKFILE>]\n\n\

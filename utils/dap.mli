@@ -9,7 +9,7 @@
 (** {1 Debug Adapater Protocol }*)
 
 type adapter
-
+val trace : bool ref
 
 (** {2 Base Protocol} *)
 
@@ -56,6 +56,16 @@ type category = [ `console | `important | `stdout | `stderr ]
 val output : adapter -> ?category:category ->
   ('a, Format.formatter, unit, unit) format4 -> 'a
 
+(** {2 Initialization Sequence} *)
+
+val initialized : adapter -> unit
+val on_init : (adapter -> unit) -> unit
+(** By default, [on_init] emits an [initialized] event.
+    If overriden, don't forget to emit an [initialized] event at some point. *)
+
+val on_configured : (adapter -> unit) -> unit
+(** See also breakpoint callback, below *)
+
 (** {2 Launch Sequence} *)
 
 (** Attached Request callback *)
@@ -98,6 +108,36 @@ val loc :
   ?line:int -> ?column:int ->
   ?end_line:int -> ?end_column:int ->
   unit -> location
+
+(** {2 Breakpoints} *)
+
+type breakpoint
+val breakpoint :
+  ?id:int ->
+  ?verified:bool ->
+  ?message:string ->
+  ?source:string -> ?line:int -> ?column:int -> ?end_line:int -> ?end_column:int ->
+  ?reason:string ->
+  unit -> breakpoint
+(** Generally, it would be enough to use [breakpoint ()]. Other fields
+    are only mandatory to decline or update the specified breakpoints. *)
+
+type source_breakpoint =
+    SourceBreakpoint of {
+      source : string ;
+      line : int ;
+      column : int ;
+      condition : string ;
+      hit_condition : string ;
+      log_message : string ;
+    }
+
+val on_breakpoint :
+  ?condition:bool ->
+  ?hit_condition:bool ->
+  ?log_message:bool ->
+  (source_breakpoint -> breakpoint) -> unit
+  (** If specified, the flags will activate the associated capabilities. *)
 
 (** {2 Variables} *)
 

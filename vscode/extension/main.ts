@@ -24,6 +24,7 @@ export function activate(context: ExtensionContext): void {
     lsp, dap,
     commands.registerCommand('why3.lsp.start', lsp.start),
     commands.registerCommand('why3.lsp.stop', lsp.stop),
+    commands.registerCommand('why3.dap.start', dap.startDebugging),
     debug.registerDebugConfigurationProvider('why3', dap),
     debug.registerDebugAdapterDescriptorFactory('why3', dap),
   );
