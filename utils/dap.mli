@@ -68,11 +68,14 @@ val on_configured : (adapter -> unit) -> unit
 
 (** {2 Launch Sequence} *)
 
+val no_debug : unit -> bool
+val restarted : unit -> Json.t
+
 (** Attached Request callback *)
-val on_attach : (adapter -> nodebug:bool -> unit) -> unit
+val on_attach : (adapter -> unit) -> unit
 
 (** Launched Request callback *)
-val on_launch : (adapter -> nodebug:bool -> restart:Json.t -> unit) -> unit
+val on_launch : (adapter -> unit) -> unit
 
 (** {2 End Sequence} *)
 
@@ -137,7 +140,7 @@ val on_breakpoint :
   ?hit_condition:bool ->
   ?log_message:bool ->
   (source_breakpoint -> breakpoint) -> unit
-  (** If specified, the flags will activate the associated capabilities. *)
+(** If specified, the flags will activate the associated capabilities. *)
 
 (** {2 Variables} *)
 
@@ -188,27 +191,33 @@ val frame :
 
 (** {2 Threads} *)
 
-type reason = [ `step | `breakpoint | `error | `pause | `entry ]
-type resume = [ `continue | `next | `step_in | `step_out ]
-
-val set_single_thread_support : unit -> unit
-
-class virtual thread :
+type thread
+val thread :
   adapter ->
   name:string ->
-  object
-    method id : int
-    method name : string
-    method updated : unit
-    method terminated : unit
-    method stopped :
-      reason:reason ->
-      ?description:string -> ?text:string ->
-      ?all:bool ->
-      ?preserveFocus:bool ->
-      unit -> unit
+  ?frames:frame Darray.t ->
+  unit -> thread
 
-    method virtual on_paused : unit
-    method virtual on_resumed : resume -> unit
-    method virtual frames : frame Darray.t
-  end
+val connect :
+  thread ->
+  ?on_pause:(adapter -> unit) ->
+  ?on_next:(adapter -> unit) ->
+  ?on_step_in:(adapter -> unit) ->
+  ?on_step_out:(adapter -> unit) ->
+  ?on_continue:(adapter -> unit) ->
+  unit -> unit
+
+val set_frames : thread -> frame Darray.t -> unit
+
+val finished : thread -> unit
+val updated : ?reason:string -> thread -> unit
+
+type reason = [ `step | `breakpoint | `error | `pause | `entry ]
+val stopped :
+  reason:reason ->
+  ?description:string ->
+  ?text:string -> ?all:bool -> ?preserveFocus:bool ->
+  ?frames:frame Darray.t ->
+  thread -> unit
+
+val set_single_thread_support : unit -> unit

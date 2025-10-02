@@ -55,6 +55,12 @@ module Monad :
 sig
 
   (** Monadic operator, same as {!bind}. *)
+  val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
+
+  (** Applicative map operator, same as {!apply}. *)
+  val (|>>) : 'a t -> ('a -> 'b) -> 'b t
+
+  (** Monadic let-binder, same as {!bind}. *)
   val (let*) : 'a t -> ('a -> 'b t) -> 'b t
 
   (** Applicative map operator, same as {!apply}. *)

@@ -59,6 +59,7 @@ val jdefault : 'a -> (t -> 'a) -> t -> 'a
 val jmem : string -> t -> bool
 val jiter : (string -> t -> unit) -> t -> unit
 
+val null : t
 val int : int -> t
 val bool : bool -> t
 val string : string -> t

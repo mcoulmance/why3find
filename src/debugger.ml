@@ -8,20 +8,24 @@
 
 let init () =
   begin
-    let restarted = ref 0 in
     Dap.on_launch
-      (fun adapter ~nodebug ~restart ->
+      (fun adapter ->
          Dap.output adapter
            "Launched nodebug:@{<red>%b@} restart:@{<green>%a@}@."
-           nodebug Json.pretty restart ;
-         restarted := Json.jint restart ;
+           (Dap.no_debug ()) Json.pretty (Dap.restarted ()) ;
+         let a = Dap.thread adapter ~name:"Thread A" () in
+         let b = Dap.thread adapter ~name:"Thread B" () in
+         let c = Dap.thread adapter ~name:"Thread C" () in
+         let connect th = Dap.connect th
+             ~on_pause:(fun _ -> Dap.stopped ~reason:`pause th)
+             ~on_next:(fun _ -> Dap.stopped ~reason:`step th)
+             () in
+         connect a ; connect b ; connect c ;
       ) ;
     Dap.on_terminate
       (fun adapter ~restart ->
-         incr restarted ;
          Dap.output adapter
-           "Terminated restart:@{<red>%b@} @{<green>#%d@}@."
-           restart !restarted ;
+           "Terminated restart:@{<red>%b@}@." restart ;
          if not restart then Dap.terminated adapter ()
       ) ;
     Dap.on_disconnect

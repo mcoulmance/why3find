@@ -58,6 +58,8 @@ let par a b =
 
 module Monad =
 struct
+  let (>>=) = bind
+  let (|>>) = apply
   let (let*) = bind
   let (let+) = apply
   let (and*) = par

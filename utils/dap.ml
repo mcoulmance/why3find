@@ -7,7 +7,7 @@
 (**************************************************************************)
 
 let nop _ _ = ()
-let trace = ref false
+let trace = ref true
 
 (* -------------------------------------------------------------------------- *)
 (* --- Debug Adapter Base Protocol                                        --- *)
@@ -277,25 +277,27 @@ let on_configured fn =
   end
 
 (* -------------------------------------------------------------------------- *)
-(* --- Attach Request                                                     --- *)
+(* --- Launch & Attach Requests                                           --- *)
 (* -------------------------------------------------------------------------- *)
+
+let r_no_debug = ref false
+let r_restarted = ref Json.null
+
+let no_debug () = !r_no_debug
+let restarted () = !r_restarted
+
+let on_launch fn = register "launch"
+    begin fun adapter args ->
+      r_no_debug := Json.jfield "noDebug" args |> Json.jbool ;
+      r_restarted := Json.jfield "__restart" args ;
+      Queue.push fn adapter.callback ; `Null
+    end
 
 let on_attach fn = register "attach"
     begin fun adapter args ->
-      let nodebug = Json.jfield "noDebug" args |> Json.jbool in
-      Queue.push (fun s -> fn s ~nodebug) adapter.callback ; `Null
-    end
-
-(* -------------------------------------------------------------------------- *)
-(* --- Launch Request                                                     --- *)
-(* -------------------------------------------------------------------------- *)
-
-let on_launch fn =
-  register "launch"
-    begin fun adapter args ->
-      let nodebug = Json.jfield "noDebug" args |> Json.jbool in
-      let restart = Json.jfield "__restart" args in
-      Queue.push (fun s -> fn s ~nodebug ~restart) adapter.callback ; `Null
+      r_no_debug := Json.jfield "noDebug" args |> Json.jbool ;
+      r_restarted := `Null ;
+      Queue.push fn adapter.callback ; `Null
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -652,33 +654,34 @@ let js_frame (fr : frame) =
 (* -------------------------------------------------------------------------- *)
 
 type reason = [ `step | `breakpoint | `error | `pause | `entry ]
-type resume = [ `continue | `next | `step_in | `step_out ]
 
-class type thread_t =
-  object
-    method id : int
-    method name : string
-    method on_paused : unit
-    method on_resumed : resume -> unit
-    method frames : frame Darray.t
-  end
+type thread = Thread of {
+    id : int ;
+    name : string ;
+    adapter : adapter ;
+    mutable on_pause : (adapter -> unit) ;
+    mutable on_next : (adapter -> unit) ;
+    mutable on_step_in : (adapter -> unit) ;
+    mutable on_step_out : (adapter -> unit) ;
+    mutable on_continue : (adapter -> unit) ;
+    mutable frames : frame Darray.t ;
+  }
 
-let threads : (int,thread_t) Hashtbl.t = Hashtbl.create 0
-let stacks : (int,frame Darray.t) Hashtbl.t = Hashtbl.create 0
+let kthread = ref 0
+let threads : (int,thread) Hashtbl.t = Hashtbl.create 0
 let singleThreadSupport = ref false
 
 let clear () =
   begin
     Hashtbl.clear vrefs ;
     Hashtbl.clear scopes ;
-    Hashtbl.clear stacks ;
     Hashtbl.clear restartframes ;
   end
 
-let updated adapter ?(reason="updated") th =
-  emit adapter "thread" @@ Json.assoc [
+let updated ?(reason="updated") (Thread th) =
+  emit th.adapter "thread" @@ Json.assoc [
     "reason", `String reason ;
-    "threadId" , `Int th ;
+    "threadId" , `Int th.id ;
   ]
 
 let set_single_thread_support () =
@@ -687,76 +690,103 @@ let set_single_thread_support () =
     register_capability "supportsSingleThreadExecutionRequests" () ;
   end
 
-class virtual thread adapter ~name =
-  object(self)
-    initializer
+let thread adapter ~name ?(frames=Darray.empty) () =
+  let id = incr kthread ; !kthread in
+  let th = Thread {
+      id ; adapter ; name ;
+      on_pause = ignore ;
+      on_continue = ignore ;
+      on_next = ignore ;
+      on_step_in = ignore ;
+      on_step_out = ignore ;
+      frames ;
+    } in
+  Hashtbl.add threads id th ;
+  updated ~reason:"started" th ; th
+
+let connect (Thread th)
+    ?on_pause ?on_next ?on_step_in ?on_step_out ?on_continue () =
+  begin
+    let set_default fn =
       begin
-        Hashtbl.add threads (Oo.id self) (self :> thread_t) ;
-        updated adapter ~reason:"started" (Oo.id self) ;
-      end
-    method id = Oo.id self
-    method name = name
-    method updated = updated adapter (Oo.id self)
-    method terminated = updated adapter ~reason:"exited" (Oo.id self)
+        if th.on_next == ignore then th.on_next <- fn ;
+        if th.on_step_in == ignore then th.on_step_in <- fn ;
+        if th.on_step_out == ignore then th.on_step_out <- fn ;
+        if th.on_continue == ignore then th.on_continue <- fn ;
+      end in
+    Option.iter (fun fn -> th.on_pause <- fn) on_pause ;
+    Option.iter (fun fn -> th.on_next <- fn) on_next ;
+    Option.iter (fun fn -> th.on_step_in <- fn) on_step_in ;
+    Option.iter (fun fn -> th.on_step_out <- fn) on_step_out ;
+    Option.iter (fun fn -> th.on_continue <- fn) on_continue ;
+    Option.iter set_default on_next ;
+    Option.iter set_default on_continue ;
+  end
 
-    method stopped ~(reason : reason) ?description ?text ?(all=false) ?preserveFocus () =
-      if not all && not !singleThreadSupport then
-        raise (Invalid_argument "no single thread support") ;
-      let reason = match reason with
-        | `entry -> "entry"
-        | `step -> "step"
-        | `error -> "error"
-        | `pause -> "pause"
-        | `breakpoint -> "exception"
-      in
-      clear () ;
-      emit adapter "stopped" @@ Json.assoc [
-        "reason" , `String reason ;
-        "description" , Json.option_map Json.string description ;
-        "text" , Json.option_map Json.string text ;
-        "threadId" , `Int (Oo.id self) ;
-        "allThreadsStopped" , if all then `Bool true else `Null ;
-        "preserveFocusHint" , Json.option_map Json.bool preserveFocus ;
-      ]
+let set_frames (Thread th) frames = th.frames <- frames
 
-    method virtual on_paused : unit
-    method virtual on_resumed : resume -> unit
-    method virtual frames : frame Darray.t
+let finished thread =
+  let Thread { id } = thread in
+  Hashtbl.remove threads id ;
+  updated ~reason:"exited" thread
+
+let stopped ~(reason:reason) ?description ?text ?all ?preserveFocus ?frames thread =
+  begin
+    if all = Some false && not !singleThreadSupport then
+      raise (Invalid_argument "no single thread support") ;
+    let all = Option.value ~default:(not !singleThreadSupport) all in
+    let Thread th = thread in
+    Option.iter (fun frames -> th.frames <- frames) frames ;
+    let reason = match reason with
+      | `entry -> "entry"
+      | `step -> "step"
+      | `error -> "error"
+      | `pause -> "pause"
+      | `breakpoint -> "exception" in
+    clear () ;
+    emit th.adapter "stopped" @@ Json.assoc [
+      "reason" , `String reason ;
+      "description" , Json.option_map Json.string description ;
+      "text" , Json.option_map Json.string text ;
+      "threadId" , `Int th.id ;
+      "allThreadsStopped" , if all then `Bool true else `Null ;
+      "preserveFocusHint" , Json.option_map Json.bool preserveFocus ;
+    ]
   end
 
 let () = register "pause"
     begin fun adapter args ->
       let threadId = Json.jfield "threadId" args |> Json.jint in
       Option.iter
-        (fun th -> Queue.push (fun _ -> th#on_paused) adapter.callback)
+        (function (Thread th) -> Queue.push th.on_pause adapter.callback)
         (Hashtbl.find_opt threads threadId) ;
       `Null
     end
 
-let resumed mode adapter args =
+let resume mode adapter args =
   let threadId = Json.jfield "threadId" args |> Json.jint in
   let single = Json.jfield "sinleThread" args |> Json.jbool in
   Option.iter
-    (fun th -> Queue.push (fun _ -> th#on_resumed mode) adapter.callback)
+    (fun th -> Queue.push (mode th) adapter.callback)
     (Hashtbl.find_opt threads threadId) ;
   if not !singleThreadSupport || not single then `Null else
     Json.assoc [ "allThreadsContinued", `Bool (not single) ]
 
-let () = register "next" (resumed `next)
-let () = register "stepIn" (resumed `step_in)
-let () = register "stepOut" (resumed `step_out)
-let () = register "continue" (resumed `continue)
+let () = register "next" @@ resume (function Thread th -> th.on_next)
+let () = register "stepIn" @@ resume (function Thread th -> th.on_step_in)
+let () = register "stepOut" @@ resume (function Thread th -> th.on_step_out)
+let () = register "continue" @@ resume (function Thread th -> th.on_continue)
 
 let () = register "threads"
     begin fun _adapter _args ->
       let pool = ref [] in
       Hashtbl.iter (fun _ th -> pool := th :: !pool) threads ;
-      let byId a b = Int.compare a#id b#id in
-      let jthread th = Json.assoc [
-          "id" , `Int th#id ;
-          "name", `String th#name ;
+      let byId (Thread a) (Thread b) = Int.compare a.id b.id in
+      let jthread (Thread th) = Json.assoc [
+          "id" , `Int th.id ;
+          "name", `String th.name ;
         ] in
-      Json.assoc [ "treads" , `List (List.map jthread @@ List.sort byId !pool)]
+      Json.assoc [ "threads" , `List (List.map jthread @@ List.sort byId !pool)]
     end
 
 let () = register "stackFrame"
@@ -764,10 +794,7 @@ let () = register "stackFrame"
       let thId = Json.jfield "threadId" args |> Json.jint in
       let start = Json.jfield "startFrame" args |> Json.jint in
       let levels = Json.jfield "levels" args |> Json.jdefault max_int Json.jint in
-      let frames =
-        try Hashtbl.find stacks thId with Not_found ->
-          let fr = (Hashtbl.find threads thId)#frames in
-          Hashtbl.add stacks thId fr ; fr in
+      let Thread { frames } = Hashtbl.find threads thId in
       let total = Darray.length frames in
       let last = min (start + levels) total - 1 in
       let pool = ref [] in
