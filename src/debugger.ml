@@ -6,28 +6,19 @@
 (*                                                                        *)
 (**************************************************************************)
 
-let init () =
+let init files =
   begin
     Dap.on_launch
       (fun adapter ->
-         Dap.output adapter
-           "Launched nodebug:@{<red>%b@} restart:@{<green>%a@}@."
-           (Dap.no_debug ()) Json.pretty (Dap.restarted ()) ;
-         let a = Dap.thread adapter ~name:"Thread A" () in
-         let b = Dap.thread adapter ~name:"Thread B" () in
-         let c = Dap.thread adapter ~name:"Thread C" () in
-         let connect th = Dap.connect th
-             ~on_pause:(fun _ -> Dap.stopped ~reason:`pause th)
-             ~on_next:(fun _ -> Dap.stopped ~reason:`step th)
-             () in
-         connect a ; connect b ; connect c ;
+         Dap.output adapter "Why3 Debugger Started.@." ;
+         let echo category pp = Dap.output adapter ~category "%t" pp in
+         Log.pp_stdout := echo `stdout ;
+         Log.pp_stderr := echo `stderr ;
+         List.iter (Log.message "Compile %S@.") files ;
       ) ;
     Dap.on_terminate
       (fun adapter ~restart ->
-         Dap.output adapter
-           "Terminated restart:@{<red>%b@}@." restart ;
-         if not restart then Dap.terminated adapter ()
+         ignore restart ;
+         Dap.output adapter "Why3 Debugger Terminated.@." ;
       ) ;
-    Dap.on_disconnect
-      (fun adapter _ -> Dap.output adapter "Disconnected@.") ;
   end

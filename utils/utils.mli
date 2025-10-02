@@ -54,6 +54,8 @@ val pa_time : string -> float (* seconds *)
 val pp_s : Format.formatter -> int -> unit
 val pp_yies : Format.formatter -> int -> unit
 
+val to_string : (Format.formatter -> 'a -> unit) -> 'a -> string
+
 val round : float -> float
 
 val show_progress_opt : string * Arg.spec * string
@@ -64,6 +66,6 @@ val set_ansi_tags : Format.formatter -> unit
 val flush : unit -> unit
 val overflows : unit -> bool
 val progress : ('a,Format.formatter,unit) format -> 'a
-val failwith : ('a, Format.formatter, unit, 'b) format4 -> 'a
+val failwith : ('a,Format.formatter,unit,'b) format4 -> 'a
 
 (* -------------------------------------------------------------------------- *)

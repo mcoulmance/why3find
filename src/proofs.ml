@@ -56,7 +56,7 @@ let dump =
       ]
     end
 
-let create file profile proofs =
+let create ~file profile proofs =
   { file; profile ; proofs ; theories_seen = Hashtbl.create 8 }
 
 let add theory goal crc buffer =

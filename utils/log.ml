@@ -17,13 +17,17 @@ let summary = Queue.create ()
 
 type level = [ `Message | `Warning | `Error ]
 
-let pp_error pp = pp Format.err_formatter
-let summarize pp = Queue.push pp summary ; pp_error pp
+let pp_stdout = ref (fun pp -> pp Format.std_formatter)
+let pp_stderr = ref (fun pp -> pp Format.err_formatter)
+
+let message pp = !pp_stdout pp
+let summarize pp = Queue.push pp summary ; !pp_stderr pp
 
 let output level pp =
   Utils.flush ();
   match level with
-  | `Message -> Format.printf "@[<hov>%t@]@." pp
+  | `Message ->
+    Format.kdprintf message "@[<hov>%t@]@." pp
   | `Warning ->
     incr warnings ;
     Format.kdprintf summarize
@@ -58,8 +62,8 @@ let summary () =
         Utils.flush ();
         if not Utils.tty || Utils.overflows () then
           begin
-            Format.printf "Summary:@.";
-            Queue.iter pp_error summary ;
+            Format.eprintf "Summary:@.";
+            Queue.iter !pp_stderr summary ;
           end ;
         Format.printf "Emitted %d warning%a" wrn Utils.pp_s wrn ;
         let err = !errors in

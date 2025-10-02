@@ -6,6 +6,9 @@
 (*                                                                        *)
 (**************************************************************************)
 
+val pp_stdout : ((Format.formatter -> unit) -> unit) ref
+val pp_stderr : ((Format.formatter -> unit) -> unit) ref
+
 type level = [ `Message | `Warning | `Error ]
 
 val set_log : bool -> unit

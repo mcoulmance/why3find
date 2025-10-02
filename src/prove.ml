@@ -418,7 +418,7 @@ let process ~env ~level ~mode ~session ~results ~provers ~tactics ~axioms ~unsuc
     let buffer = (* the proof strategy must be kept to stabilize crc files *)
       if (mode = `Replay)
       then None
-      else Some (Proofs.create file profile strategy) in
+      else Some (Proofs.create ~file profile strategy) in
     let force = (mode = `Force) in
     let hammer =
       Hammer.create

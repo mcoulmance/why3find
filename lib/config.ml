@@ -24,7 +24,7 @@ type config = {
 }
 
 let conf_file = "why3find.json"
-let root_for ~filename =
+let root_for ~file =
   let rec lookup = function
     | "/" | "." -> None
     | dir ->
@@ -32,7 +32,7 @@ let root_for ~filename =
       if Sys.file_exists config
       then Some dir
       else lookup (Filename.dirname dir)
-  in lookup (Filename.dirname filename)
+  in lookup (Filename.dirname file)
 
 let load_raw_config ~root =
   let path = Filename.concat root conf_file in

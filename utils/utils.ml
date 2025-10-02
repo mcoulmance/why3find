@@ -312,16 +312,19 @@ let pp_s fmt n = if n > 1 then Format.pp_print_char fmt 's'
 let pp_yies fmt n =
   Format.pp_print_string fmt (if n > 1 then "ies" else "y")
 
+let to_string pp v =
+  begin
+    let buffer = Buffer.create 80 in
+    let fmt = Format.formatter_of_buffer buffer in
+    pp fmt v ;
+    Format.pp_print_flush fmt () ;
+    Buffer.contents buffer
+  end
+
 (* -------------------------------------------------------------------------- *)
 (* --- Failures                                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-let failwith msg =
-  let buffer = Buffer.create 80 in
-  Format.kfprintf
-    (fun fmt ->
-       Format.pp_print_flush fmt () ;
-       Stdlib.failwith @@ Buffer.contents buffer
-    ) (Format.formatter_of_buffer buffer) msg
+let failwith msg = Format.kasprintf Stdlib.failwith msg
 
 (* -------------------------------------------------------------------------- *)

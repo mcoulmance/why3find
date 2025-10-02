@@ -338,7 +338,6 @@ let () = register "disconnect"
       let restart = Json.jfield "restart" args |> Json.jbool in
       let terminate = Json.jfield "terminateDebuggee" args |> Json.jbool in
       let suspend = Json.jfield "suspendDebuggee" args |> Json.jbool in
-      if not restart then adapter.shutdown <- true ;
       Queue.push
         (fun s -> !disconnect s @@ Disconnect { restart ; terminate ; suspend })
         adapter.callback ; `Null
@@ -464,6 +463,8 @@ let () = register "setBreakpoints"
           List.map (of_line_breakpoint source) lines
       in Json.assoc [ "breakpoints" , `List breakpoints ]
     end
+
+let () = register "setExceptionBreakpoints" begin fun _ _ -> `Null end
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Attributes                                                        --- *)

@@ -861,7 +861,7 @@ let () = register ~name:"dap" ~args:"[OPTIONS]"
       match !transport with
       | None -> Log.error "No transport protocol specified." ; exit 1
       | Some transport ->
-        Debugger.init () ;
+        Debugger.init @@ List.rev !files ;
         let adapter = Dap.establish transport in
         while Dap.running adapter || Fibers.pending () > 0 do
           Fibers.yield () ;
