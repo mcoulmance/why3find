@@ -142,6 +142,28 @@ val on_breakpoint :
   (source_breakpoint -> breakpoint) -> unit
 (** If specified, the flags will activate the associated capabilities. *)
 
+(** {2 Identified Objects}
+
+    For custom requests, it is possible to attach attributes to identified
+    objects and to recover them by object identifier.
+
+    You first create an attribute map with {!attribute} function. Then, you can
+    create values for this attribue map with {!value} and attach them to
+    variables, frames and/or threads. Values can be obtained back from
+    identifiers with {!find_by_varId}, {!find_by_frameId} and
+    {!find_by_threadId}.
+
+    Lifetime of identifiers ends on stopped events.
+*)
+
+type 'a attribute and value
+
+val attribute : unit -> 'a attribute
+val value : 'a attribute -> 'a -> value
+val find_by_varId : 'a attribute -> int -> 'a
+val find_by_frameId : 'a attribute -> int -> 'a
+val find_by_threadId : 'a attribute -> int -> 'a
+
 (** {2 Variables} *)
 
 type variable
@@ -156,6 +178,7 @@ val variable :
   ?named:variable Darray.t ->
   ?decl:location ->
   ?vdecl:location ->
+  ?values:value list ->
   unit -> variable
 (**
    @param kind ["property"], ["method"], ["class"], ["data"], ["event"],
@@ -187,6 +210,7 @@ val frame :
   ?range:location ->
   ?restart:(adapter -> unit) ->
   ?scopes:scope list ->
+  ?values:value list ->
   unit -> frame
 
 (** {2 Threads} *)
@@ -196,6 +220,7 @@ val thread :
   adapter ->
   name:string ->
   ?frames:frame Darray.t ->
+  ?values:value list ->
   unit -> thread
 
 val connect :
@@ -208,6 +233,7 @@ val connect :
   unit -> unit
 
 val set_frames : thread -> frame Darray.t -> unit
+val set_values : thread -> value list -> unit
 
 val finished : thread -> unit
 val updated : ?reason:string -> thread -> unit

@@ -466,6 +466,25 @@ let () = register "setBreakpoints"
     end
 
 (* -------------------------------------------------------------------------- *)
+(* ---  Attributes                                                        --- *)
+(* -------------------------------------------------------------------------- *)
+
+type 'a attribute = (int,'a) Hashtbl.t
+type value = (int -> unit)
+let hooks = ref []
+let varId n = 3*n
+let frameId n = 3*n+1
+let threadId n = 3*n+2
+let find_by_varId m id = Hashtbl.find m (varId id)
+let find_by_frameId m id = Hashtbl.find m (frameId id)
+let find_by_threadId m id = Hashtbl.find m (threadId id)
+let store id values = List.iter (fun v -> v id) values
+let value attr value id = Hashtbl.add attr id value
+let attribute () =
+  let m = Hashtbl.create 0 in
+  hooks := (fun () -> Hashtbl.clear m) :: !hooks ; m
+
+(* -------------------------------------------------------------------------- *)
 (* ---  Variables                                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -479,6 +498,7 @@ type variable = Var of {
     contents : variables ;
     decl : location option ;
     vdecl : location option ;
+    values : value list ;
   }
 
 and variables =
@@ -506,12 +526,18 @@ let variables index named =
 
 let variable ~name
     ?(value = "") ?(vtype = "") ?(kind = "") ?(attributes=[]) ?(visiblity="")
-    ?index ?named ?decl ?vdecl () =
+    ?index ?named ?decl ?vdecl ?(values=[]) () =
   let contents = variables index named in
-  Var { name ; value ; vtype ; kind ; attributes ; visiblity ; contents ; decl ; vdecl }
+  Var {
+    name ; value ;
+    vtype ; kind ; attributes ; visiblity ;
+    contents ; decl ; vdecl ;
+    values ;
+  }
 
 let js_variable (Var v) : Json.t =
   let vref,indexed,named = vref v.contents in
+  store (varId vref) v.values ;
   Json.assoc [
     "name" , `String v.name ;
     "value" , `String v.value ;
@@ -602,6 +628,7 @@ type frame =
       range : location ;
       restart : (adapter -> unit) option ;
       scopes : scope list ;
+      values : value list ;
     }
 
 let restartframes = Hashtbl.create 0
@@ -619,10 +646,10 @@ let setRestartableFrames ()  =
   end
 
 let label ~name = Label name
-let frame ~name ?(range=empty) ?restart ?(scopes=[]) () =
+let frame ~name ?(range=empty) ?restart ?(scopes=[]) ?(values=[]) () =
   if not (!restartableFrames || restart = None) then
     raise (Invalid_argument "Dap.restartableFrames") ;
-  Frame { name ; range ; restart ; scopes }
+  Frame { name ; range ; restart ; scopes ; values }
 
 let js_frame (fr : frame) =
   let id = Hashtbl.length scopes in
@@ -635,6 +662,7 @@ let js_frame (fr : frame) =
       "presentationHint" , `String "label" ;
     ]
   | Frame fr ->
+    store (frameId id) fr.values ;
     Hashtbl.add scopes id fr.scopes ;
     Option.iter (Hashtbl.add restartframes id) fr.restart ;
     let Loc r = fr.range in
@@ -665,17 +693,19 @@ type thread = Thread of {
     mutable on_step_out : (adapter -> unit) ;
     mutable on_continue : (adapter -> unit) ;
     mutable frames : frame Darray.t ;
+    mutable values : value list ;
   }
 
 let kthread = ref 0
 let threads : (int,thread) Hashtbl.t = Hashtbl.create 0
 let singleThreadSupport = ref false
 
-let clear () =
+let reset_identifiers () =
   begin
     Hashtbl.clear vrefs ;
     Hashtbl.clear scopes ;
     Hashtbl.clear restartframes ;
+    List.iter (fun fn -> fn ()) !hooks ;
   end
 
 let updated ?(reason="updated") (Thread th) =
@@ -690,7 +720,7 @@ let set_single_thread_support () =
     register_capability "supportsSingleThreadExecutionRequests" () ;
   end
 
-let thread adapter ~name ?(frames=Darray.empty) () =
+let thread adapter ~name ?(frames=Darray.empty) ?(values=[]) () =
   let id = incr kthread ; !kthread in
   let th = Thread {
       id ; adapter ; name ;
@@ -700,6 +730,7 @@ let thread adapter ~name ?(frames=Darray.empty) () =
       on_step_in = ignore ;
       on_step_out = ignore ;
       frames ;
+      values ;
     } in
   Hashtbl.add threads id th ;
   updated ~reason:"started" th ; th
@@ -724,6 +755,7 @@ let connect (Thread th)
   end
 
 let set_frames (Thread th) frames = th.frames <- frames
+let set_values (Thread th) values = th.values <- values
 
 let finished thread =
   let Thread { id } = thread in
@@ -743,7 +775,8 @@ let stopped ~(reason:reason) ?description ?text ?all ?preserveFocus ?frames thre
       | `error -> "error"
       | `pause -> "pause"
       | `breakpoint -> "exception" in
-    clear () ;
+    reset_identifiers () ;
+    store (threadId th.id) th.values ;
     emit th.adapter "stopped" @@ Json.assoc [
       "reason" , `String reason ;
       "description" , Json.option_map Json.string description ;
