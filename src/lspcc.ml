@@ -40,16 +40,6 @@ let find_decl (source:source) id =
 (* --- Compiler for the LSP Server                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
-let config_for ~filename =
-  let rec lookup = function
-    | "/" | "." -> None
-    | dir ->
-      let config = Filename.concat dir "why3find.json" in
-      if Sys.file_exists config
-      then Some (dir,config)
-      else lookup (Filename.dirname dir)
-  in lookup (Filename.dirname filename)
-
 let of_loc (loc : Why3.Loc.position) : string * Lspserver.range =
   let file,l1,c1,l2,c2 = Why3.Loc.get loc in
   file , {
@@ -102,12 +92,12 @@ let preprocess filename diagnostics =
         warning (range_of_pos @@ Token.position input) message
       end ;
     let root =
-      match config_for ~filename with
+      match Config.root_for ~filename with
       | None -> Filename.dirname filename
-      | Some(dir,_) -> dir
+      | Some root -> root
     in
     Hashtbl.remove sources filename ;
-    let config = Config.load_config root in
+    let config = Config.load_config ~root in
     let loadplugins = load_plugins () in
     let env = Wenv.init ~root ~loadplugins config in
     let wenv = env.why3.env in

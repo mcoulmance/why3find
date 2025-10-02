@@ -247,10 +247,10 @@ let argfiles ?exts files = move_to_root () ;
 (* -------------------------------------------------------------------------- *)
 
 let save conf =
-  let path = Sys.getcwd () in
-  Config.save_config path conf ;
+  let root = Sys.getcwd () in
+  Config.save_config ~root conf ;
   Format.printf "Why3find config saved to %s@."
-    (Filename.concat path Config.conf_file)
+    (Filename.concat root Config.conf_file)
 
 let update_why3_config config =
   if !jobs then
@@ -275,7 +275,7 @@ let default = Config.default
 
 let load_raw_config () =
   move_to_root ();
-  Config.load_raw_config "."
+  Config.load_raw_config ~root:"."
 
 let add_options config =
   {

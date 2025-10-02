@@ -24,12 +24,19 @@ type config = {
 }
 
 let conf_file = "why3find.json"
+let root_for ~filename =
+  let rec lookup = function
+    | "/" | "." -> None
+    | dir ->
+      let config = Filename.concat dir "why3find.json" in
+      if Sys.file_exists config
+      then Some dir
+      else lookup (Filename.dirname dir)
+  in lookup (Filename.dirname filename)
 
-let load_raw_config p =
-  let p = Filename.concat p conf_file in
-  if Sys.file_exists p
-  then Json.of_file p
-  else `Null
+let load_raw_config ~root =
+  let path = Filename.concat root conf_file in
+  if Sys.file_exists path then Json.of_file path else `Null
 
 let get ~of_json ~default name json =
   try of_json (Json.jfield_exn name json) with
@@ -75,12 +82,12 @@ let config_to_json config =
   ] in
   Json.assoc ~keepnull:false fields
 
-let load_config p =
-  config_of_json @@ load_raw_config p
+let load_config ~root =
+  config_of_json @@ load_raw_config ~root
 
-let save_config p config =
-  let p = Filename.concat p conf_file in
-  Json.to_file ~pretty_floats:true p @@ config_to_json config
+let save_config ~root config =
+  let path = Filename.concat root conf_file in
+  Json.to_file ~pretty_floats:true path @@ config_to_json config
 
 (* -------------------------------------------------------------------------- *)
 (* --- Why3 Environments                                                  --- *)
