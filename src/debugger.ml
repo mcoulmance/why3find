@@ -14,7 +14,7 @@ let init files =
          let echo category pp = Dap.output adapter ~category "%t" pp in
          Log.pp_stdout := echo `stdout ;
          Log.pp_stderr := echo `stderr ;
-         List.iter (Log.message "Compile %S@.") files ;
+         List.iter (Log.message "File %S") files ;
       ) ;
     Dap.on_terminate
       (fun adapter ~restart ->

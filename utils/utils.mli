@@ -14,6 +14,7 @@ val mkdirs : string -> unit
 val rmpath : string -> unit
 val copy : src:string -> tgt:string -> unit
 val locate : string -> (string * string) option
+val is_local : root:string -> file:string -> bool
 val chdir : string -> unit
 val absolute : string -> string
 val path : ?root:string -> string -> string
