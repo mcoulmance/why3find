@@ -382,23 +382,20 @@ let pp_status fmt s =
 (* --- Task Processing                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
-let process () =
-  Client.yield () ;
-  Fibers.yield () ;
-  match pop () with
-  | Some node ->
-    let pr = if is_complete node.hint then p_proven else p_broken in
-    incr pr;
-    Fibers.background (process_node node)
-      ~callback:(fun r -> decr pr; Fibers.set node.result r);
-    true
-  | None -> false
-
 let run () =
   while running () do
     let s = status () in
     Utils.progress "%a%t" pp_status s Runner.pp_goals ;
-    if not @@ process () then Unix.sleepf 0.01 ;
+    Client.yield () ;
+    Fibers.yield () ;
+    match pop () with
+    | Some node ->
+      let callback =
+        let pr = if is_complete node.hint then p_proven else p_broken in
+        incr pr; fun r -> decr pr; Fibers.set node.result r
+      in Fibers.background (process_node node) ~callback
+    | None ->
+      Unix.sleepf 0.01
   done ;
   Client.terminate ()
 

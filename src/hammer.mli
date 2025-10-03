@@ -52,10 +52,6 @@ val running : unit -> bool
 (** Empty the current task queue and kill all running provers. *)
 val interrupt : unit -> unit
 
-(** Process one pending node, if any.
-    Returns true if some node has been processed. *)
-val process : unit -> bool
-
 (** Loop process and log process on stdout until there is no more activity. *)
 val run : unit -> unit
 
