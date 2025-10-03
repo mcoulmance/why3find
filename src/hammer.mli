@@ -35,8 +35,14 @@ val create :
   ?profile:Calibration.profile ->
   Project.env -> hammer
 
+type node
+val result : node -> Crc.crc Fibers.t
+val goal : node -> Session.goal
+val parent : node -> node option
+val children : node -> node list
+
 (** Enqueue some goal to be processed. *)
-val schedule : hammer -> ?cancel:unit Fibers.signal -> goal -> crc -> crc Fibers.t
+val schedule : hammer -> ?cancel:unit Fibers.signal -> goal -> crc -> node
 
 (** Current Task Server State *)
 type status = {
@@ -45,6 +51,8 @@ type status = {
   pending : int ; (** Number of pending prover tasks *)
   running : int ; (** Number of running prover tasks *)
 }
+
+val iter : (node -> unit) -> unit
 
 val status : unit -> status
 val running : unit -> bool

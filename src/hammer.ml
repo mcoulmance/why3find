@@ -69,6 +69,15 @@ let pop () =
 
 let stuck n = stuck ~goal:n.goal ()
 let result n = n.result
+let goal n = n.goal
+let children n = match n.stacked with None -> [] | Some ns -> ns
+let parent n = n.parent
+
+let iter f =
+  begin
+    Queue.iter f q_broken ;
+    Queue.iter f q_proven ;
+  end
 
 type strategy = node -> crc Fibers.t
 let fail : strategy = fun n -> Fibers.return (stuck n)
@@ -219,7 +228,7 @@ let create
 
 let schedule hammer ?cancel goal hint =
   match hammer.preprocess with
-  | None -> result @@ push hammer ?cancel goal hint
+  | None -> push hammer ?cancel goal hint
   | Some tactic ->
     match
       Session.apply hammer.env.why3.env tactic ~allow_no_effect:true goal
@@ -227,12 +236,15 @@ let schedule hammer ?cancel goal hint =
     | None ->
       Log.warning "Ignored goal %s: preprocessing tactic %a failed"
         (Session.goal_name goal) Tactic.pretty tactic ;
-      result @@ push hammer ?cancel goal hint
+      push hammer ?cancel goal hint
     | Some goals ->
       let hints = match hint.status with
         | Tactic { id; children; _ } when id = Tactic.name tactic -> children
-        | _ -> []
-      in decompose (node hammer ?cancel ~hint goal) tactic goals hints
+        | _ -> [] in
+      let root = node hammer ?cancel ~hint goal in
+      ignore @@
+      Fibers.finally ~callback:(Fibers.set root.result) @@
+      decompose root tactic goals hints ; root
 
 (* -------------------------------------------------------------------------- *)
 (* --- Hammer Strategy                                                    --- *)

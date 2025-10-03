@@ -181,10 +181,9 @@ let accept ~gnames thy goal =
   List.mem thy gnames || List.mem (thy ^ "." ^ (Session.goal_name goal)) gnames
 
 let prove_goal ~file ~hammer ~results ~force buffer theory gname goal hint =
-  let+ crc =
-    Crc.merge hint @+
-    Hammer.schedule hammer goal (if force then Crc.stuck () else hint)
-  in
+  let hint = if force then Crc.stuck () else hint in
+  let node = Hammer.schedule hammer goal hint in
+  let+ crc = Crc.merge hint @+ Hammer.result node in
   Option.iter (Proofs.add theory goal crc) buffer;
   if Utils.tty then stats hint crc ;
   if not (Crc.is_complete crc) then
