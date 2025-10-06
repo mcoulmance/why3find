@@ -92,7 +92,7 @@ let preprocess filename diagnostics =
         warning (range_of_pos @@ Token.position input) message
       end ;
     let root =
-      match Config.root_for ~file:filename with
+      match Config.root_for filename with
       | None -> Filename.dirname filename
       | Some root -> root
     in

@@ -17,6 +17,10 @@ val stdlib : bool ref
 val externals : bool ref
 val builtins : bool ref
 
+val clear_stats : unit -> unit
+val merge_stats : Crc.crc -> Crc.crc -> unit
+val print_stats : Prover.prover list -> Tactic.tactic list -> Format.formatter -> unit
+
 type outcome = {
   provers : Prover.prover list ;
   tactics : Tactic.tactic list ;

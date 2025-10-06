@@ -36,6 +36,9 @@ type node = {
   mutable stacked : node list option ;
 }
 
+let provers h = h.provers
+let tactics h = h.tactics
+
 (* -------------------------------------------------------------------------- *)
 (* --- Queue Management                                                   --- *)
 (* -------------------------------------------------------------------------- *)
@@ -329,7 +332,7 @@ let update_tactic ~hint n = (hammer2 ~hint >>> hammer) n
 
 let explore n = if n.hammer.replay then fail n else hammer n
 
-let process_node n =
+let step n =
   try
     match n.hint.status with
     | Stuck -> explore n
@@ -377,13 +380,15 @@ let status () = {
 }
 
 let running () =
-  !p_proven > 0 ||
-  !p_broken > 0 ||
-  Queue.length q_proven > 0 ||
-  Queue.length q_broken > 0 ||
-  Runner.pending () > 0 ||
-  Runner.running () > 0 ||
-  Fibers.pending () > 0
+  begin
+    !p_proven > 0 ||
+    !p_broken > 0 ||
+    Queue.length q_proven > 0 ||
+    Queue.length q_broken > 0 ||
+    Runner.pending () > 0 ||
+    Runner.running () > 0 ||
+    Fibers.pending () > 0
+  end
 
 let pp_status fmt s =
   if s.proven > 0 then Format.fprintf fmt "!%d/" s.proven ;
@@ -394,20 +399,23 @@ let pp_status fmt s =
 (* --- Task Processing                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
-let run () =
-  while running () do
-    let s = status () in
-    Utils.progress "%a%t" pp_status s Runner.pp_goals ;
+let process () =
+  begin
     Client.yield () ;
     Fibers.yield () ;
     match pop () with
     | Some node ->
-      let callback =
-        let pr = if is_complete node.hint then p_proven else p_broken in
-        incr pr; fun r -> decr pr; Fibers.set node.result r
-      in Fibers.background (process_node node) ~callback
-    | None ->
-      Unix.sleepf 0.01
+      let pr = if is_complete node.hint then p_proven else p_broken in
+      let callback r = decr pr; Fibers.set node.result r in
+      incr pr ; Fibers.background (step node) ~callback ; true
+    | None -> false
+  end
+
+let run () =
+  while running () do
+    let s = status () in
+    Utils.progress "%a%t" pp_status s Runner.pp_goals ;
+    if not @@ process () then Unix.sleepf 0.01 ;
   done ;
   Client.terminate ()
 

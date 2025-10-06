@@ -43,6 +43,9 @@ val process : adapter -> bool
 (** Same as [process]. *)
 val yield: adapter -> unit
 
+(** Flush output channel. *)
+val flush: adapter -> unit
+
 (** Schedule a callback to be executed during subsequent calls to `process` or `yield`. *)
 val schedule: adapter -> (adapter -> unit) -> unit
 

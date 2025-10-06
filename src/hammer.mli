@@ -16,6 +16,9 @@ open Session
 (** Hammer Strategy *)
 type hammer
 
+val provers : hammer -> Prover.prover list
+val tactics : hammer -> Tactic.tactic list
+
 (** Options:
     - [~level] max hammer strategy level used (0..4, default 4)
     - [~replay] replay mode (default false)
@@ -59,6 +62,9 @@ val running : unit -> bool
 
 (** Empty the current task queue and kill all running provers. *)
 val interrupt : unit -> unit
+
+(** Process one node. Returns [true] is some progress has been made. *)
+val process : unit -> bool
 
 (** Loop process and log process on stdout until there is no more activity. *)
 val run : unit -> unit

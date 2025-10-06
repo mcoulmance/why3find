@@ -6,4 +6,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-val init : string list -> unit
+val exit : int ref
+val init : string list -> string list -> unit
+val running : Dap.adapter -> bool
+val process : Dap.adapter -> bool
+val run : Dap.adapter -> unit

@@ -24,7 +24,7 @@ type config = {
 }
 
 let conf_file = "why3find.json"
-let root_for ~file =
+let root_for file =
   let rec lookup = function
     | "/" | "." -> None
     | dir ->

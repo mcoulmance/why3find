@@ -20,21 +20,20 @@ type level = [ `Message | `Warning | `Error ]
 let pp_stdout = ref (fun pp -> pp Format.std_formatter)
 let pp_stderr = ref (fun pp -> pp Format.err_formatter)
 
-let message pp = !pp_stdout pp
-let summarize pp = Queue.push pp summary ; !pp_stderr pp
+let summarize_err pp = Queue.push pp summary ; !pp_stderr pp
 
 let output level pp =
   Utils.flush ();
   match level with
   | `Message ->
-    Format.kdprintf message "@[<hov>%t@]@." pp
+    Format.kdprintf !pp_stdout "@[<hov>%t@]@." pp
   | `Warning ->
     incr warnings ;
-    Format.kdprintf summarize
+    Format.kdprintf summarize_err
       "@[<hov>@{<bold>@{<bright magenta>Warning:@}@} %t@]@." pp
   | `Error ->
     incr errors ;
-    Format.kdprintf summarize
+    Format.kdprintf summarize_err
       "@[<hov>@{<bold>@{<bright red>Error:@}@} %t@]@." pp
 
 let set_log b =
@@ -45,14 +44,11 @@ let emit ?(level=`Message) msg =
   then Format.kdprintf (output level) msg
   else Format.ifprintf Format.std_formatter msg
 
-let message format =
-  emit ~level:`Message format
-
-let warning format =
-  emit ~level:`Warning format
-
-let error format =
-  emit ~level:`Error format
+let printf msg = Format.kdprintf !pp_stdout msg
+let eprintf msg = Format.kdprintf !pp_stderr msg
+let message msg = emit ~level:`Message msg
+let warning msg = emit ~level:`Warning msg
+let error   msg = emit ~level:`Error   msg
 
 let summary () =
   if !is_log_on then

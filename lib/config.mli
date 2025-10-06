@@ -28,7 +28,7 @@ val default : config
 val conf_file : string
 (** The name of the configuration file *)
 
-val root_for : file:string -> string option
+val root_for : string -> string option
 (** Lookup for a parent directory of the given file that contains a why3find
     configuration file. *)
 

@@ -74,6 +74,39 @@ let send_error { channel } ~seq command message =
   ]
 
 (* -------------------------------------------------------------------------- *)
+(* --- Output & Logging                                                   --- *)
+(* -------------------------------------------------------------------------- *)
+
+let ansi_styling = ref false
+
+type category = [ `console | `important | `stdout | `stderr ]
+let output adapter ?(category : category = `console) msg =
+  let buffer = Buffer.create 80 in
+  let fmt = Format.formatter_of_buffer buffer in
+  if !ansi_styling then Utils.set_ansi_tags fmt ;
+  Format.kfprintf
+    begin
+      fun fmt ->
+        Format.pp_print_flush fmt () ;
+        let output = Buffer.contents buffer in
+        let category = match category with
+          | `console -> "console"
+          | `important -> "important"
+          | `stdout -> "stdout"
+          | `stderr -> "stderr" in
+        emit adapter "output" @@ Json.assoc [
+          "category", `String category ;
+          "output", `String output ;
+        ]
+    end fmt msg
+
+let protect fn adapter =
+  try fn adapter with exn ->
+    output adapter ~category:`important
+      "Why3 DAP Error: %s" (Printexc.to_string exn) ;
+    Rpc.flush adapter.channel
+
+(* -------------------------------------------------------------------------- *)
 (* --- Message Processing                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -118,14 +151,10 @@ let process adapter =
      not (Queue.is_empty adapter.callback)
   then
     begin
-      try
-        adapter.handling_callback <- true ;
-        Queue.pop adapter.callback adapter ;
-        adapter.handling_callback <- false ;
-        true
-      with exn ->
-        adapter.handling_callback <- false ;
-        raise exn
+      adapter.handling_callback <- true ;
+      protect (Queue.pop adapter.callback) adapter ;
+      adapter.handling_callback <- false ;
+      Rpc.flush adapter.channel ; true
     end
   else
     match Rpc.pull adapter.channel with
@@ -148,6 +177,7 @@ let process adapter =
         Rpc.flush adapter.channel ; true
 
 let yield adapter = ignore @@ process adapter
+let flush adapter = ignore @@ Rpc.flush adapter.channel
 
 let schedule adapter fn = Queue.add fn adapter.callback
 
@@ -214,33 +244,7 @@ let capabilities : (string, Json.t) Hashtbl.t = Hashtbl.create 0
 let register_capability cap ?(value=`Bool true) () =
   Hashtbl.replace capabilities cap value
 
-(* -------------------------------------------------------------------------- *)
-(* --- Output & Logging                                                   --- *)
-(* -------------------------------------------------------------------------- *)
-
-let ansi_styling = ref false
 let () = register_capability "supportsANSIStyling" ()
-
-type category = [ `console | `important | `stdout | `stderr ]
-let output adapter ?(category : category = `console) msg =
-  let buffer = Buffer.create 80 in
-  let fmt = Format.formatter_of_buffer buffer in
-  if !ansi_styling then Utils.set_ansi_tags fmt ;
-  Format.kfprintf
-    begin
-      fun fmt ->
-        Format.pp_print_flush fmt () ;
-        let output = Buffer.contents buffer in
-        let category = match category with
-          | `console -> "console"
-          | `important -> "important"
-          | `stdout -> "stdout"
-          | `stderr -> "stderr" in
-        emit adapter "output" @@ Json.assoc [
-          "category", `String category ;
-          "output", `String output ;
-        ]
-    end fmt msg
 
 (* -------------------------------------------------------------------------- *)
 (* --- Initialize Request                                                 --- *)
@@ -305,6 +309,7 @@ let on_attach fn = register "attach"
 (* -------------------------------------------------------------------------- *)
 
 let exited adapter code =
+  adapter.shutdown <- true ;
   emit adapter "exited" @@ Json.assoc [ "exitCode" , `Int code ]
 
 let terminated adapter ?(restart=`Null) () =
