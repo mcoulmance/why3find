@@ -10,16 +10,12 @@
 
 type t
 
-type pos = int * int
-type range = pos * pos
-
 val lines : t -> int
 val length : t -> int
 val line_at : int -> t -> string
-val char_at : pos -> t -> char
+val char_at : Range.pos -> t -> char
 
-val start : pos (* 0,0 *)
-val eof : t -> pos (* last line , length of last line *)
+val eof : t -> Range.pos (* last line , length of last line *)
 
 val empty : t
 val concat : t -> t -> t
@@ -41,7 +37,7 @@ val pretty : Format.formatter -> t -> unit
 val trim : t -> t
 val prefix_string : int -> string -> string
 val suffix_string : int -> string -> string
-val prefix : pos -> t -> t * string
-val suffix : pos -> t -> string * t
-val update : range -> string -> t -> t
-val substring : range -> t -> string
+val prefix : Range.pos -> t -> t * string
+val suffix : Range.pos -> t -> string * t
+val update : Range.range -> string -> t -> t
+val substring : Range.range -> t -> string

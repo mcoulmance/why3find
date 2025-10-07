@@ -10,30 +10,32 @@
 (* --- Position & Ranges                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
-type pos = int * int
+type pos = { line : int ; col : int } (* starts at 0 *)
 type range = pos * pos
 
-let pp_pos fmt (l,c) = Format.fprintf fmt "line %d, character %d" l (succ c)
+let pp_pos fmt p =
+  Format.fprintf fmt "line %d, character %d" (p.line+1) (p.col+1)
 
-let (<<) ((l1,c1):pos) ((l2,c2):pos) = l1 < l2 || (l1 = l2 && c1 < c2)
-let (<<=) ((l1,c1):pos) ((l2,c2):pos) = l1 < l2 || (l1 = l2 && c1 <= c2)
+let (<<) p1 p2  = p1.line < p2.line || (p1.line = p2.line && p1.col <  p2.col)
+let (<<=) p1 p2 = p1.line < p2.line || (p1.line = p2.line && p1.col <= p2.col)
 let (<<<) ((_,b):range) ((c,_):range) = b <<= c
 
-let start : pos = (1,0)
-let next ((l,c):pos) = (l,succ c)
-let prev ((l,c):pos) = (l,pred c)
-let newline ((l,_):pos) = (succ l,0)
+let at ?(line=0) ?(col=0) () = { line ; col }
+let start : pos = { line=0 ; col=0 }
+let next p = { line = p.line ; col = p.col+1 }
+let prev p = { line = p.line ; col = p.col-1 }
+let newline p = { line = p.line+1 ; col = 0 }
 let after p = function '\n' -> newline p | _ -> next p
-let pp_range fmt ((l,c),(l',d)) =
-  if l = l' then
-    Format.fprintf fmt "line %d, characters %d-%d" l (succ c) (succ d)
+let pp_range fmt (p,q) =
+  if p.line = q.line then
+    Format.fprintf fmt "line %d, characters %d-%d" (p.line+1) (p.col+1) (q.col+1)
   else
-    Format.fprintf fmt "lines %d-%d" l l'
+    Format.fprintf fmt "lines %d-%d" p.line q.line
 
 let pp_position fmt ~file r =
   Format.fprintf fmt "file %S, %a" file pp_range r
 
-let empty : range = (0,0),(0,0)
+let empty : range = start,start
 let is_empty (a,b) = b <<= a
 
 let inside p (a,b) = a <<= p && p << b
@@ -47,5 +49,5 @@ let diff (a,b) (c,d) =
   let r = max a d, min b c in
   if is_empty r then empty else r
 
-let first_line (r : range) = fst @@ fst r
-let last_line (r : range) = fst @@ snd r
+let first_line (r : range) = (fst r).line
+let last_line (r : range) = (snd r).line

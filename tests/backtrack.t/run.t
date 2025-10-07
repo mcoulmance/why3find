@@ -1,5 +1,5 @@
   $ why3find prove -T split_vc,inline_goal a.mlw -s
-  "a.mlw", line 5, characters 9-10: proof failed
+  File "a.mlw", line 5, characters 10-11: proof failed
   Goal T.g: ✘
     g
   Theory a.T: ✘

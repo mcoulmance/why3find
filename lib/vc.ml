@@ -98,9 +98,11 @@ let rec collect env = function
   | Empty -> ()
   | Cat(a,b) -> collect env a ; collect env b
   | Range(kind,p) ->
-    let f,a,b,c,d = Loc.get p in
+    let f,l1,c1,l2,c2 = Loc.get p in
     if f = env.file then
-      let chunk = { kind ; range = ((a,b),(c,d)) } in
+      let p = Range.at ~line:(l1-1) ~col:c1 () in
+      let q = Range.at ~line:(l2-1) ~col:c2 () in
+      let chunk = { kind ; range = p,q } in
       match kind with
       | Goal ->
         env.goal <- chunk :: env.goal
@@ -246,7 +248,7 @@ let close_style cursor sty =
 let lino cursor =
   begin
     pp_close_style cursor.style ;
-    Format.printf "@{<orange>%4d:@} " @@ fst cursor.pos ;
+    Format.printf "@{<orange>%4d:@} " @@ 1 + cursor.pos.line ;
     pp_open_style cursor.style ;
   end
 
@@ -254,11 +256,11 @@ let edge = function
   | 'a'..'z' | 'A'..'Z' | '0'..'9' | '\'' | '_' -> false
   | _ -> true
 
-let move cursor d =
+let move cursor ofs =
   begin
-    let l,c = cursor.pos in
-    cursor.offset <- cursor.offset + d ;
-    cursor.pos <- l, c+d ;
+    let Range.{ line ; col } = cursor.pos in
+    cursor.offset <- cursor.offset + ofs ;
+    cursor.pos <- Range.at ~line ~col:(col+ofs) () ;
   end
 
 let comment_mult text k =
@@ -310,7 +312,7 @@ let print cursor ?(endline=true) pos =
         begin
           match c with
           (* endline *)
-          | '\n' when (endline || fst cursor.pos + 1 < fst pos) ->
+          | '\n' when (endline || cursor.pos.line + 1 < pos.line) ->
             cursor.pos <- Range.after cursor.pos c ;
             cursor.offset <- succ k ;
             cursor.edge <- true ;
@@ -350,14 +352,12 @@ let print cursor ?(endline=true) pos =
           Format.printf "@{<bold>%s@}" kwd
         else
           Format.print_string kwd ;
-        let l,p = cursor.pos in
-        cursor.pos <- l, p+n;
-        cursor.offset <- k+n;
+        move cursor n ;
         cursor.edge <- false;
     end
   done
 
-let line n = (n,0)
+let line n = Range.at ~line:n ()
 
 let rec decorate cursor head tail =
   print cursor @@ fst head.range ;
@@ -426,5 +426,5 @@ let highlight ~file ~context thy task =
           Format.print_newline () ;
         end ;
     with Invalid_argument _ | Exit ->
-      if snd cursor.pos > 0 then
+      if cursor.pos.col > 0 then
         Format.print_newline ()

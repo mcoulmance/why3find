@@ -74,30 +74,23 @@ let () = Lsp.register ~force:true "initialize"
 (* --- Documents                                                          --- *)
 (* -------------------------------------------------------------------------- *)
 
-type position = { line: int ; char : int }
-type range = { start: position ; stop: position }
-type change = Text of string | Update of range * string
+type change = Text of string | Update of Range.range * string
 type update = { before: Ropes.t ; change: change ; after: Ropes.t }
 
-let to_pos { line ; char } = line,char
-let to_range { start ; stop } = to_pos start, to_pos stop
+let jposition js =
+  let line = Json.jfield "line" js |> Json.jint in
+  let col = Json.jfield "character" js |> Json.jint in
+  Range.at ~line ~col ()
 
-let jposition js = {
-  line = Json.jfield "line" js |> Json.jint ;
-  char = Json.jfield "character" js |> Json.jint ;
-}
+let wposition Range.{ line ; col } : Json.t =
+  `Assoc [ "line", `Int line ; "character", `Int col ]
 
-let wposition { line ; char } : Json.t =
-  `Assoc [ "line", `Int line ; "character", `Int char ]
+let jrange js =
+  let p = Json.jfield "start" js |> jposition in
+  let q = Json.jfield "end" js |> jposition in p,q
 
-let jrange js = {
-  start = Json.jfield "start" js |> jposition ;
-  stop =  Json.jfield "end" js |> jposition ;
-}
-
-let wrange { start ; stop } : Json.t =
-  `Assoc [ "start", wposition start ; "end", wposition stop ]
-[@@ warning "-32"]
+let wrange (p,q) : Json.t =
+  `Assoc [ "start", wposition p ; "end", wposition q ]
 
 let jchange js =
   let text = Json.jfield "text" js |> Json.jstring in
@@ -107,7 +100,7 @@ let jchange js =
 
 type document = Doc of { uri: string ; lang: string ; text: Ropes.t }
 
-type location = Loc of { uri: string ; range: range}
+type location = Loc of { uri: string ; range: Range.range}
 
 let location ~uri ~range = Loc { uri ; range }
 
@@ -122,7 +115,7 @@ let apply (Doc doc) update =
   let text =
     match update with
     | Text text -> Ropes.of_string text
-    | Update(range,text) -> Ropes.update (to_range range) text doc.text
+    | Update(range,text) -> Ropes.update range text doc.text
   in Doc { doc with text }
 
 (* Indexed by uri *)
@@ -134,45 +127,45 @@ let document ~uri = Hashtbl.find documents uri
 (* ---  Position Translation                                              --- *)
 (* -------------------------------------------------------------------------- *)
 
-let backward_position (u : update) (p : position) =
+let backward_position (u : update) (p : Range.pos) =
   match u.change with
   | Text _ -> None
-  | Update( { start ; stop },_) ->
+  | Update((start,stop),_) ->
     if p.line < start.line then Some p else
     if p.line = start.line then
-      if p.char <= start.char then Some p else None
+      if p.col <= start.col then Some p else None
     else
     if p.line > stop.line then
       let delta = Ropes.lines u.after - Ropes.lines u.before in
-      Some { line = p.line - delta ; char = p.char }
+      Some (Range.at ~line:(p.line - delta) ~col:p.col ())
     else
       None
 
-let forward_position (p : position) (u : update) =
+let forward_position (p : Range.pos) (u : update) =
   match u.change with
   | Text _ -> None
-  | Update({ start ; stop },_) ->
+  | Update((start,stop),_) ->
     if p.line < start.line then Some p else
     if p.line = start.line then
-      if p.char <= start.char then Some p else None
+      if p.col <= start.col then Some p else None
     else
     if p.line > stop.line then
       let delta = Ropes.lines u.after - Ropes.lines u.before in
-      Some { line = p.line + delta ; char = p.char }
+      Some (Range.at ~line:(p.line + delta) ~col:p.col ())
     else
       None
 
-let backward_range (u: update) (r : range) =
+let backward_range (u: update) ((start,stop) : Range.range) =
   match
-    backward_position u r.start,
-    backward_position u r.stop
-  with Some start , Some stop -> Some { start ; stop } | _ -> None
+    backward_position u start,
+    backward_position u stop
+  with Some start , Some stop -> Some (start,stop) | _ -> None
 
-let forward_range (r : range) (u: update) =
+let forward_range ((start,stop) : Range.range) (u: update) =
   match
-    backward_position u r.start,
-    backward_position u r.stop
-  with Some start , Some stop -> Some { start ; stop } | _ -> None
+    backward_position u start,
+    backward_position u stop
+  with Some start , Some stop -> Some (start,stop) | _ -> None
 
 (* -------------------------------------------------------------------------- *)
 (* --- Document Synchronization                                           --- *)
@@ -278,7 +271,7 @@ let on_definition ?(kind:defkind = `Def) fn =
 
 type markup = [ `Plaintext | `Markdown ]
 type hover = Hover of {
-    range : range option ;
+    range : Range.range option ;
     kind : markup ;
     value : string list ;
   }
@@ -335,10 +328,10 @@ let wcommand = function Cmd { title ; command ; args } ->
 (* -------------------------------------------------------------------------- *)
 
 type codelens =
-  | Resolved of position * command
-  | ToResolve of position * Json.t
+  | Resolved of Range.pos * command
+  | ToResolve of Range.pos * Json.t
 
-let wrangepos p = wrange { start = p ; stop = p }
+let wrangepos p = wrange (p,p)
 
 let wcodelens = function
   | Resolved(p,cmd) ->
@@ -381,7 +374,7 @@ let refresh_codelens channel =
 (* -------------------------------------------------------------------------- *)
 
 type folding = Folding of {
-    range : range ;
+    range : Range.range ;
     kind : string option ;
     text : string option ;
   }
@@ -389,12 +382,12 @@ type folding = Folding of {
 let folding ~range ?kind ?text () =
   Folding { range ; kind ; text }
 
-let wfolding = function Folding { range ; kind ; text } ->
+let wfolding = function Folding { range=(start,stop) ; kind ; text } ->
   Json.assoc [
-    "startLine", `Int range.start.line ;
-    "startCharacter", `Int range.start.char ;
-    "endLine", `Int range.stop.line ;
-    "endCharacter", `Int range.stop.char ;
+    "startLine", `Int start.line ;
+    "startCharacter", `Int start.col ;
+    "endLine", `Int stop.line ;
+    "endCharacter", `Int stop.col ;
     "kind", Json.option_map Json.string kind ;
     "collapsedText", Json.option_map Json.string text ;
   ]
@@ -438,8 +431,8 @@ let ikind (kind : kind) =
 type symbol = Symbol of {
     name : string ;
     kind : kind ;
-    range : range ;
-    selection : range ;
+    range : Range.range ;
+    selection : Range.range ;
     children : symbol list ;
   }
 
@@ -477,7 +470,7 @@ type related = Info of {
   }
 
 type diagnostic = Diag of {
-    range : range ;
+    range : Range.range ;
     severity : severity ;
     source : string option ;
     message : string ;

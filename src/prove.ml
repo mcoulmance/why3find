@@ -197,6 +197,13 @@ let print_stats allprovers alltactics fmt =
 let accept ~gnames thy goal =
   List.mem thy gnames || List.mem (thy ^ "." ^ (Session.goal_name goal)) gnames
 
+let pp_position fmt loc =
+  let file,l1,c1,l2,c2 = Why3.Loc.get loc in
+  if l1=l2 then
+    Format.fprintf fmt "File %S, line %d, characters %d-%d" file l1 (c1+1) (c2+1)
+  else
+    Format.fprintf fmt "File %S, lines %d-%d" file l1 l2
+
 let prove_goal ~file ~hammer ~results ~force buffer theory gname goal hint =
   let hint = if force then Crc.stuck () else hint in
   let node = Hammer.schedule hammer goal hint in
@@ -207,7 +214,7 @@ let prove_goal ~file ~hammer ~results ~force buffer theory gname goal hint =
     begin
       Utils.flush () ;
       Option.iter
-        (Format.printf "%a: proof failed@." Why3.Loc.pp_position)
+        (Format.printf "%a: proof failed@." pp_position)
         (Session.goal_loc goal) ;
       Format.printf "@[<v2>Goal @{<red>%s.%s@}: %a@]@."
         (Session.name theory) gname Crc.pretty crc ;

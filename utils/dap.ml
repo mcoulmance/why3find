@@ -188,8 +188,6 @@ let schedule adapter fn = Queue.add fn adapter.callback
 let pathFormat : [ `Path | `Uri ] ref = ref `Path
 let clientColStart = ref 1
 let clientLineStart = ref 1
-let serverColStart = ref 1
-let serverLineStart = ref 1
 let supportedProgress = ref false
 
 let setPathFormat = function
@@ -197,20 +195,14 @@ let setPathFormat = function
   | `String "uri" -> pathFormat := `Uri
   | fmt -> Log.error "Unknown path format (%a)" Json.pretty fmt
 
-let set_line_start n = serverLineStart := n
-let set_column_start n = serverColStart := n
-
 let setColStartAt1 = function `Bool false -> clientColStart := 0 | _ -> clientColStart := 1
 let setLineStartAt1 = function `Bool false -> clientLineStart := 0 | _ -> clientLineStart := 1
 let setb r = function `Bool b -> r := b | _ -> ()
-
-let of_line js = (Json.jint js) - !clientLineStart + !serverLineStart
-let to_line ln : Json.t =
-  if ln < 0 then `Null else `Int (ln - !serverLineStart + !clientLineStart)
-
-let of_column js = (Json.jint js) - !clientColStart + !serverColStart
-let to_column col : Json.t =
-  if col < 0 then `Null else `Int (col - !serverColStart + !serverColStart)
+let none = (-1)
+let of_line = function `Int n -> n - !clientLineStart | _ -> none
+let to_line ln : Json.t = if ln < 0 then `Null else `Int (ln + !clientLineStart)
+let of_column = function `Int n -> n - !clientColStart | _ -> none
+let to_column col : Json.t = if col < 0 then `Null else `Int (col + !clientColStart)
 
 let uri_prefix = "file://"
 
@@ -352,8 +344,7 @@ let () = register "disconnect"
 (* ---  Locations                                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
-let none : int = (-1)
-
+(* 0-started, <0 means none, "" means none *)
 type location = Loc of {
     source : string ;
     line : int ;
@@ -386,7 +377,7 @@ let () = register "locations"
         "source" , to_source l.source ;
         "line" , to_line l.line ;
         "column" , to_column l.column ;
-        "endLine" , to_column l.end_line ;
+        "endLine" , to_line l.end_line ;
         "endColumn" , to_column l.end_column ;
       ]
     end
@@ -406,10 +397,10 @@ let breakpoint
       "source" , to_source source ;
       "verified" , `Bool verified ;
       "message" , js_string_opt message ;
-      "line" , js_int_opt line ;
-      "column" , js_int_opt column ;
-      "endLine" , js_int_opt end_line ;
-      "endColumn" , js_int_opt end_column ;
+      "line" , to_line line ;
+      "column" , to_column column ;
+      "endLine" , to_line end_line ;
+      "endColumn" , to_column end_column ;
       "reason", js_string_opt reason ;
     ])
 
@@ -424,16 +415,19 @@ type source_breakpoint =
     }
 
 let of_source_breakpoint source js =
-  let line = Json.jfield "line" js |> Json.jint in
-  let column = Json.jfield "number" js |> Json.jdefault none Json.jint in
+  let line = Json.jfield "line" js |> of_line in
+  let column = Json.jfield "number" js |> of_column in
   let condition = Json.jfield "condition" js |> Json.jstring in
   let hit_condition = Json.jfield "hitCondition" js |> Json.jstring in
   let log_message = Json.jfield "logMessage" js |> Json.jstring in
   SourceBreakpoint { source ; line ; column ; condition ; hit_condition ; log_message }
 
 let of_line_breakpoint source js =
-  let line = Json.jint js in
-  SourceBreakpoint { source ; line ; column = none ; condition = "" ; hit_condition = "" ; log_message = "" }
+  let line = of_line js in
+  SourceBreakpoint {
+    source ; line ; column = none ;
+    condition = "" ; hit_condition = "" ; log_message = "" ;
+  }
 
 let verify_source_breakpoint = ref (fun _ -> failwith "unsupported breakpoints")
 

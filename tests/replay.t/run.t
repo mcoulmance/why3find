@@ -6,7 +6,7 @@
   $ rm -fr .why3find
   $ why3find prove -r
   Warning: Goal "merge": tactic 'split_vc' shadowed by 'compute_in_goal'
-  "mergesort.mlw", line 17, characters 10-15: proof failed
+  File "mergesort.mlw", line 17, characters 11-16: proof failed
   Goal Mergesort.merge: ✘
     merge [VC for merge]
   Theory mergesort.Mergesort: ✘ (4/5)

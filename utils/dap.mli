@@ -98,9 +98,6 @@ val on_disconnect : ?terminate:bool -> ?suspend:bool -> (adapter -> disconnect -
 
 (** {2 Locations} *)
 
-val set_line_start : int -> unit
-val set_column_start : int -> unit
-
 val of_line : Json.t -> int
 val to_line : int -> Json.t
 val of_column : Json.t -> int

@@ -40,27 +40,19 @@ let find_decl (source:source) id =
 (* --- Compiler for the LSP Server                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
-let of_loc (loc : Why3.Loc.position) : string * Lspserver.range =
+let of_loc (loc : Why3.Loc.position) : string * Range.range =
   let file,l1,c1,l2,c2 = Why3.Loc.get loc in
-  file , {
-    start = { line = l1 - 1 ; char = c1 } ;
-    stop = { line = l2 - 1 ; char = c2 }
-  }
-
-let of_range (rg : Range.range) : Lspserver.range =
-  let ((l1,c1),(l2,c2)) = rg in
-  {
-    start = { line = l1 ; char = c1 } ;
-    stop = { line = l2 ; char = c2 } ;
-  }
+  let start = Range.at ~line:(l1-1) ~col:c1 () in
+  let stop = Range.at ~line:(l2-1)~col:c2 () in
+  file , (start, stop)
 
 type lexpos = Lexing.position * Lexing.position
 
-let range_of_pos ((p,q) : lexpos) : string * Lspserver.range =
-  p.pos_fname , {
-    start = { line = p.pos_lnum - 1 ; char = p.pos_cnum - p.pos_bol } ;
-    stop = { line = q.pos_lnum - 1 ; char = q.pos_cnum - q.pos_bol } ;
-  }
+let range_of_pos ((p,q) : lexpos) : string * Range.range =
+  let file = p.pos_fname in
+  let p = Range.at ~line:(p.pos_lnum - 1) ~col:(p.pos_cnum - p.pos_bol) () in
+  let q = Range.at ~line:(q.pos_lnum - 1) ~col:(q.pos_cnum - q.pos_bol) () in
+  file , (p,q)
 
 let library ~root ~filename =
   if String.starts_with ~prefix:root filename then
@@ -79,7 +71,7 @@ let preprocess filename diagnostics =
         diagnostics := diag :: !diagnostics
       else
         Format.printf "[Warning] File %s, line %d: %s@."
-          file range.start.line message
+          file (1+(fst range).line) message
     in
     Why3.Loc.set_warning_hook
       begin fun ?loc message ->
@@ -168,12 +160,12 @@ let rec forward updates pos =
   | upd::updates ->
     Option.bind (Lspserver.forward_position pos upd) (forward updates)
 
-let forward_range updates Lspserver.{ start ; stop } =
+let forward_range updates (start,stop) =
   match forward updates start , forward updates stop with
-  | Some start , Some stop -> Some Lspserver.{ start ; stop }
+  | Some start , Some stop -> Some (start,stop)
   | _ -> None
 
-let locate ~uri (pos : Lspserver.position) =
+let locate ~uri (pos : Range.pos) =
   match Lspserver.to_file ~uri with
   | None -> raise Not_found
   | Some filename ->
@@ -181,7 +173,7 @@ let locate ~uri (pos : Lspserver.position) =
     match backward src.updates pos with
     | None -> raise Not_found
     | Some pos ->
-      let rg,symbol = Rangemap.find (pos.line, pos.char) src.refs in
+      let rg,symbol = Rangemap.find pos src.refs in
       filename, src, rg, symbol
 
 (* -------------------------------------------------------------------------- *)
@@ -195,7 +187,7 @@ let goto = function
     let uri = Lspserver.to_uri ~filename in
     Lspserver.Loc { uri ; range }
 
-let definition _channel ~uri (pos : Lspserver.position) =
+let definition _channel ~uri (pos : Range.pos) =
   let _,_,_,s = locate ~uri pos in
   match s with
   | Def _ | Section _ -> []
@@ -217,7 +209,7 @@ let typeof_decl = function
   | Id.Logic { ls_value = None }
   | Id.Axiom _ | Id.Lemma _ | Id.Goal _ -> raise Not_found
 
-let typedef _channel ~uri (pos : Lspserver.position) =
+let typedef _channel ~uri (pos : Range.pos) =
   let _,src,_,s = locate ~uri pos in
   match s with
   | Section _ -> []
@@ -501,14 +493,14 @@ let clone source ids =
         in Some tt
       end
 
-let mk_hover rg ~title ?code ?(infos=[]) () =
+let mk_hover range ~title ?code ?(infos=[]) () =
   let code =
     match code with
     | None -> []
     | Some tt -> Lspserver.code ~lang:"why3" (String.split_on_char '\n' tt) in
-  Lspserver.hover ~range:(of_range rg) ~kind:`Markdown (title :: code @ infos)
+  Lspserver.hover ~range ~kind:`Markdown (title :: code @ infos)
 
-let hover _channel ~uri (pos : Lspserver.position) =
+let hover _channel ~uri (pos : Range.pos) =
   let _,src,rg,s = locate ~uri pos in
   match s with
   | Section _ -> raise Not_found
@@ -533,8 +525,7 @@ let lenses _channel ~uri =
     let pool = ref [] in
     Rangemap.iter
       begin fun rg (s : Srcref.symbol) ->
-        let (line,char) = fst rg in
-        match forward source.updates Lspserver.{ line ; char } with
+        match forward source.updates (fst rg) with
         | None -> ()
         | Some pos ->
           match s with
@@ -572,7 +563,7 @@ let folding _channel ~uri =
         match s with
         | Ref _ | Def _ | Clone _ -> ()
         | Section _title ->
-          match forward_range source.updates (of_range rg) with
+          match forward_range source.updates rg with
           | None -> ()
           | Some range ->
             pool := Lspserver.folding ~kind:"region" ~range () :: !pool
