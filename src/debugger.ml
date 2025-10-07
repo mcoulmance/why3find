@@ -18,6 +18,13 @@ let debug_proof adapter hammer goal hint =
   let result crc = Prove.merge_stats hint crc ; Crc.merge hint crc in
   Fibers.map result (Hammer.result node)
 
+let pp_goal_location fmt goal =
+  match Session.goal_loc goal with
+  | None -> ()
+  | Some loc ->
+    let file,line,_,_,_ = Why3.Loc.get loc in
+    Format.fprintf fmt "%s:%d: " file line
+
 let debug_theory adapter hammer buffer strategy gnames theory =
   let module M = Why3.Wstdlib.Mstr in
   let thy = Session.name theory in
@@ -33,7 +40,6 @@ let debug_theory adapter hammer buffer strategy gnames theory =
     (fun goal ->
        if not @@ accept goal then Fibers.return () else
          let gname = Session.goal_name goal in
-         Log.eprintf "Prove %s.%s@." thy gname ;
          let hint = try M.find gname hints with Not_found -> Crc.stuck () in
          Fibers.map
            begin fun crc ->
@@ -41,11 +47,15 @@ let debug_theory adapter hammer buffer strategy gnames theory =
              if not @@ Crc.is_complete crc then
                begin
                  exit := 1 ;
-                 Log.error "Goal %s.%s @{<red>failed@} %a" thy gname Crc.pretty crc ;
+                 Log.error "%aGoal %s.%s @{<red>failed@} %a"
+                   pp_goal_location goal
+                   thy gname Crc.pretty crc ;
                end
            end @@
          debug_proof adapter hammer goal hint
     ) goals
+
+let hline = "--------------------------------------------------------"
 
 let debug_file adapter env gnames file =
   try
@@ -61,8 +71,11 @@ let debug_file adapter env gnames file =
     let callback _ =
       begin
         Proofs.save buffer ;
-        Log.printf "File %S:@\n%t%t" file Runner.print_stats
-        @@ Prove.print_stats (Hammer.provers hammer) (Hammer.tactics hammer) ;
+        Log.printf "%s@\nFile %S:@\n%t%t%s@."
+          hline file
+          Runner.print_stats
+          (Prove.print_stats (Hammer.provers hammer) (Hammer.tactics hammer))
+          hline ;
       end in
     Fibers.finally ~callback @@ Fibers.all @@
     List.map
@@ -71,8 +84,8 @@ let debug_file adapter env gnames file =
   with Why3.Loc.Located(loc,exn) ->
     let file,line,_,_,_ = Why3.Loc.get loc in
     Dap.output adapter ~category:`important
-      "@{<red>Error:@} %s:%d:@\n%s@."
-      file line @@ Printexc.to_string exn ;
+      "@{<red>Error:@} %s:%d:@\n%a@."
+      file line Why3.Exn_printer.exn_printer exn ;
     Fibers.return []
 
 (* -------------------------------------------------------------------------- *)

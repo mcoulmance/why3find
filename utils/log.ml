@@ -58,14 +58,14 @@ let summary () =
         Utils.flush ();
         if not Utils.tty || Utils.overflows () then
           begin
-            Format.eprintf "Summary:@.";
+            eprintf "Summary:@.";
             Queue.iter !pp_stderr summary ;
           end ;
-        Format.printf "Emitted %d warning%a" wrn Utils.pp_s wrn ;
+        printf "Emitted %d warning%a" wrn Utils.pp_s wrn ;
         let err = !errors in
         if err > 0 then
-          Format.printf ", %d error%a" err Utils.pp_s err ;
-        Format.printf "@."
+          printf ", %d error%a" err Utils.pp_s err ;
+        printf "@."
       end
 
 let exit_summary () =

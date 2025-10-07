@@ -179,7 +179,10 @@ let range chunks =
 (* -------------------------------------------------------------------------- *)
 
 let pp_range fmt (p,q) =
-  if p < q then Format.fprintf fmt "%d:%d" p q else Format.pp_print_int fmt p
+  if p < q then
+    Format.fprintf fmt "%d:%d" (p+1) (q+1)
+  else
+    Format.pp_print_int fmt (p+1)
 
 let pp_expl fmt t =
   let expl = Session.task_expl t in

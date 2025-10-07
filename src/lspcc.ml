@@ -114,7 +114,7 @@ let preprocess filename diagnostics =
       diagnostics := diag :: !diagnostics
     else
       Format.printf "[Warning]@[ File %a:@ %a@]@."
-        Why3.Loc.pp_position loc Why3.Exn_printer.exn_printer exn
+        Wutil.pp_position loc Why3.Exn_printer.exn_printer exn
   | exn ->
     Format.printf "[Error] %s@." (Printexc.to_string exn)
 

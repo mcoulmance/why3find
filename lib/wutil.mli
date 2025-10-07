@@ -35,5 +35,6 @@ val pp_tdecl : Format.formatter -> Theory.tdecl -> unit
 val pp_munit : Format.formatter -> Pmodule.mod_unit -> unit
 val pp_theory : Format.formatter -> Theory.theory -> unit
 val pp_module : Format.formatter -> Pmodule.pmodule -> unit
+val pp_position : Format.formatter -> Why3.Loc.position -> unit
 
 (**************************************************************************)

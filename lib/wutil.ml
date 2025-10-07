@@ -209,4 +209,11 @@ let pp_theory fmt (thy : Theory.theory) =
     Format.fprintf fmt "@]@ }@]" ;
   end
 
+let pp_position fmt loc =
+  let file,l1,c1,l2,c2 = Why3.Loc.get loc in
+  if l1=l2 then
+    Format.fprintf fmt "File %S, line %d, characters %d-%d" file l1 (c1+1) (c2+1)
+  else
+    Format.fprintf fmt "File %S, lines %d-%d" file l1 l2
+
 (* -------------------------------------------------------------------------- *)
