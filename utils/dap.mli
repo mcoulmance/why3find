@@ -235,6 +235,9 @@ val connect :
   ?on_continue:(adapter -> unit) ->
   unit -> unit
 
+val id : thread -> int
+val iter : (int -> thread -> unit) -> unit
+
 val set_frames : thread -> frame Darray.t -> unit
 val set_values : thread -> value list -> unit
 

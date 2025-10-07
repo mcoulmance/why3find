@@ -705,6 +705,8 @@ type thread = Thread of {
 let kthread = ref 0
 let threads : (int,thread) Hashtbl.t = Hashtbl.create 0
 let singleThreadSupport = ref false
+let iter fn = Hashtbl.iter fn threads
+let id (Thread th) = th.id
 
 let reset_identifiers () =
   begin
