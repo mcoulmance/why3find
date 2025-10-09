@@ -225,6 +225,7 @@ let to_source path : Json.t =
     Json.assoc [ "path" , `String jpath ]
 
 let js_int_opt n = if n <= 0 then `Null else `Int n
+let js_bool_opt b = if b then `Bool true else `Null
 let js_string_opt = function "" -> `Null | s -> `String s
 
 (* -------------------------------------------------------------------------- *)
@@ -338,6 +339,65 @@ let () = register "disconnect"
       Queue.push
         (fun s -> !disconnect s @@ Disconnect { restart ; terminate ; suspend })
         adapter.callback ; `Null
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Progress                                                          --- *)
+(* -------------------------------------------------------------------------- *)
+
+type progress = (adapter * string) option
+let idle : progress = None
+let hprogress = Hashtbl.create 0
+let kprogress = ref 0
+
+let js_percent =
+  function None -> Json.null | Some p -> Json.int (max 0 (min 100 p))
+
+let progress adapter ?(id="") ~title ?cancel ?(message="") ?percent () =
+  if !supportedProgress then
+    begin
+      let k = incr kprogress ; !kprogress in
+      let id = Format.sprintf "%s#%d" id k in
+      emit adapter "progressStart" @@ Json.assoc [
+        "progressId" , `String id ;
+        "title" , `String title ;
+        "cancellable" , js_bool_opt (cancel <> None) ;
+        "message" , js_string_opt message ;
+        "percentage", js_percent percent ;
+      ] ;
+      Option.iter (Hashtbl.add hprogress id) cancel ;
+      Some (adapter,id)
+    end
+  else None
+
+let update progress ?(message="") ?percent () =
+  match progress with
+  | None -> ()
+  | Some (adapter,id) ->
+    if (message <> "" || percent <> None) then
+      emit adapter "progressUpdate" @@ Json.assoc [
+        "progressId" , `String id ;
+        "message" , js_string_opt message ;
+        "percentage", js_percent percent ;
+      ]
+
+let finished progress ?(message="") () =
+  match progress with
+  | None -> ()
+  | Some (adapter,id) ->
+    Hashtbl.remove hprogress id ;
+    emit adapter "progressEnd" @@ Json.assoc [
+      "progressId" , `String id ;
+      "message" , js_string_opt message ;
+    ]
+
+let () = register "cancel"
+    begin fun adapter args ->
+      let id = Json.jfield "progressId" args |> Json.jstring in
+      Option.iter
+        (fun fn -> Queue.add fn adapter.callback)
+        (Hashtbl.find_opt hprogress id) ;
+      `Null
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -710,7 +770,7 @@ let reset_identifiers () =
     List.iter (fun fn -> fn ()) !hooks ;
   end
 
-let updated ?(reason="updated") (Thread th) =
+let updated_thread ?(reason="updated") (Thread th) =
   emit th.adapter "thread" @@ Json.assoc [
     "reason", `String reason ;
     "threadId" , `Int th.id ;
@@ -735,7 +795,7 @@ let thread adapter ~name ?(frames=Darray.empty) ?(values=[]) () =
       values ;
     } in
   Hashtbl.add threads id th ;
-  updated ~reason:"started" th ; th
+  updated_thread ~reason:"started" th ; th
 
 let connect (Thread th)
     ?on_pause ?on_next ?on_step_in ?on_step_out ?on_continue () =
@@ -759,10 +819,10 @@ let connect (Thread th)
 let set_frames (Thread th) frames = th.frames <- frames
 let set_values (Thread th) values = th.values <- values
 
-let finished thread =
+let terminated_thread thread =
   let Thread { id } = thread in
   Hashtbl.remove threads id ;
-  updated ~reason:"exited" thread
+  updated_thread ~reason:"exited" thread
 
 let stopped ~(reason:reason) ?description ?text ?all ?preserveFocus ?frames thread =
   begin

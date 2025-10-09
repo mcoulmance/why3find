@@ -11,6 +11,7 @@
 (* -------------------------------------------------------------------------- *)
 
 let exit = ref 0
+let progress = ref Dap.idle
 
 let debug_proof adapter hammer goal hint =
   ignore adapter ;
@@ -59,7 +60,8 @@ let hline = "--------------------------------------------------------"
 
 let debug_file adapter env gnames file =
   try
-    let dir, _ = Wutil.filepath file in
+    Dap.output adapter "Compiling %s@." file ;
+    let dir, lib = Wutil.filepath file in
     let theories, format = Wutil.load_theories env.Project.why3.env file in
     let session = Session.create ~dir ~file ~format theories in
     let local = Calibration.default env in
@@ -71,8 +73,8 @@ let debug_file adapter env gnames file =
     let callback _ =
       begin
         Proofs.save buffer ;
-        Log.printf "%s@\nFile %S:@\n%t%t%s@."
-          hline file
+        Log.printf "%s@\nLibrary %s:@\n%t%t%s@."
+          hline (String.concat "." lib)
           Runner.print_stats
           (Prove.print_stats (Hammer.provers hammer) (Hammer.tactics hammer))
           hline ;
@@ -100,29 +102,42 @@ let pp_exit fmt =
 
 let init gnames files =
   begin
+    Dap.on_init
+      begin fun adapter ->
+        progress := Dap.progress adapter ~title:"Provers" () ;
+        let echo category pp = Dap.output adapter ~category "%t" pp in
+        Log.pp_stdout := echo `stdout ;
+        Log.pp_stderr := echo `stderr ;
+        if files = [] then Log.warning "No files to debug." else
+          match List.find_map Config.root_for files with
+          | None ->
+            Log.warning "No config file found." ;
+            Dap.exited adapter 1
+          | Some root ->
+            let config = Config.load_config ~root in
+            let env = Project.create ~root ~config () in
+            let callback _ =
+              begin
+                Dap.output adapter "Why3 Debugger Exited (%t)" pp_exit ;
+                Dap.exited adapter !exit ;
+                Dap.finished !progress ~message:"Finished" () ;
+                progress := Dap.idle ;
+              end
+            in
+            Fibers.background ~callback @@ Fibers.all @@
+            List.map (debug_file adapter env gnames) files ;
+            Dap.initialized adapter
+      end ;
     Dap.on_launch
-      (fun adapter ->
-         Dap.output adapter "Why3 Debugger Started.@." ;
-         let echo category pp = Dap.output adapter ~category "%t" pp in
-         Log.pp_stdout := echo `stdout ;
-         Log.pp_stderr := echo `stderr ;
-         if files = [] then Log.warning "No files to debug." else
-           match List.find_map Config.root_for files with
-           | None -> Log.warning "No config file found."
-           | Some root ->
-             let config = Config.load_config ~root in
-             let env = Project.create ~root ~config () in
-             let callback _ =
-               Dap.output adapter "Why3 Debugger Exited (%t)." pp_exit ;
-               Dap.exited adapter !exit in
-             Fibers.background ~callback @@ Fibers.all @@
-             List.map (debug_file adapter env gnames) files
-      ) ;
+      begin fun adapter ->
+        Dap.output adapter "Why3 Debugger Started.@." ;
+        progress := Dap.progress adapter ~title:"Provers" ()
+      end ;
     Dap.on_terminate
-      (fun adapter ~restart ->
-         ignore restart ;
-         Dap.output adapter "Why3 Debugger Terminated.@." ;
-      ) ;
+      begin fun adapter ~restart ->
+        ignore restart ;
+        Dap.output adapter "Why3 Debugger Terminated.@" ;
+      end ;
   end
 
 let running adapter =
@@ -133,9 +148,22 @@ let process adapter =
   let d = Dap.process adapter in
   h || d
 
+let status =
+  Timer.throttle
+    begin fun () ->
+      let status = Hammer.status () in
+      let message =
+        Format.asprintf "%a%t" Hammer.pp_status status Runner.pp_goals in
+      Dap.update !progress ~message ()
+    end
+
 let run adapter =
   while running adapter do
-    if not @@ process adapter then Unix.sleepf 0.01 ;
+    if not @@ process adapter then
+      begin
+        Unix.sleepf 0.01 ;
+        if Hammer.running () then status ()
+      end
   done ;
   Client.terminate ()
 

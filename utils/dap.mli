@@ -96,6 +96,25 @@ type disconnect = Disconnect of { restart : bool ; terminate : bool ; suspend : 
 (** Disconnect request callback. Use the options to register the associated capabilities. *)
 val on_disconnect : ?terminate:bool -> ?suspend:bool -> (adapter -> disconnect -> unit) -> unit
 
+(** {2 Progress} *)
+
+type progress
+
+val idle : progress
+
+val progress :
+  adapter ->
+  ?id:string -> title:string ->
+  ?cancel:(adapter -> unit) ->
+  ?message:string -> ?percent:int ->
+  unit -> progress
+
+val update : progress ->
+  ?message:string -> ?percent:int ->
+  unit -> unit
+
+val finished : progress -> ?message:string -> unit -> unit
+
 (** {2 Locations} *)
 
 val of_line : Json.t -> int
@@ -238,8 +257,8 @@ val iter : (int -> thread -> unit) -> unit
 val set_frames : thread -> frame Darray.t -> unit
 val set_values : thread -> value list -> unit
 
-val finished : thread -> unit
-val updated : ?reason:string -> thread -> unit
+val updated_thread : ?reason:string -> thread -> unit
+val terminated_thread : thread -> unit
 
 type reason = [ `step | `breakpoint | `error | `pause | `entry ]
 val stopped :
