@@ -218,8 +218,8 @@ let window ~file thy task =
         min p1 q1, max p2 q2
       else locate p lines
     in
-    let hp = ref max_int in
-    let hq = ref min_int in
+    let hp = ref p in
+    let hq = ref q in
     let chunks =
       List.filter
         (fun chunk ->
@@ -233,6 +233,30 @@ let window ~file thy task =
            end
         ) chunks
     in { g1 = p ; g2 = q ; h1 = !hp ; h2 = !hq ; chunks }
+
+let is_postcond w = w.g2 < w.h2
+let by_goal u v =
+  let cmp = Int.compare u.g1 v.g1 in
+  if cmp <> 0 then cmp else Int.compare u.g2 v.g2
+
+let rec by_chunks xs ys =
+  match xs , ys with
+  | [] , _ -> (-1)
+  | _ , [] -> (+1)
+  | x::xs , y::ys ->
+    let cmp = by_range x y in
+    if cmp <> 0 then cmp else by_chunks xs ys
+
+let by_window u v =
+  let cmp = Int.compare u.h2 v.h2 in
+  if cmp <> 0 then cmp else
+    match is_postcond u , is_postcond v with
+    | false , true -> (-1)
+    | true , false -> (+1)
+    | true , true | false , false ->
+      let cmp = by_goal u v in
+      if cmp <> 0 then cmp else
+        by_chunks u.chunks v.chunks
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Printing Automaton                                                --- *)
