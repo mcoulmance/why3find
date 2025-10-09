@@ -52,7 +52,9 @@ let rec hyp (t : Term.term) =
   default When t.t_loc @@
   match t.t_node with
   | Tbinop(Tand,a,b) -> hyp a <*> hyp b
-  | Term.Tlet (_,fb) ->
+  | Tquant(Texists,bnd) ->
+    let _,_,p = Term.t_open_quant bnd in hyp p
+  | Tlet (_,fb) ->
     let _,t = Term.t_open_bound fb in hyp t
   | Tnot p -> collect WhenNot p
   | _ -> collect When t
@@ -76,13 +78,12 @@ let decl (d: Decl.decl) : shape =
 let tdecl (td : Thy.tdecl) : shape =
   match td.td_node with Decl d -> decl d | _ -> Empty
 
-let rec task (t : Tsk.task) : shape =
+let rec task (acc : shape) (t : Tsk.task) : shape =
   match t with
-  | None -> Empty
+  | None -> acc
   | Some { task_decl ; task_prev } ->
-    let p = task task_prev in
     let d = tdecl task_decl in
-    p <+> d
+    (task[@tailcall]) (d <+> acc) task_prev
 
 type chunk = { kind : kind ; range : Range.range }
 
@@ -114,7 +115,7 @@ let disjoint a b = Range.disjoint a.range b.range
 
 let chunks ~file (t : Tsk.task) =
   let env = make ~file in
-  collect env (task t) ;
+  collect env (task Empty t) ;
   let goal = env.goal in
   let hyps = List.filter (fun h -> List.for_all (disjoint h) goal) env.hyps in
   List.sort by_range (goal @ hyps)
@@ -197,6 +198,41 @@ let dump ~file task =
   Format.printf "@{<orange>[%s:%a%a]@}@\n"
     file pp_range (p,q) pp_expl task ;
   Format.printf "%s@." (String.make 69 '-')
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Windowing Chunks                                                  --- *)
+(* -------------------------------------------------------------------------- *)
+
+type window = { g1 : int ; g2 : int ; h1 : int ; h2 : int ; chunks : chunk list }
+let empty = { h1 = 0 ; h2 = 0 ; g1 = 0 ; g2 = 0 ; chunks = [] }
+
+let window ~file thy task =
+  let chunks = chunks ~file task in
+  let lines = decls ~file thy in
+  let p,q = range chunks in
+  if p > q then empty else
+    let u,v =
+      if p < q then
+        let p1,p2 = locate p lines in
+        let q1,q2 = locate q lines in
+        min p1 q1, max p2 q2
+      else locate p lines
+    in
+    let hp = ref max_int in
+    let hq = ref min_int in
+    let chunks =
+      List.filter
+        (fun chunk ->
+           let cp = Range.first_line chunk.range in
+           let cq = Range.last_line chunk.range in
+           u <= cp && cq <= v &&
+           begin
+             hp := min !hp cp ;
+             hq := max !hq cq ;
+             true
+           end
+        ) chunks
+    in { g1 = p ; g2 = q ; h1 = !hp ; h2 = !hq ; chunks }
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Printing Automaton                                                --- *)
@@ -391,28 +427,11 @@ let rec decorate cursor head tail =
 (* ---  Highlighting Ranges                                               --- *)
 (* -------------------------------------------------------------------------- *)
 
-let window ~file thy chunks =
-  let p,q = range chunks in
-  let lines = decls ~file thy in
-  if p > q then 0,0,[] else
-    let u,v =
-      if p < q then
-        let p1,p2 = locate p lines in
-        let q1,q2 = locate q lines in
-        min p1 q1, max p2 q2
-      else locate p lines
-    in
-    p, q,
-    List.filter
-      (fun chunk ->
-         u <= Range.first_line chunk.range && Range.last_line chunk.range <= v
-      ) chunks
-
 let highlight ~file ~context thy task =
-  let p,q,rs = chunks ~file task |> window ~file thy in
-  match rs with [] -> () | head::tail ->
+  let w = window ~file thy task in
+  match w.chunks with [] -> () | head::tail ->
     Format.printf "@{<orange>[%s:%a%a]@}@\n"
-      file pp_range (p,q) pp_expl task ;
+      file pp_range (w.g1,w.g2) pp_expl task ;
     let text = Utils.readfile ~file in
     let cursor = {
       text ; context ; offset = 0 ; pos = Range.start ;
@@ -431,3 +450,5 @@ let highlight ~file ~context thy task =
     with Invalid_argument _ | Exit ->
       if cursor.pos.col > 0 then
         Format.print_newline ()
+
+(* -------------------------------------------------------------------------- *)
