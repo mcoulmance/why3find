@@ -34,8 +34,9 @@ type node = {
   depth : int ;
   parent : node option ;
   hammer : hammer ;
-  cancel : unit Fibers.signal option ;
   result : crc Fibers.t ;
+  cancel : unit Fibers.signal option ;
+  mutable paused : bool ;
   mutable stacked : node list option ;
 }
 
@@ -46,12 +47,17 @@ type node = {
 let q_paused = ref None
 let q_broken = Queue.create () (* Stuck hints, scheduled first *)
 let q_proven = Queue.create () (* Complete hints, scheduled last *)
-let catch pool n = pool := n :: !pool
+let pause pool n = n.paused <- true ; pool := n :: !pool
+let start n =
+  n.paused <- false ;
+  Queue.push n (if is_complete n.hint then q_proven else q_broken)
+
+let restart n = if n.paused then start n
 
 let enqueue n =
   match !q_paused with
-  | Some pool -> catch pool n
-  | None -> Queue.push n (if is_complete n.hint then q_proven else q_broken)
+  | Some pool -> pause pool n
+  | None -> start n
 
 (* -------------------------------------------------------------------------- *)
 (* --- Interrupt All                                                      --- *)
@@ -61,9 +67,8 @@ let killall = Fibers.signal ()
 let interrupt () =
   begin
     let pool = ref [] in
-    let flush = catch pool in
-    Queue.iter flush q_proven ;
-    Queue.iter flush q_broken ;
+    Queue.iter (pause pool) q_proven ;
+    Queue.iter (pause pool) q_broken ;
     Queue.clear q_proven ;
     Queue.clear q_broken ;
     q_paused := Some pool ;
@@ -73,11 +78,11 @@ let interrupt () =
 let resume () =
   match !q_paused with
   | None -> ()
-  | Some pool -> q_paused := None ; List.iter enqueue !pool
+  | Some pool -> q_paused := None ; List.iter restart !pool
 
 let finalize n crc =
   match !q_paused with
-  | Some pool when not @@ Crc.is_complete crc -> catch pool n
+  | Some pool when not @@ Crc.is_complete crc -> pause pool n
   | _ -> Fibers.set n.result crc
 
 (* -------------------------------------------------------------------------- *)
@@ -87,8 +92,13 @@ let finalize n crc =
 let node hammer ?parent ?cancel ?hint goal =
   let hint = match hint with Some h -> h | None -> Crc.stuck ~goal () in
   let result = Fibers.var () in
-  let depth = match parent with None -> 0 | Some p -> succ p.depth in
-  { hammer ; goal ; depth ; parent ; hint ; cancel ; result ; stacked = None }
+  let depth = match parent with None -> 0 | Some p -> succ p.depth in {
+    hammer ; goal ;
+    parent ; depth ;
+    hint ; cancel ; result ;
+    paused = false ;
+    stacked = None ;
+  }
 
 let push hammer ?parent ?cancel goal hint =
   let node = node hammer ?parent ?cancel ~hint goal in

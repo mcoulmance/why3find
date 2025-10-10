@@ -64,6 +64,9 @@ val pp_status : Format.formatter -> status -> unit
 (** Empty the current task queue and interrupt all running provers. *)
 val interrupt : unit -> unit
 
+(** Re-schdule this node (if stopped). *)
+val restart : node -> unit
+
 (** Re-schedule all interrupted nodes. *)
 val resume : unit -> unit
 
