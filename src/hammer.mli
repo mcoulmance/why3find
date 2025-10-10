@@ -57,11 +57,15 @@ type status = {
 
 val iter : (node -> unit) -> unit
 val status : unit -> status
+val stopped : unit -> bool
 val running : unit -> bool
 val pp_status : Format.formatter -> status -> unit
 
-(** Empty the current task queue and kill all running provers. *)
+(** Empty the current task queue and interrupt all running provers. *)
 val interrupt : unit -> unit
+
+(** Re-schedule all interrupted nodes. *)
+val resume : unit -> unit
 
 (** Process one node. Returns [true] is some progress has been made. *)
 val process : unit -> bool

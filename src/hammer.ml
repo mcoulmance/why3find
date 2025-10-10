@@ -25,6 +25,9 @@ type hammer = {
   profile : Calibration.profile ;
 }
 
+let provers h = h.provers
+let tactics h = h.tactics
+
 type node = {
   goal : Session.goal ;
   hint : crc ;
@@ -36,15 +39,50 @@ type node = {
   mutable stacked : node list option ;
 }
 
-let provers h = h.provers
-let tactics h = h.tactics
-
 (* -------------------------------------------------------------------------- *)
 (* --- Queue Management                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
+let q_paused = ref None
 let q_broken = Queue.create () (* Stuck hints, scheduled first *)
 let q_proven = Queue.create () (* Complete hints, scheduled last *)
+let catch pool n = pool := n :: !pool
+
+let enqueue n =
+  match !q_paused with
+  | Some pool -> catch pool n
+  | None -> Queue.push n (if is_complete n.hint then q_proven else q_broken)
+
+(* -------------------------------------------------------------------------- *)
+(* --- Interrupt All                                                      --- *)
+(* -------------------------------------------------------------------------- *)
+
+let killall = Fibers.signal ()
+let interrupt () =
+  begin
+    let pool = ref [] in
+    let flush = catch pool in
+    Queue.iter flush q_proven ;
+    Queue.iter flush q_broken ;
+    Queue.clear q_proven ;
+    Queue.clear q_broken ;
+    q_paused := Some pool ;
+    Fibers.emit killall () ;
+  end
+
+let resume () =
+  match !q_paused with
+  | None -> ()
+  | Some pool -> q_paused := None ; List.iter enqueue !pool
+
+let finalize n crc =
+  match !q_paused with
+  | Some pool when not @@ Crc.is_complete crc -> catch pool n
+  | _ -> Fibers.set n.result crc
+
+(* -------------------------------------------------------------------------- *)
+(* --- Scheduling Nodes                                                   --- *)
+(* -------------------------------------------------------------------------- *)
 
 let node hammer ?parent ?cancel ?hint goal =
   let hint = match hint with Some h -> h | None -> Crc.stuck ~goal () in
@@ -54,7 +92,7 @@ let node hammer ?parent ?cancel ?hint goal =
 
 let push hammer ?parent ?cancel goal hint =
   let node = node hammer ?parent ?cancel ~hint goal in
-  Queue.push node (if is_complete hint then q_proven else q_broken) ; node
+  enqueue node ; node
 
 let rec push_all hammer ~parent ?cancel goals hints =
   match goals, hints with
@@ -80,6 +118,7 @@ let iter f =
   begin
     Queue.iter f q_broken ;
     Queue.iter f q_proven ;
+    Option.iter (fun p -> List.iter f !p) !q_paused ;
   end
 
 type strategy = node -> crc Fibers.t
@@ -103,23 +142,6 @@ let decompose parent tactic gs hs =
   let+ crc =
     Crc.tactic ~goal:parent.goal tactic @+ Fibers.all @@ List.map result ns in
   parent.stacked <- None ; crc
-
-(* -------------------------------------------------------------------------- *)
-(* --- Interrupt All                                                      --- *)
-(* -------------------------------------------------------------------------- *)
-
-let killall = Fibers.signal ()
-
-let interrupt () =
-  begin
-    Fibers.emit killall () ;
-    let killed = Crc.stuck () (* anonymous CRC *) in
-    let dequeue n = Fibers.set n.result killed in
-    Queue.iter dequeue q_proven ;
-    Queue.iter dequeue q_broken ;
-    Queue.clear q_proven ;
-    Queue.clear q_broken ;
-  end
 
 (* -------------------------------------------------------------------------- *)
 (* --- Try Prover on Node                                                 --- *)
@@ -379,16 +401,17 @@ let status () = {
   running = Runner.running() ;
 }
 
-let running () =
+let proving () =
   begin
-    !p_proven > 0 ||
-    !p_broken > 0 ||
-    Queue.length q_proven > 0 ||
-    Queue.length q_broken > 0 ||
-    Runner.pending () > 0 ||
-    Runner.running () > 0 ||
-    Fibers.pending () > 0
+    !p_proven > 0 || !p_broken > 0
+    || Queue.length q_proven > 0
+    || Queue.length q_broken > 0
+    || Runner.pending () > 0
+    || Runner.running () > 0
   end
+
+let stopped () = not @@ proving ()
+let running () = proving () || Fibers.pending () > 0
 
 let pp_status fmt s =
   if s.proven > 0 then Format.fprintf fmt "!%d/" s.proven ;
@@ -406,7 +429,7 @@ let process () =
     match pop () with
     | Some node ->
       let pr = if is_complete node.hint then p_proven else p_broken in
-      let callback r = decr pr; Fibers.set node.result r in
+      let callback r = decr pr; finalize node r in
       incr pr ; Fibers.background (step node) ~callback ; true
     | None -> false
   end
