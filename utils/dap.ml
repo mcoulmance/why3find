@@ -756,11 +756,16 @@ type thread = Thread of {
     mutable values : value list ;
   }
 
-let kthread = ref 0
+let threadk = ref 0
 let threads : (int,thread) Hashtbl.t = Hashtbl.create 0
 let singleThreadSupport = ref false
-let iter fn = Hashtbl.iter fn threads
 let id (Thread th) = th.id
+let find = Hashtbl.find threads
+
+let pending () =
+  let pool = ref [] in
+  Hashtbl.iter (fun _ th -> pool := th :: !pool) threads ;
+  List.sort (fun a b -> Int.compare (id a) (id b)) !pool
 
 let reset_identifiers () =
   begin
@@ -783,7 +788,7 @@ let set_single_thread_support () =
   end
 
 let thread adapter ~name ?(frames=Darray.empty) ?(values=[]) () =
-  let id = incr kthread ; !kthread in
+  let id = incr threadk ; !threadk in
   let th = Thread {
       id ; adapter ; name ;
       on_pause = ignore ;

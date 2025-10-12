@@ -252,7 +252,12 @@ val connect :
   unit -> unit
 
 val id : thread -> int
-val iter : (int -> thread -> unit) -> unit
+
+(** Sorted by Id. *)
+val pending : unit -> thread list
+
+(** Find by Id @raises Not_found *)
+val find : int -> thread
 
 val set_frames : thread -> frame Darray.t -> unit
 val set_values : thread -> value list -> unit
