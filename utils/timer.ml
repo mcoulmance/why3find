@@ -95,8 +95,8 @@ let print_timings fmt =
     (Format.pp_print_list print_global) (List.rev !global_timers)
 
 let throttle ?(delay=0.1) fn =
-  let stamp = ref (Unix.gettimeofday ()) in
+  let next = ref (Unix.gettimeofday () +. delay) in
   fun ?(force=false) x ->
     let time = Unix.gettimeofday () in
-    if force || time > !stamp +. delay then
-      (stamp := time ; fn x)
+    if force || time > !next then
+      (next := time +. delay ; fn x)

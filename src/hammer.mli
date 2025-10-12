@@ -48,18 +48,25 @@ val children : node -> node list
 val schedule : hammer -> ?cancel:unit Fibers.signal -> goal -> crc -> node
 
 (** Current Task Server State *)
-type status = {
+type progress = {
   broken  : int ; (** Number of pending tasks with broken CRC *)
   proven  : int ; (** Number of pending tasks with proven CRC *)
   pending : int ; (** Number of pending prover tasks *)
   running : int ; (** Number of running prover tasks *)
 }
 
+type status =
+  | Proving of progress (** Nodes are pending *)
+  | Paused (** Empty queues with some paused nodes *)
+  | Exited (** All nodes and fibers have been processed *)
+
+val pp_status : Format.formatter -> status -> unit
+val pp_progress : Format.formatter -> progress -> unit
+
 val iter : (node -> unit) -> unit
 val status : unit -> status
-val stopped : unit -> bool
+val progress : unit -> progress
 val running : unit -> bool
-val pp_status : Format.formatter -> status -> unit
 
 (** Empty the current task queue and interrupt all running provers. *)
 val interrupt : unit -> unit

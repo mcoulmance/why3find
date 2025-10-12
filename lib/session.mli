@@ -18,7 +18,7 @@ val create :
   dir:string ->
   file:string ->
   format:string ->
-  Why3.Theory.theory list ->
+  Theory.theory list ->
   session
 
 val save : session -> unit
@@ -26,7 +26,7 @@ val save : session -> unit
 type theory
 
 val name : theory -> string
-val theory : theory -> Why3.Theory.theory
+val theory : theory -> Theory.theory
 val theories : session -> theory list
 
 type goal

@@ -149,20 +149,28 @@ let process adapter =
   h || d
 
 let status =
-  Timer.throttle
-    begin fun () ->
-      let status = Hammer.status () in
+  Timer.throttle ~delay:0.25
+    begin fun p ->
       let message =
-        Format.asprintf "%a%t" Hammer.pp_status status Runner.pp_goals in
+        Format.asprintf "%a%t" Hammer.pp_progress p Runner.pp_goals in
       Dap.update !progress ~message ()
     end
+
+let paused () =
+  begin
+    Dap.finished !progress ~message:"paused" () ;
+    progress := Dap.idle ;
+  end
 
 let run adapter =
   while running adapter do
     if not @@ process adapter then
       begin
         Unix.sleepf 0.01 ;
-        if Hammer.running () then status ()
+        match Hammer.status () with
+        | Proving p -> status p
+        | Paused -> paused ()
+        | Exited -> ()
       end
   done ;
   Client.terminate ()

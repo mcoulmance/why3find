@@ -397,19 +397,34 @@ let step n =
 let p_proven = ref 0
 let p_broken = ref 0
 
-type status = {
+type progress = {
   broken  : int ;
   proven  : int ;
   pending : int ;
   running : int ;
 }
 
-let status () = {
+type status =
+  | Proving of progress
+  | Paused
+  | Exited
+
+let progress () = {
   proven = Queue.length q_proven + !p_proven ;
   broken = Queue.length q_broken + !p_broken ;
   pending = Runner.pending () ;
   running = Runner.running() ;
 }
+
+let pp_progress fmt s =
+  if s.proven > 0 then Format.fprintf fmt "!%d/" s.proven ;
+  if s.broken > 0 then Format.fprintf fmt "?%d/" s.broken ;
+  Format.fprintf fmt "%d/%d" s.pending s.running
+
+let pp_status fmt = function
+  | Proving s -> pp_progress fmt s
+  | Paused -> Format.pp_print_string fmt "paused"
+  | Exited -> Format.pp_print_string fmt "exited"
 
 let proving () =
   begin
@@ -420,13 +435,17 @@ let proving () =
     || Runner.running () > 0
   end
 
-let stopped () = not @@ proving ()
-let running () = proving () || Fibers.pending () > 0
+let paused () =
+  match !q_paused with Some p -> !p <> [] | _ -> false
 
-let pp_status fmt s =
-  if s.proven > 0 then Format.fprintf fmt "!%d/" s.proven ;
-  if s.broken > 0 then Format.fprintf fmt "?%d/" s.broken ;
-  Format.fprintf fmt "%d/%d" s.pending s.running
+let status () =
+  let progress () = Proving (progress ()) in
+  if proving () then progress () else
+  if paused () then Paused else
+  if Fibers.pending () > 0 then progress () else
+    Exited
+
+let running () = proving () || Fibers.pending () > 0
 
 (* -------------------------------------------------------------------------- *)
 (* --- Task Processing                                                    --- *)
@@ -446,8 +465,8 @@ let process () =
 
 let run () =
   while running () do
-    let s = status () in
-    Utils.progress "%a%t" pp_status s Runner.pp_goals ;
+    let s = progress () in
+    Utils.progress "%a%t" pp_progress s Runner.pp_goals ;
     if not @@ process () then Unix.sleepf 0.01 ;
   done ;
   Client.terminate ()
