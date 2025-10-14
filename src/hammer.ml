@@ -47,17 +47,17 @@ type node = {
 let q_paused = ref None
 let q_broken = Queue.create () (* Stuck hints, scheduled first *)
 let q_proven = Queue.create () (* Complete hints, scheduled last *)
-let pause pool n = n.paused <- true ; pool := n :: !pool
-let start n =
+let q_pause pool n = n.paused <- true ; pool := n :: !pool
+let q_push n =
   n.paused <- false ;
   Queue.push n (if is_complete n.hint then q_proven else q_broken)
 
-let restart n = if n.paused then start n
+let restart n = if n.paused then q_push n
 
 let enqueue n =
   match !q_paused with
-  | Some pool -> pause pool n
-  | None -> start n
+  | Some pool -> q_pause pool n
+  | None -> q_push n
 
 (* -------------------------------------------------------------------------- *)
 (* --- Interrupt All                                                      --- *)
@@ -67,8 +67,8 @@ let killall = Fibers.signal ()
 let interrupt () =
   begin
     let pool = ref [] in
-    Queue.iter (pause pool) q_proven ;
-    Queue.iter (pause pool) q_broken ;
+    Queue.iter (q_pause pool) q_proven ;
+    Queue.iter (q_pause pool) q_broken ;
     Queue.clear q_proven ;
     Queue.clear q_broken ;
     q_paused := Some pool ;
@@ -82,7 +82,7 @@ let resume () =
 
 let finalize n crc =
   match !q_paused with
-  | Some pool when not @@ Crc.is_complete crc -> pause pool n
+  | Some pool when not @@ Crc.is_complete crc -> q_pause pool n
   | _ -> Fibers.set n.result crc
 
 (* -------------------------------------------------------------------------- *)
@@ -128,7 +128,10 @@ let iter f =
   begin
     Queue.iter f q_broken ;
     Queue.iter f q_proven ;
-    Option.iter (fun p -> List.iter f !p) !q_paused ;
+    Option.iter
+      (fun p ->
+         List.iter (fun n -> if n.paused then f n) !p
+      ) !q_paused ;
   end
 
 type strategy = node -> crc Fibers.t
