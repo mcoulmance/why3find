@@ -13,11 +13,17 @@
 let exit = ref 0
 let progress = ref Dap.idle
 
-let debug_proof adapter hammer goal hint =
-  ignore adapter ;
+let cc_proof adapter hammer theory goal hint =
+  let tname = Session.thy_name @@ Session.theory theory in
+  let gname = Session.goal_name goal in
+  let name = Printf.sprintf "Goal %s.%s" tname gname in
+  let thread = Dap.thread adapter ~name () in
   let node = Hammer.schedule hammer goal hint in
-  let result crc = Prove.merge_stats hint crc ; Crc.merge hint crc in
-  Fibers.map result (Hammer.result node)
+  let result crc =
+    Log.message "%s %a" name Crc.pretty crc ;
+    if Crc.is_complete crc then Dap.terminated_thread thread ;
+    Prove.merge_stats hint crc ; Crc.merge hint crc
+  in Fibers.map result (Hammer.result node)
 
 let pp_goal_location fmt goal =
   match Session.goal_loc goal with
@@ -26,7 +32,7 @@ let pp_goal_location fmt goal =
     let file,line,_,_,_ = Why3.Loc.get loc in
     Format.fprintf fmt "%s:%d: " file line
 
-let debug_theory adapter hammer buffer strategy gnames theory =
+let cc_theory adapter hammer buffer strategy gnames theory =
   let module M = Why3.Wstdlib.Mstr in
   let thy = Session.name theory in
   let goals = Session.split theory in
@@ -34,8 +40,8 @@ let debug_theory adapter hammer buffer strategy gnames theory =
   Proofs.init theory goals hints buffer ;
   let accept g =
     gnames = [] || List.mem thy gnames ||
-    List.mem (thy ^ "." ^ (Session.goal_name g)) gnames
-  in
+    List.mem (thy ^ "." ^ (Session.goal_name g)) gnames in
+  Fibers.map (fun _ -> Log.message "Finished.") @@
   Fibers.all @@
   List.map
     (fun goal ->
@@ -53,12 +59,12 @@ let debug_theory adapter hammer buffer strategy gnames theory =
                    thy gname Crc.pretty crc ;
                end
            end @@
-         debug_proof adapter hammer goal hint
+         cc_proof adapter hammer theory goal hint
     ) goals
 
 let hline = "--------------------------------------------------------"
 
-let debug_file adapter env gnames file =
+let cc_file adapter env gnames file =
   try
     Dap.output adapter "Compiling %s@." file ;
     let dir, lib = Wutil.filepath file in
@@ -79,16 +85,16 @@ let debug_file adapter env gnames file =
           (Prove.print_stats (Hammer.provers hammer) (Hammer.tactics hammer))
           hline ;
       end in
-    Fibers.finally ~callback @@ Fibers.all @@
+    Fibers.map callback @@ Fibers.all @@
     List.map
-      (debug_theory adapter hammer buffer strategy gnames)
+      (cc_theory adapter hammer buffer strategy gnames)
       (Session.theories session)
   with Why3.Loc.Located(loc,exn) ->
     let file,line,_,_,_ = Why3.Loc.get loc in
     Dap.output adapter ~category:`important
       "@{<red>Error:@} %s:%d:@\n%a@."
       file line Why3.Exn_printer.exn_printer exn ;
-    Fibers.return []
+    Fibers.return ()
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Debugger Initialization                                           --- *)
@@ -108,6 +114,7 @@ let init gnames files =
         let echo category pp = Dap.output adapter ~category "%t" pp in
         Log.pp_stdout := echo `stdout ;
         Log.pp_stderr := echo `stderr ;
+        Hammer.interrupt () ;
         if files = [] then Log.warning "No files to debug." else
           match List.find_map Config.root_for files with
           | None ->
@@ -116,8 +123,10 @@ let init gnames files =
           | Some root ->
             let config = Config.load_config ~root in
             let env = Project.create ~root ~config () in
+            let main = Dap.thread adapter ~name:"Provers" () in
             let callback _ =
               begin
+                Dap.terminated_thread main ;
                 Dap.output adapter "Why3 Debugger Exited (%t)" pp_exit ;
                 Dap.exited adapter !exit ;
                 Dap.finished !progress ~message:"Finished" () ;
@@ -125,13 +134,14 @@ let init gnames files =
               end
             in
             Fibers.background ~callback @@ Fibers.all @@
-            List.map (debug_file adapter env gnames) files ;
+            List.map (cc_file adapter env gnames) files ;
             Dap.initialized adapter
       end ;
     Dap.on_launch
       begin fun adapter ->
         Dap.output adapter "Why3 Debugger Started.@." ;
-        progress := Dap.progress adapter ~title:"Provers" ()
+        progress := Dap.progress adapter ~title:"Provers" () ;
+        Hammer.resume () ;
       end ;
     Dap.on_terminate
       begin fun adapter ~restart ->
