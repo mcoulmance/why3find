@@ -68,14 +68,29 @@ val status : unit -> status
 val progress : unit -> progress
 val running : unit -> bool
 
-(** Empty the current task queue and interrupt all running provers. *)
+(** Interrupt all running provers and discard all pending nodes. *)
 val interrupt : unit -> unit
 
-(** Re-schdule this node (if stopped). *)
-val restart : node -> unit
+(** Interrupt all running provers and pauses all nodes. *)
+val pause : unit -> unit
 
-(** Re-schedule all interrupted nodes. *)
+(** Commit this node to fail. *)
+val terminate : node -> unit
+
+(** Re-schedule this node and its future children, pausing any failed node. *)
+val step : node -> unit
+
+(** Re-schdule this node and pause if failed or pause its children. *)
+val step_in : node -> unit
+
+(** Continue all scheduled nodes and their descendents, pausing failed nodes. *)
+val step_out : unit -> unit
+
+(** Re-schedule all paused nodes and continue, pausing failed nodes. *)
 val resume : unit -> unit
+
+(** Re-schedule all paused nodes and continue, commiting all nodes. *)
+val resume_to_end : unit -> unit
 
 (** Process one node. Returns [true] is some progress has been made. *)
 val process : unit -> bool

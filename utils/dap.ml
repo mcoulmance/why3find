@@ -345,15 +345,16 @@ let () = register "disconnect"
 (* ---  Progress                                                          --- *)
 (* -------------------------------------------------------------------------- *)
 
-type progress = (adapter * string) option
-let idle : progress = None
+type progress = Idle | Progress of { id : string ; adapter : adapter }
+
+let idle = Idle
 let hprogress = Hashtbl.create 0
 let kprogress = ref 0
 
 let js_percent =
   function None -> Json.null | Some p -> Json.int (max 0 (min 100 p))
 
-let progress adapter ?(id="") ~title ?cancel ?(message="") ?percent () =
+let progress adapter ?(id="") ~title ?cancel ?(message="") ?percent () : progress =
   if !supportedProgress then
     begin
       let k = incr kprogress ; !kprogress in
@@ -366,15 +367,15 @@ let progress adapter ?(id="") ~title ?cancel ?(message="") ?percent () =
         "percentage", js_percent percent ;
       ] ;
       Option.iter (Hashtbl.add hprogress id) cancel ;
-      Some (adapter,id)
+      Progress { id ; adapter }
     end
-  else None
+  else Idle
 
-let update progress ?(message="") ?percent () =
+let update (progress : progress) ?(message="") ?percent () =
   match progress with
-  | None -> ()
-  | Some (adapter,id) ->
-    if (message <> "" || percent <> None) then
+  | Idle -> ()
+  | Progress { id ; adapter } ->
+    if message <> "" && percent <> None then
       emit adapter "progressUpdate" @@ Json.assoc [
         "progressId" , `String id ;
         "message" , js_string_opt message ;
@@ -383,8 +384,8 @@ let update progress ?(message="") ?percent () =
 
 let finished progress ?(message="") () =
   match progress with
-  | None -> ()
-  | Some (adapter,id) ->
+  | Idle -> ()
+  | Progress { id ; adapter } ->
     Hashtbl.remove hprogress id ;
     emit adapter "progressEnd" @@ Json.assoc [
       "progressId" , `String id ;
@@ -529,20 +530,24 @@ let () = register "setExceptionBreakpoints" begin fun _ _ -> `Null end
 (* ---  Attributes                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
-type 'a attribute = (int,'a) Hashtbl.t
+type 'a attribute = {
+  bythreads : (int,'a) Hashtbl.t ;
+  temporary : (int,'a) Hashtbl.t ;
+}
 type value = (int -> unit)
 let hooks = ref []
-let varId n = 3*n
-let frameId n = 3*n+1
-let threadId n = 3*n+2
-let find_by_varId m id = Hashtbl.find m (varId id)
-let find_by_frameId m id = Hashtbl.find m (frameId id)
-let find_by_threadId m id = Hashtbl.find m (threadId id)
+let varId n = 2*n
+let frameId n = 2*n+1
+let find_by_varId m id = Hashtbl.find m.temporary (varId id)
+let find_by_frameId m id = Hashtbl.find m.temporary (frameId id)
+let find_by_threadId m id = Hashtbl.find m.bythreads id
 let store id values = List.iter (fun v -> v id) values
-let value attr value id = Hashtbl.add attr id value
+let value attr value id = Hashtbl.add attr.temporary id value
 let attribute () =
-  let m = Hashtbl.create 0 in
-  hooks := (fun () -> Hashtbl.clear m) :: !hooks ; m
+  let temporary = Hashtbl.create 0 in
+  let bythreads = Hashtbl.create 0 in
+  hooks := (fun () -> Hashtbl.clear temporary) :: !hooks ;
+  { temporary ; bythreads }
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Variables                                                         --- *)
@@ -741,19 +746,18 @@ let js_frame (fr : frame) =
 (* ---  Threads                                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-type reason = [ `step | `breakpoint | `error | `pause | `entry ]
+type reason = [ `step | `pause | `entry | `except | `error ]
 
 type thread = Thread of {
     id : int ;
     name : string ;
     adapter : adapter ;
+    mutable frames : (thread -> frame Darray.t) ;
     mutable on_pause : (adapter -> unit) ;
     mutable on_next : (adapter -> unit) ;
     mutable on_step_in : (adapter -> unit) ;
     mutable on_step_out : (adapter -> unit) ;
     mutable on_continue : (adapter -> unit) ;
-    mutable frames : frame Darray.t ;
-    mutable values : value list ;
   }
 
 let threadk = ref 0
@@ -761,6 +765,11 @@ let threads : (int,thread) Hashtbl.t = Hashtbl.create 0
 let singleThreadSupport = ref false
 let id (Thread th) = th.id
 let find = Hashtbl.find threads
+let living th = Hashtbl.mem threads (id th)
+let get attr th = Hashtbl.find attr.bythreads (id th)
+let set attr th v = Hashtbl.replace attr.bythreads (id th) v
+let get_opt attr th = try Some (get attr th) with Not_found -> None
+let remove attr th = Hashtbl.remove attr.bythreads (id th)
 
 let pending () =
   let pool = ref [] in
@@ -775,7 +784,7 @@ let reset_identifiers () =
     List.iter (fun fn -> fn ()) !hooks ;
   end
 
-let updated_thread ?(reason="updated") (Thread th) =
+let updated ?(reason="updated") (Thread th) =
   emit th.adapter "thread" @@ Json.assoc [
     "reason", `String reason ;
     "threadId" , `Int th.id ;
@@ -787,23 +796,8 @@ let set_single_thread_support () =
     register_capability "supportsSingleThreadExecutionRequests" () ;
   end
 
-let thread adapter ~name ?(frames=Darray.empty) ?(values=[]) () =
-  let id = incr threadk ; !threadk in
-  let th = Thread {
-      id ; adapter ; name ;
-      on_pause = ignore ;
-      on_continue = ignore ;
-      on_next = ignore ;
-      on_step_in = ignore ;
-      on_step_out = ignore ;
-      frames ;
-      values ;
-    } in
-  Hashtbl.add threads id th ;
-  updated_thread ~reason:"started" th ; th
-
 let connect (Thread th)
-    ?on_pause ?on_next ?on_step_in ?on_step_out ?on_continue () =
+    ?frames ?on_pause ?on_next ?on_step_in ?on_step_out ?on_continue () =
   begin
     let set_default fn =
       begin
@@ -812,6 +806,7 @@ let connect (Thread th)
         if th.on_step_out == ignore then th.on_step_out <- fn ;
         if th.on_continue == ignore then th.on_continue <- fn ;
       end in
+    Option.iter (fun fn -> th.frames <- fn) frames ;
     Option.iter (fun fn -> th.on_pause <- fn) on_pause ;
     Option.iter (fun fn -> th.on_next <- fn) on_next ;
     Option.iter (fun fn -> th.on_step_in <- fn) on_step_in ;
@@ -821,13 +816,28 @@ let connect (Thread th)
     Option.iter set_default on_continue ;
   end
 
-let set_frames (Thread th) frames = th.frames <- frames
-let set_values (Thread th) values = th.values <- values
+let no_frames _th = Darray.empty
 
-let terminated_thread thread =
+let thread adapter
+    ~name ?(frames=no_frames) ?on_pause ?on_next ?on_step_in ?on_step_out ?on_continue () =
+  let id = incr threadk ; !threadk in
+  let th = Thread {
+      id ; adapter ; name ;
+      frames ;
+      on_pause = ignore ;
+      on_continue = ignore ;
+      on_next = ignore ;
+      on_step_in = ignore ;
+      on_step_out = ignore ;
+    } in
+  Hashtbl.add threads id th ;
+  updated ~reason:"started" th ;
+  connect th ?on_pause ?on_next ?on_step_in ?on_step_out ?on_continue () ; th
+
+let terminate thread =
   let Thread { id } = thread in
   Hashtbl.remove threads id ;
-  updated_thread ~reason:"exited" thread
+  updated ~reason:"exited" thread
 
 let stopped ~(reason:reason) ?description ?text ?all ?preserveFocus ?frames thread =
   begin
@@ -841,9 +851,8 @@ let stopped ~(reason:reason) ?description ?text ?all ?preserveFocus ?frames thre
       | `step -> "step"
       | `error -> "error"
       | `pause -> "pause"
-      | `breakpoint -> "exception" in
+      | `except -> "exception" in
     reset_identifiers () ;
-    store (threadId th.id) th.values ;
     emit th.adapter "stopped" @@ Json.assoc [
       "reason" , `String reason ;
       "description" , Json.option_map Json.string description ;
@@ -894,7 +903,8 @@ let () = register "stackFrame"
       let thId = Json.jfield "threadId" args |> Json.jint in
       let start = Json.jfield "startFrame" args |> Json.jint in
       let levels = Json.jfield "levels" args |> Json.jdefault max_int Json.jint in
-      let Thread { frames } = Hashtbl.find threads thId in
+      let Thread t as th = Hashtbl.find threads thId in
+      let frames = t.frames th in
       let total = Darray.length frames in
       let last = min (start + levels) total - 1 in
       let pool = ref [] in

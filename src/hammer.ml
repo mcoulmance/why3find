@@ -44,46 +44,79 @@ type node = {
 (* --- Queue Management                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
-let q_paused = ref None
+let q_paused = Queue.create () (* Paused nodes, may also contain restarted nodes *)
 let q_broken = Queue.create () (* Stuck hints, scheduled first *)
 let q_proven = Queue.create () (* Complete hints, scheduled last *)
-let q_pause pool n = n.paused <- true ; pool := n :: !pool
-let q_push n =
+let q_dispatch n = Queue.push n (if is_complete n.hint then q_proven else q_broken)
+let q_pause n = n.paused <- true ; Queue.push n q_paused
+let q_schedule n = n.paused <- true ; q_dispatch n
+let q_resume n = if n.paused then q_schedule n
+
+(* -------------------------------------------------------------------------- *)
+(* --- Stepping                                                           --- *)
+(* -------------------------------------------------------------------------- *)
+
+type runmode = Interrupting | Pausing | StepIn | StepOut | Runner
+let runmode = ref Runner
+
+let subgoal n =
+  match !runmode with
+  | Interrupting -> ()
+  | Pausing | StepIn -> q_pause n
+  | Runner | StepOut -> q_schedule n
+
+let terminate n =
   n.paused <- false ;
-  Queue.push n (if is_complete n.hint then q_proven else q_broken)
+  Fibers.set n.result (Crc.stuck ~goal:n.goal ())
 
-let restart n = if n.paused then q_push n
+let step n = runmode := StepOut ; q_resume n
+let step_in n = runmode := StepIn ; q_resume n
+let step_out () = runmode := StepOut
 
-let enqueue n =
-  match !q_paused with
-  | Some pool -> q_pause pool n
-  | None -> q_push n
+let resume () =
+  begin
+    runmode := StepOut ;
+    Queue.iter q_resume q_paused ;
+    Queue.clear q_paused ;
+  end
+
+let resume_to_end () =
+  begin
+    runmode := Runner ;
+    Queue.iter q_resume q_paused ;
+    Queue.clear q_paused ;
+  end
 
 (* -------------------------------------------------------------------------- *)
 (* --- Interrupt All                                                      --- *)
 (* -------------------------------------------------------------------------- *)
 
 let killall = Fibers.signal ()
-let interrupt () =
+let pause () =
   begin
-    let pool = ref [] in
-    Queue.iter (q_pause pool) q_proven ;
-    Queue.iter (q_pause pool) q_broken ;
+    runmode := Pausing ;
+    Queue.iter q_pause q_proven ;
+    Queue.iter q_pause q_broken ;
     Queue.clear q_proven ;
     Queue.clear q_broken ;
-    q_paused := Some pool ;
     Fibers.emit killall () ;
   end
 
-let resume () =
-  match !q_paused with
-  | None -> ()
-  | Some pool -> q_paused := None ; List.iter restart !pool
+let interrupt () =
+  begin
+    runmode := Interrupting ;
+    Queue.clear q_proven ;
+    Queue.clear q_broken ;
+    Queue.clear q_paused ;
+    Fibers.emit killall () ;
+  end
 
 let finalize n crc =
-  match !q_paused with
-  | Some pool when not @@ Crc.is_complete crc -> q_pause pool n
-  | _ -> Fibers.set n.result crc
+  let complete =
+    match !runmode with
+    | Runner -> true
+    | _ -> Crc.is_complete crc
+  in if complete then Fibers.set n.result crc else q_pause n
 
 (* -------------------------------------------------------------------------- *)
 (* --- Scheduling Nodes                                                   --- *)
@@ -102,7 +135,7 @@ let node hammer ?parent ?cancel ?hint goal =
 
 let push hammer ?parent ?cancel goal hint =
   let node = node hammer ?parent ?cancel ~hint goal in
-  enqueue node ; node
+  subgoal node ; node
 
 let rec push_all hammer ~parent ?cancel goals hints =
   match goals, hints with
@@ -128,17 +161,16 @@ let iter f =
   begin
     Queue.iter f q_broken ;
     Queue.iter f q_proven ;
-    Option.iter
-      (fun p ->
-         List.iter (fun n -> if n.paused then f n) !p
-      ) !q_paused ;
+    Queue.iter (fun n -> if n.paused then f n) q_paused ;
   end
 
 type strategy = node -> crc Fibers.t
 let fail : strategy = fun n -> Fibers.return (stuck n)
 
 let (@>) (h : strategy) (n : node) : crc Fibers.t =
-  try h n with Not_found -> fail n
+  match !runmode with
+  | Interrupting -> Fibers.return @@ Crc.stuck ()
+  | _ -> try h n with Not_found -> fail n
 
 let (>>>) (h1 : strategy) (h2 : strategy) : strategy = fun n ->
   let* r = h1 @> n in
@@ -367,7 +399,7 @@ let update_tactic ~hint n = (hammer2 ~hint >>> hammer) n
 
 let explore n = if n.hammer.replay then fail n else hammer n
 
-let step n =
+let execute n =
   try
     match n.hint.status with
     | Stuck -> explore n
@@ -438,8 +470,7 @@ let proving () =
     || Runner.running () > 0
   end
 
-let paused () =
-  match !q_paused with Some p -> !p <> [] | _ -> false
+let paused () = Queue.length q_paused > 0
 
 let status () =
   let progress () = Proving (progress ()) in
@@ -462,11 +493,12 @@ let process () =
     | Some node ->
       let pr = if is_complete node.hint then p_proven else p_broken in
       let callback r = decr pr; finalize node r in
-      incr pr ; Fibers.background (step node) ~callback ; true
+      incr pr ; Fibers.background (execute node) ~callback ; true
     | None -> false
   end
 
 let run () =
+  runmode := Runner ;
   while running () do
     let s = progress () in
     Utils.progress "%a%t" pp_progress s Runner.pp_goals ;

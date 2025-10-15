@@ -104,9 +104,11 @@ val idle : progress
 
 val progress :
   adapter ->
-  ?id:string -> title:string ->
+  ?id:string ->
+  title:string ->
   ?cancel:(adapter -> unit) ->
-  ?message:string -> ?percent:int ->
+  ?message:string ->
+  ?percent:int ->
   unit -> progress
 
 val update : progress ->
@@ -238,12 +240,17 @@ type thread
 val thread :
   adapter ->
   name:string ->
-  ?frames:frame Darray.t ->
-  ?values:value list ->
+  ?frames:(thread -> frame Darray.t) ->
+  ?on_pause:(adapter -> unit) ->
+  ?on_next:(adapter -> unit) ->
+  ?on_step_in:(adapter -> unit) ->
+  ?on_step_out:(adapter -> unit) ->
+  ?on_continue:(adapter -> unit) ->
   unit -> thread
 
 val connect :
   thread ->
+  ?frames:(thread -> frame Darray.t) ->
   ?on_pause:(adapter -> unit) ->
   ?on_next:(adapter -> unit) ->
   ?on_step_in:(adapter -> unit) ->
@@ -259,18 +266,21 @@ val pending : unit -> thread list
 (** Find by Id @raises Not_found *)
 val find : int -> thread
 
-val set_frames : thread -> frame Darray.t -> unit
-val set_values : thread -> value list -> unit
+val get : 'a attribute -> thread -> 'a
+val set : 'a attribute -> thread -> 'a -> unit
+val remove : 'a attribute -> thread -> unit
+val get_opt : 'a attribute -> thread -> 'a option
 
-val updated_thread : ?reason:string -> thread -> unit
-val terminated_thread : thread -> unit
+val living : thread -> bool
+val updated : ?reason:string -> thread -> unit
+val terminate : thread -> unit
 
-type reason = [ `step | `breakpoint | `error | `pause | `entry ]
+type reason = [ `step | `pause | `entry | `except | `error ]
 val stopped :
   reason:reason ->
   ?description:string ->
   ?text:string -> ?all:bool -> ?preserveFocus:bool ->
-  ?frames:frame Darray.t ->
+  ?frames:(thread -> frame Darray.t) ->
   thread -> unit
 
 val set_single_thread_support : unit -> unit

@@ -7,21 +7,78 @@
 (**************************************************************************)
 
 (* -------------------------------------------------------------------------- *)
-(* ---  Compilation                                                       --- *)
+(* ---  Running State                                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
 let exit = ref 0
-let progress = ref Dap.idle
+
+type state =
+  | Paused
+  | Running of { progress : Dap.progress }
+
+let state = ref Paused
+let stopping = ref None
+
+let update = Timer.throttle
+    begin fun h ->
+      match !state with
+      | Paused -> ()
+      | Running { progress } ->
+        let message =
+          Format.asprintf "%a%t" Hammer.pp_progress h Runner.pp_goals in
+        Dap.update progress ~message ()
+    end
+
+let started adapter =
+  let progress = Dap.progress adapter ~title:"Provers" () in
+  state := Running { progress }
+
+let exited () =
+  match !state with
+  | Paused -> ()
+  | Running { progress } ->
+    state := Paused ;
+    Dap.finished progress ~message:"exit" ()
+
+let stopped s =
+  stopping := None ;
+  match s with
+  | Some(thread,reason) when Dap.living thread ->
+    Dap.stopped ~reason thread
+  | _ ->
+    match Dap.pending () with
+    | main::_ ->
+      Dap.stopped ~reason:`pause main
+    | _ -> ()
+
+let paused () =
+  match !state with
+  | Paused -> ()
+  | Running { progress } ->
+    state := Paused ;
+    Dap.finished progress ~message:"paused" () ;
+    stopped !stopping
+
+let observe () =
+  match Hammer.status () with
+  | Proving h -> update h
+  | Exited -> exited ()
+  | Paused -> paused ()
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Compilation                                                       --- *)
+(* -------------------------------------------------------------------------- *)
 
 let cc_proof adapter hammer theory goal hint =
-  let tname = Session.thy_name @@ Session.theory theory in
+  let thy = Session.theory theory in
+  let tname = Session.thy_name thy in
   let gname = Session.goal_name goal in
   let name = Printf.sprintf "Goal %s.%s" tname gname in
-  let thread = Dap.thread adapter ~name () in
   let node = Hammer.schedule hammer goal hint in
+  let thread = Dap.thread adapter ~name () in
   let result crc =
     Log.message "%s %a" name Crc.pretty crc ;
-    if Crc.is_complete crc then Dap.terminated_thread thread ;
+    if Crc.is_complete crc then Dap.terminate thread ;
     Prove.merge_stats hint crc ; Crc.merge hint crc
   in Fibers.map result (Hammer.result node)
 
@@ -110,11 +167,10 @@ let init gnames files =
   begin
     Dap.on_init
       begin fun adapter ->
-        progress := Dap.progress adapter ~title:"Provers" () ;
         let echo category pp = Dap.output adapter ~category "%t" pp in
         Log.pp_stdout := echo `stdout ;
         Log.pp_stderr := echo `stderr ;
-        Hammer.interrupt () ;
+        Hammer.pause () ;
         if files = [] then Log.warning "No files to debug." else
           match List.find_map Config.root_for files with
           | None ->
@@ -123,14 +179,15 @@ let init gnames files =
           | Some root ->
             let config = Config.load_config ~root in
             let env = Project.create ~root ~config () in
-            let main = Dap.thread adapter ~name:"Provers" () in
+            let main = Dap.thread adapter ~name:"Provers"
+                ~on_pause:(fun _ -> Hammer.pause ())
+                ~on_continue:(fun _ -> Hammer.resume ())
+                () in
             let callback _ =
               begin
-                Dap.terminated_thread main ;
+                Dap.terminate main ;
                 Dap.output adapter "Why3 Debugger Exited (%t)" pp_exit ;
                 Dap.exited adapter !exit ;
-                Dap.finished !progress ~message:"Finished" () ;
-                progress := Dap.idle ;
               end
             in
             Fibers.background ~callback @@ Fibers.all @@
@@ -140,7 +197,7 @@ let init gnames files =
     Dap.on_launch
       begin fun adapter ->
         Dap.output adapter "Why3 Debugger Started.@." ;
-        progress := Dap.progress adapter ~title:"Provers" () ;
+        started adapter ;
         Hammer.resume () ;
       end ;
     Dap.on_terminate
@@ -158,29 +215,12 @@ let process adapter =
   let d = Dap.process adapter in
   h || d
 
-let status =
-  Timer.throttle ~delay:0.25
-    begin fun p ->
-      let message =
-        Format.asprintf "%a%t" Hammer.pp_progress p Runner.pp_goals in
-      Dap.update !progress ~message ()
-    end
-
-let paused () =
-  begin
-    Dap.finished !progress ~message:"paused" () ;
-    progress := Dap.idle ;
-  end
-
 let run adapter =
   while running adapter do
     if not @@ process adapter then
       begin
+        observe () ;
         Unix.sleepf 0.01 ;
-        match Hammer.status () with
-        | Proving p -> status p
-        | Paused -> paused ()
-        | Exited -> ()
       end
   done ;
   Client.terminate ()
