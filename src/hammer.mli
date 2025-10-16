@@ -39,10 +39,16 @@ val create :
   Project.env -> hammer
 
 type node
+type state =
+  | Paused
+  | Scheduled
+  | Closed of Crc.crc
+  | Stacked of Tactic.tactic * node list
+
 val result : node -> Crc.crc Fibers.t
 val goal : node -> Session.goal
 val parent : node -> node option
-val children : node -> node list
+val state : node -> state
 
 (** Enqueue some goal to be processed. *)
 val schedule : hammer -> ?cancel:unit Fibers.signal -> goal -> crc -> node

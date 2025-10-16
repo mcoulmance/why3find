@@ -898,7 +898,7 @@ let () = register "threads"
       Json.assoc [ "threads" , `List (List.map jthread @@ List.sort byId !pool)]
     end
 
-let () = register "stackFrame"
+let () = register "stackTrace"
     begin fun _adapter args ->
       let thId = Json.jfield "threadId" args |> Json.jint in
       let start = Json.jfield "startFrame" args |> Json.jint in

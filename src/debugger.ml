@@ -65,6 +65,15 @@ let observe () =
   | Exited -> exited ()
   | Paused -> paused ()
 
+let pause _adapter =
+  stopping := None ;
+  Hammer.pause ()
+
+let continue adapter =
+  started adapter ;
+  stopping := None ;
+  Hammer.resume ()
+
 (* -------------------------------------------------------------------------- *)
 (* ---  Compilation                                                       --- *)
 (* -------------------------------------------------------------------------- *)
@@ -180,9 +189,7 @@ let init gnames files =
             let config = Config.load_config ~root in
             let env = Project.create ~root ~config () in
             let main = Dap.thread adapter ~name:"Provers"
-                ~on_pause:(fun _ -> Hammer.pause ())
-                ~on_continue:(fun _ -> Hammer.resume ())
-                () in
+                ~on_pause:pause ~on_continue:continue () in
             let callback _ =
               begin
                 Dap.terminate main ;

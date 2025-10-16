@@ -36,38 +36,62 @@ type node = {
   hammer : hammer ;
   result : crc Fibers.t ;
   cancel : unit Fibers.signal option ;
-  mutable paused : bool ;
-  mutable stacked : node list option ;
-}
+  mutable state : state ;
+} and state =
+    | Paused
+    | Scheduled
+    | Closed of Crc.crc
+    | Stacked of Tactic.tactic * node list
 
 (* -------------------------------------------------------------------------- *)
 (* --- Queue Management                                                   --- *)
 (* -------------------------------------------------------------------------- *)
-
+let p_proven = ref 0
+let p_broken = ref 0
 let q_paused = Queue.create () (* Paused nodes, may also contain restarted nodes *)
 let q_broken = Queue.create () (* Stuck hints, scheduled first *)
 let q_proven = Queue.create () (* Complete hints, scheduled last *)
 let q_dispatch n = Queue.push n (if is_complete n.hint then q_proven else q_broken)
-let q_pause n = n.paused <- true ; Queue.push n q_paused
-let q_schedule n = n.paused <- true ; q_dispatch n
-let q_resume n = if n.paused then q_schedule n
+let q_pause n = n.state <- Paused ; Queue.push n q_paused
+let q_schedule n = n.state <- Scheduled ; q_dispatch n
+let q_resume n = if n.state = Paused then q_schedule n
 
 (* -------------------------------------------------------------------------- *)
 (* --- Stepping                                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-type runmode = Interrupting | Pausing | StepIn | StepOut | Runner
-let runmode = ref Runner
+type runmode = Running | Interrupting | Pausing | StepIn | StepOut
+let runmode = ref Running
 
 let subgoal n =
   match !runmode with
   | Interrupting -> ()
   | Pausing | StepIn -> q_pause n
-  | Runner | StepOut -> q_schedule n
+  | Running | StepOut -> q_schedule n
 
-let terminate n =
-  n.paused <- false ;
-  Fibers.set n.result (Crc.stuck ~goal:n.goal ())
+let close n crc =
+  match Fibers.get n.result with
+  | Some _ -> ()
+  | None -> n.state <- Closed crc ; Fibers.set n.result crc
+
+let finalize n crc =
+  match !runmode with
+  | Interrupting -> ()
+  | Running -> close n crc
+  | Pausing ->
+    if Crc.is_complete crc then close n crc else q_pause n
+  | StepIn | StepOut ->
+    if Crc.is_complete crc then close n crc else
+      begin
+        n.state <- Closed crc ;
+        q_pause n ;
+      end
+
+let rec terminate n =
+  match n.state with
+  | Closed _ -> ()
+  | Stacked(_,ns) -> List.iter terminate ns
+  | Paused | Scheduled -> close n (Crc.stuck ~goal:n.goal ())
 
 let step n = runmode := StepOut ; q_resume n
 let step_in n = runmode := StepIn ; q_resume n
@@ -82,7 +106,7 @@ let resume () =
 
 let resume_to_end () =
   begin
-    runmode := Runner ;
+    runmode := Running ;
     Queue.iter q_resume q_paused ;
     Queue.clear q_paused ;
   end
@@ -111,13 +135,6 @@ let interrupt () =
     Fibers.emit killall () ;
   end
 
-let finalize n crc =
-  let complete =
-    match !runmode with
-    | Runner -> true
-    | _ -> Crc.is_complete crc
-  in if complete then Fibers.set n.result crc else q_pause n
-
 (* -------------------------------------------------------------------------- *)
 (* --- Scheduling Nodes                                                   --- *)
 (* -------------------------------------------------------------------------- *)
@@ -129,8 +146,7 @@ let node hammer ?parent ?cancel ?hint goal =
     hammer ; goal ;
     parent ; depth ;
     hint ; cancel ; result ;
-    paused = false ;
-    stacked = None ;
+    state = Paused ;
   }
 
 let push hammer ?parent ?cancel goal hint =
@@ -154,14 +170,14 @@ let pop () =
 let stuck n = stuck ~goal:n.goal ()
 let result n = n.result
 let goal n = n.goal
-let children n = match n.stacked with None -> [] | Some ns -> ns
+let state n = n.state
 let parent n = n.parent
 
 let iter f =
   begin
     Queue.iter f q_broken ;
     Queue.iter f q_proven ;
-    Queue.iter (fun n -> if n.paused then f n) q_paused ;
+    Queue.iter (fun n -> if n.state <> Paused then f n) q_paused ;
   end
 
 type strategy = node -> crc Fibers.t
@@ -181,12 +197,13 @@ let rec sequence (f : 'a -> strategy) (xs : 'a list) : strategy =
   | [] -> fail
   | x::xs -> f x >>> sequence f xs
 
-let decompose parent tactic gs hs =
-  let ns = push_all parent.hammer ~parent ?cancel:parent.cancel gs hs in
-  parent.stacked <- Some ns ;
-  let+ crc =
-    Crc.tactic ~goal:parent.goal tactic @+ Fibers.all @@ List.map result ns in
-  parent.stacked <- None ; crc
+let decompose node tactic gs hs =
+  let children = push_all node.hammer ~parent:node ?cancel:node.cancel gs hs in
+  node.state <- Stacked(tactic,children) ;
+  let callback crc = node.state <- Closed crc in
+  Fibers.finally ~callback @@
+  Crc.tactic ~goal:node.goal tactic @+
+  Fibers.all @@ List.map result children
 
 (* -------------------------------------------------------------------------- *)
 (* --- Try Prover on Node                                                 --- *)
@@ -428,10 +445,6 @@ let execute n =
 (* --- Queue Status                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
-(* Number of currently processed tasks from their respective queues *)
-let p_proven = ref 0
-let p_broken = ref 0
-
 type progress = {
   broken  : int ;
   proven  : int ;
@@ -463,7 +476,7 @@ let pp_status fmt = function
 
 let proving () =
   begin
-    !p_proven > 0 || !p_broken > 0
+    false
     || Queue.length q_proven > 0
     || Queue.length q_broken > 0
     || Runner.pending () > 0
@@ -498,7 +511,7 @@ let process () =
   end
 
 let run () =
-  runmode := Runner ;
+  runmode := Running ;
   while running () do
     let s = progress () in
     Utils.progress "%a%t" pp_progress s Runner.pp_goals ;
