@@ -259,6 +259,7 @@ val connect :
   unit -> unit
 
 val id : thread -> int
+val name : thread -> string
 
 (** Sorted by Id. *)
 val pending : unit -> thread list

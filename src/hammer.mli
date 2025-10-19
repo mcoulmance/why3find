@@ -39,6 +39,7 @@ val create :
   Project.env -> hammer
 
 type node
+type parent = Thread of int | Node of node
 type state =
   | Paused            (* in q_paused *)
   | Scheduled         (* in q_proven or q_broken *)
@@ -48,11 +49,12 @@ type state =
 
 val result : node -> Crc.crc Fibers.t
 val goal : node -> Session.goal
-val parent : node -> node option
+val parent : node -> parent
 val state : node -> state
+val thread_id : node -> int
 
 (** Creates a root node for some goal to be proved. *)
-val thread : hammer -> ?cancel:unit Fibers.signal -> goal -> crc -> node
+val thread : hammer -> ?id:int -> ?cancel:unit Fibers.signal -> goal -> crc -> node
 
 (** Current Task Server State *)
 type progress = {

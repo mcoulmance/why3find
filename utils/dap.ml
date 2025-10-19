@@ -764,6 +764,7 @@ let threadk = ref 0
 let threads : (int,thread) Hashtbl.t = Hashtbl.create 0
 let singleThreadSupport = ref false
 let id (Thread th) = th.id
+let name (Thread th) = th.name
 let find = Hashtbl.find threads
 let living th = Hashtbl.mem threads (id th)
 let get attr th = Hashtbl.find attr.bythreads (id th)

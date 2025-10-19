@@ -18,6 +18,8 @@ type state =
 
 let state = ref Paused
 let stopping = ref None
+let root = Dap.attribute ()
+
 
 let update = Timer.throttle
     begin fun h ->
@@ -65,11 +67,11 @@ let observe () =
   | Exited -> exited ()
   | Paused -> paused ()
 
-let pause _adapter =
+let on_pause _adapter =
   stopping := None ;
   Hammer.pause ()
 
-let continue adapter =
+let on_continue adapter =
   started adapter ;
   stopping := None ;
   Hammer.resume ()
@@ -83,11 +85,12 @@ let cc_proof adapter hammer theory goal hint =
   let tname = Session.thy_name thy in
   let gname = Session.goal_name goal in
   let name = Printf.sprintf "Goal %s.%s" tname gname in
-  let node = Hammer.thread hammer goal hint in
-  let thread = Dap.thread adapter ~name () in
+  let thread = Dap.thread adapter ~on_pause ~on_continue ~name () in
+  let node = Hammer.thread hammer ~id:(Dap.id thread) goal hint in
+  Dap.set root thread node ;
   let result crc =
+    Dap.terminate thread ;
     Log.message "%s %a" name Crc.pretty crc ;
-    if Crc.is_complete crc then Dap.terminate thread ;
     Prove.merge_stats hint crc ; Crc.merge hint crc
   in Fibers.map result (Hammer.result node)
 
@@ -168,9 +171,9 @@ let cc_file adapter env gnames file =
 
 let pp_exit fmt =
   if !exit = 0 then
-    Format.pp_print_string fmt "Success"
+    Format.pp_print_string fmt "Terminated"
   else
-    Format.fprintf fmt "Exit %d" !exit
+    Format.fprintf fmt "Failed (Status %d)" !exit
 
 let init gnames files =
   begin
@@ -188,12 +191,12 @@ let init gnames files =
           | Some root ->
             let config = Config.load_config ~root in
             let env = Project.create ~root ~config () in
-            let main = Dap.thread adapter ~name:"Provers"
-                ~on_pause:pause ~on_continue:continue () in
+            let main =
+              Dap.thread adapter ~name:"Monitor" ~on_pause ~on_continue () in
             let callback _ =
               begin
                 Dap.terminate main ;
-                Dap.output adapter "Why3 Debugger Exited (%t)" pp_exit ;
+                Dap.output adapter "Why3 Debugger %t@." pp_exit ;
                 Dap.exited adapter !exit ;
               end
             in
@@ -209,8 +212,9 @@ let init gnames files =
       end ;
     Dap.on_terminate
       begin fun adapter ~restart ->
+        ignore adapter ;
         ignore restart ;
-        Dap.output adapter "Why3 Debugger Terminated.@" ;
+        Hammer.interrupt () ;
       end ;
   end
 
