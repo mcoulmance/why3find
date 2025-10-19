@@ -40,18 +40,19 @@ val create :
 
 type node
 type state =
-  | Paused
-  | Scheduled
-  | Closed of Crc.crc
-  | Stacked of Tactic.tactic * node list
+  | Paused            (* in q_paused *)
+  | Scheduled         (* in q_proven or q_broken *)
+  | Failed of Crc.crc (* in q_failed *)
+  | Closed of Crc.crc (* not in any queue *)
+  | Stacked of Tactic.tactic * node list (* children still queued *)
 
 val result : node -> Crc.crc Fibers.t
 val goal : node -> Session.goal
 val parent : node -> node option
 val state : node -> state
 
-(** Enqueue some goal to be processed. *)
-val schedule : hammer -> ?cancel:unit Fibers.signal -> goal -> crc -> node
+(** Creates a root node for some goal to be proved. *)
+val thread : hammer -> ?cancel:unit Fibers.signal -> goal -> crc -> node
 
 (** Current Task Server State *)
 type progress = {
@@ -80,17 +81,14 @@ val interrupt : unit -> unit
 (** Interrupt all running provers and pauses all nodes. *)
 val pause : unit -> unit
 
-(** Commit this node to fail. *)
+(** Commit this node and all its children to their current status. *)
 val terminate : node -> unit
 
-(** Re-schedule this node and its future children, pausing any failed node. *)
-val step : node -> unit
+(** Re-schedule the given nodes, pausing children and failed nodes. *)
+val step_in : node list -> unit
 
-(** Re-schdule this node and pause if failed or pause its children. *)
-val step_in : node -> unit
-
-(** Continue all scheduled nodes and their descendents, pausing failed nodes. *)
-val step_out : unit -> unit
+(** Re-schedule the given nodes, auto-scheduling children but pausing failed nodes. *)
+val step_out : node list -> unit
 
 (** Re-schedule all paused nodes and continue, pausing failed nodes. *)
 val resume : unit -> unit

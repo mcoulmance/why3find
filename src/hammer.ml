@@ -38,21 +38,25 @@ type node = {
   cancel : unit Fibers.signal option ;
   mutable state : state ;
 } and state =
-    | Paused
-    | Scheduled
-    | Closed of Crc.crc
-    | Stacked of Tactic.tactic * node list
+    | Paused            (* in q_paused *)
+    | Scheduled         (* in q_proven or q_broken *)
+    | Failed of Crc.crc (* in q_failed *)
+    | Closed of Crc.crc (* not in any queue *)
+    | Stacked of Tactic.tactic * node list (* children still queued *)
 
 (* -------------------------------------------------------------------------- *)
 (* --- Queue Management                                                   --- *)
 (* -------------------------------------------------------------------------- *)
+
 let p_proven = ref 0
 let p_broken = ref 0
-let q_paused = Queue.create () (* Paused nodes, may also contain restarted nodes *)
+let q_failed = Fibers.Queue.create () (* Failed nodes *)
+let q_paused = Fibers.Queue.create () (* Paused nodes *)
 let q_broken = Queue.create () (* Stuck hints, scheduled first *)
 let q_proven = Queue.create () (* Complete hints, scheduled last *)
 let q_dispatch n = Queue.push n (if is_complete n.hint then q_proven else q_broken)
-let q_pause n = n.state <- Paused ; Queue.push n q_paused
+let q_pause n = n.state <- Paused ; Fibers.Queue.push q_paused n
+let q_fail n crc = n.state <- Failed crc ; Fibers.Queue.push q_failed n
 let q_schedule n = n.state <- Scheduled ; q_dispatch n
 let q_resume n = if n.state = Paused then q_schedule n
 
@@ -75,40 +79,47 @@ let close n crc =
   | None -> n.state <- Closed crc ; Fibers.set n.result crc
 
 let finalize n crc =
-  match !runmode with
-  | Interrupting -> ()
-  | Running -> close n crc
-  | Pausing ->
-    if Crc.is_complete crc then close n crc else q_pause n
-  | StepIn | StepOut ->
-    if Crc.is_complete crc then close n crc else
-      begin
-        n.state <- Closed crc ;
-        q_pause n ;
-      end
+  if Crc.is_complete crc then close n crc else
+    match n.state , !runmode with
+    | _ , Running -> close n crc
+    | Scheduled , Pausing -> q_pause n
+    | Scheduled , (StepIn | StepOut) -> q_fail n crc
+    | _ , Interrupting | (Paused | Closed _ | Failed _ | Stacked _) , _ -> ()
 
 let rec terminate n =
   match n.state with
   | Closed _ -> ()
+  | Failed crc -> close n crc
   | Stacked(_,ns) -> List.iter terminate ns
   | Paused | Scheduled -> close n (Crc.stuck ~goal:n.goal ())
 
-let step n = runmode := StepOut ; q_resume n
-let step_in n = runmode := StepIn ; q_resume n
-let step_out () = runmode := StepOut
+let schedule n =
+  match n.state with
+  | Paused | Failed _ -> q_resume n
+  | Scheduled | Stacked _ | Closed _ -> ()
+
+let step ns =
+  begin
+    List.iter schedule ns ;
+    Fibers.Queue.filter q_paused (fun n -> n.state <> Scheduled) ;
+    Fibers.Queue.filter q_failed (fun n -> n.state <> Scheduled) ;
+  end
+
+let step_in ns = runmode := StepIn ; step ns
+let step_out ns = runmode := StepOut ; step ns
 
 let resume () =
   begin
     runmode := StepOut ;
-    Queue.iter q_resume q_paused ;
-    Queue.clear q_paused ;
+    Fibers.Queue.iter q_paused q_resume ;
+    Fibers.Queue.clear q_paused ;
   end
 
 let resume_to_end () =
   begin
     runmode := Running ;
-    Queue.iter q_resume q_paused ;
-    Queue.clear q_paused ;
+    Fibers.Queue.iter q_paused q_resume ;
+    Fibers.Queue.clear q_paused ;
   end
 
 (* -------------------------------------------------------------------------- *)
@@ -131,7 +142,8 @@ let interrupt () =
     runmode := Interrupting ;
     Queue.clear q_proven ;
     Queue.clear q_broken ;
-    Queue.clear q_paused ;
+    Fibers.Queue.clear q_paused ;
+    Fibers.Queue.clear q_failed ;
     Fibers.emit killall () ;
   end
 
@@ -175,9 +187,10 @@ let parent n = n.parent
 
 let iter f =
   begin
+    Fibers.Queue.iter q_failed f ;
+    Fibers.Queue.iter q_paused f ;
     Queue.iter f q_broken ;
     Queue.iter f q_proven ;
-    Queue.iter (fun n -> if n.state <> Paused then f n) q_paused ;
   end
 
 type strategy = node -> crc Fibers.t
@@ -313,7 +326,7 @@ let create
     provers ; tactics ; profile ; preprocess ;
   }
 
-let schedule hammer ?cancel goal hint =
+let thread hammer ?cancel goal hint =
   match hammer.preprocess with
   | None -> push hammer ?cancel goal hint
   | Some tactic ->
@@ -483,14 +496,17 @@ let proving () =
     || Runner.running () > 0
   end
 
-let paused () = Queue.length q_paused > 0
+let paused () =
+  false
+  || Fibers.Queue.length q_paused > 0
+  || Fibers.Queue.length q_failed > 0
 
 let status () =
   let progress () = Proving (progress ()) in
-  if proving () then progress () else
-  if paused () then Paused else
-  if Fibers.pending () > 0 then progress () else
-    Exited
+  if proving () then progress ()
+  else if paused () then Paused
+  else if Fibers.pending () > 0 then progress ()
+  else Exited
 
 let running () = proving () || Fibers.pending () > 0
 

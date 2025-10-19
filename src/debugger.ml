@@ -83,7 +83,7 @@ let cc_proof adapter hammer theory goal hint =
   let tname = Session.thy_name thy in
   let gname = Session.goal_name goal in
   let name = Printf.sprintf "Goal %s.%s" tname gname in
-  let node = Hammer.schedule hammer goal hint in
+  let node = Hammer.thread hammer goal hint in
   let thread = Dap.thread adapter ~name () in
   let result crc =
     Log.message "%s %a" name Crc.pretty crc ;
