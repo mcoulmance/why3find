@@ -60,6 +60,8 @@ let rec thread_id n =
 (* --- Queue Management                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
+let failed = Fibers.signal ()
+
 let p_proven = ref 0
 let p_broken = ref 0
 let q_failed = Fibers.Queue.create () (* Failed nodes *)
@@ -69,7 +71,8 @@ let q_proven = Queue.create () (* Complete hints, scheduled last *)
 let q_dispatch n =
   Queue.push n (if Crc.is_complete n.hint then q_proven else q_broken)
 let q_pause n = n.state <- Paused ; Fibers.Queue.push q_paused n
-let q_fail n crc = n.state <- Failed crc ; Fibers.Queue.push q_failed n
+let q_fail n crc =
+  n.state <- Failed crc ; Fibers.emit failed n ; Fibers.Queue.push q_failed n
 let q_schedule n = n.state <- Scheduled ; q_dispatch n
 let q_resume n = if n.state = Paused then q_schedule n
 

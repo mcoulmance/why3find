@@ -77,6 +77,7 @@ val status : unit -> status
 val progress : unit -> progress
 val running : unit -> bool
 val interrupting : unit -> bool
+val failed : node Fibers.signal
 
 (** Interrupt all running provers and discard all pending nodes. *)
 val interrupt : unit -> unit
@@ -87,13 +88,13 @@ val pause : unit -> unit
 (** Commit this node and all its children to their current status. *)
 val terminate : node -> unit
 
-(** Re-schedule the given nodes, pausing children and failed nodes. *)
+(** Re-schedule the given nodes, pausing children. *)
 val step_in : node list -> unit
 
-(** Re-schedule the given nodes, auto-scheduling children but pausing failed nodes. *)
+(** Re-schedule the given nodes, auto-scheduling children. *)
 val step_out : node list -> unit
 
-(** Re-schedule all paused nodes and continue, pausing failed nodes. *)
+(** Re-schedule all paused nodes and continue. *)
 val resume : unit -> unit
 
 (** Re-schedule all paused nodes and continue, commiting all nodes. *)

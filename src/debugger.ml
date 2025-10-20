@@ -7,6 +7,19 @@
 (**************************************************************************)
 
 (* -------------------------------------------------------------------------- *)
+(* ---  Observing Nodes                                                   --- *)
+(* -------------------------------------------------------------------------- *)
+
+let pp_goal_location fmt goal =
+  match Session.goal_loc goal with
+  | None -> ()
+  | Some loc ->
+    let file,line,_,_,_ = Why3.Loc.get loc in
+    Format.fprintf fmt "%s:%d: " file line
+
+let root = Dap.attribute ()
+
+(* -------------------------------------------------------------------------- *)
 (* ---  Running State                                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -18,8 +31,6 @@ type state =
 
 let state = ref Paused
 let stopping = ref None
-let root = Dap.attribute ()
-
 
 let update = Timer.throttle
     begin fun h ->
@@ -67,14 +78,33 @@ let observe () =
   | Exited -> exited ()
   | Paused -> paused ()
 
+let pause_thread thread _adapter =
+  stopping := Some(thread,`pause) ;
+  Hammer.pause ()
+
 let on_pause _adapter =
   stopping := None ;
   Hammer.pause ()
 
 let on_continue adapter =
-  started adapter ;
   stopping := None ;
+  started adapter ;
   Hammer.resume ()
+
+let on_failed node =
+  begin
+    exit := 1 ;
+    let goal = Hammer.goal node in
+    try
+      let id = Hammer.thread_id node in
+      let thread = Dap.find id in
+      let name = Dap.name thread in
+      stopping := Some (thread,`error) ;
+      Hammer.pause () ;
+      Log.error "%a%s @{<red>failed@}" pp_goal_location goal name
+    with Not_found ->
+      Log.error "%aGoal @{<red>failed@}" pp_goal_location goal
+  end
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Compilation                                                       --- *)
@@ -85,7 +115,8 @@ let cc_proof adapter hammer theory goal hint =
   let tname = Session.thy_name thy in
   let gname = Session.goal_name goal in
   let name = Printf.sprintf "Goal %s.%s" tname gname in
-  let thread = Dap.thread adapter ~on_pause ~on_continue ~name () in
+  let thread = Dap.thread adapter ~on_continue ~name () in
+  Dap.connect thread ~on_pause:(pause_thread thread) () ;
   let node = Hammer.thread hammer ~id:(Dap.id thread) goal hint in
   Dap.set root thread node ;
   let callback crc =
@@ -93,13 +124,6 @@ let cc_proof adapter hammer theory goal hint =
     Log.message "%s %a" name Crc.pretty crc ;
     Prove.merge_stats hint crc
   in Fibers.finally ~callback (Hammer.result node)
-
-let pp_goal_location fmt goal =
-  match Session.goal_loc goal with
-  | None -> ()
-  | Some loc ->
-    let file,line,_,_,_ = Why3.Loc.get loc in
-    Format.fprintf fmt "%s:%d: " file line
 
 let cc_theory adapter hammer buffer strategy gnames theory =
   let module M = Why3.Wstdlib.Mstr in
@@ -121,14 +145,7 @@ let cc_theory adapter hammer buffer strategy gnames theory =
            begin fun crc ->
              let complete = not @@ Hammer.interrupting () in
              let hint = Crc.update ~complete ~hint crc in
-             Proofs.add theory goal hint buffer ;
-             if not @@ Crc.is_complete crc then
-               begin
-                 exit := 1 ;
-                 Log.error "%aGoal %s.%s @{<red>failed@} %a"
-                   pp_goal_location goal
-                   thy gname Crc.pretty crc ;
-               end
+             Proofs.add theory goal hint buffer
            end @@
          cc_proof adapter hammer theory goal hint
     ) goals
@@ -218,6 +235,7 @@ let init gnames files =
         ignore restart ;
         Hammer.interrupt () ;
       end ;
+    Fibers.on Hammer.failed on_failed ;
   end
 
 let running adapter =
