@@ -154,15 +154,18 @@ let window t0 t1 =
   let w1 = max t1 0.01 in
   w0 *. 0.5 < w1 && w1 < w0 *. 2.0
 
-let rec merge a b =
-  let goal = match a.goal with None -> b.goal | g -> g in
-  match a.status, b.status with
-  | Prover(p0,t0), Prover(p1,t1) when p0 = p1 && window t0 t1 -> a
-  | Tactic { id = f ; children = xs } ,
-    Tactic { id = g ; children = ys }
-    when f = g && List.length xs = List.length ys ->
-    make goal f (List.map2 merge xs ys)
-  | _ -> b
+let update ?(complete=true) ~hint result =
+  let rec merge h r =
+    let goal = match r.goal with None -> h.goal | g -> g in
+    match h.status, r.status with
+    | Prover(p0,t0), Prover(p1,t1) when p0 = p1 && window t0 t1 -> h
+    | Tactic { id = f ; children = hs } ,
+      Tactic { id = g ; children = rs }
+      when f = g && List.length hs = List.length rs ->
+      make goal f (List.map2 merge hs rs)
+    | _ , Stuck when not complete -> h
+    | _ -> r
+  in merge hint result
 
 (* -------------------------------------------------------------------------- *)
 (* --- iter                                                               --- *)

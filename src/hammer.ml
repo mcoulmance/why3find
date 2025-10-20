@@ -522,6 +522,7 @@ let status () =
   else Exited
 
 let running () = proving () || Fibers.pending () > 0
+let interrupting () = !runmode = Interrupting
 
 (* -------------------------------------------------------------------------- *)
 (* --- Task Processing                                                    --- *)

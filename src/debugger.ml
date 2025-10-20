@@ -88,11 +88,11 @@ let cc_proof adapter hammer theory goal hint =
   let thread = Dap.thread adapter ~on_pause ~on_continue ~name () in
   let node = Hammer.thread hammer ~id:(Dap.id thread) goal hint in
   Dap.set root thread node ;
-  let result crc =
+  let callback crc =
     Dap.terminate thread ;
     Log.message "%s %a" name Crc.pretty crc ;
-    Prove.merge_stats hint crc ; Crc.merge hint crc
-  in Fibers.map result (Hammer.result node)
+    Prove.merge_stats hint crc
+  in Fibers.finally ~callback (Hammer.result node)
 
 let pp_goal_location fmt goal =
   match Session.goal_loc goal with
@@ -119,7 +119,9 @@ let cc_theory adapter hammer buffer strategy gnames theory =
          let hint = try M.find gname hints with Not_found -> Crc.stuck () in
          Fibers.map
            begin fun crc ->
-             Proofs.add theory goal crc buffer ;
+             let complete = not @@ Hammer.interrupting () in
+             let hint = Crc.update ~complete ~hint crc in
+             Proofs.add theory goal hint buffer ;
              if not @@ Crc.is_complete crc then
                begin
                  exit := 1 ;

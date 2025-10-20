@@ -76,6 +76,7 @@ val iter : (node -> unit) -> unit
 val status : unit -> status
 val progress : unit -> progress
 val running : unit -> bool
+val interrupting : unit -> bool
 
 (** Interrupt all running provers and discard all pending nodes. *)
 val interrupt : unit -> unit

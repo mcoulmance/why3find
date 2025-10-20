@@ -62,8 +62,8 @@ val pp_status : Format.formatter -> status -> unit
 val pp_result : Format.formatter -> stuck:int -> proved:int -> unit
 
 val dump : Format.formatter -> crc -> unit
+val update : ?complete:bool -> hint:crc -> crc -> crc
 
-val merge : crc -> crc -> crc
 val of_json : Json.t -> crc
 val to_json : crc -> Json.t
 
