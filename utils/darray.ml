@@ -39,6 +39,11 @@ let add buf e = ignore @@ addi buf e
 let contents buf =
   { length = (fun () -> Hashtbl.length buf) ; value = Hashtbl.find buf }
 
+let reverse d = {
+  length = d.length ;
+  value = fun k -> d.value (d.length () - k - 1) ;
+}
+
 let make ~length ~value = { length ; value }
 let cache ~length ~value =
   let h = Hashtbl.create 0 in

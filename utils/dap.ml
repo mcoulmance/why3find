@@ -753,17 +753,18 @@ type thread = Thread of {
     name : string ;
     adapter : adapter ;
     mutable frames : (thread -> frame Darray.t) ;
-    mutable on_pause : (adapter -> unit) ;
-    mutable on_next : (adapter -> unit) ;
-    mutable on_step_in : (adapter -> unit) ;
-    mutable on_step_out : (adapter -> unit) ;
-    mutable on_continue : (adapter -> unit) ;
+    mutable on_pause : (thread -> unit) ;
+    mutable on_next : (thread -> unit) ;
+    mutable on_step_in : (thread -> unit) ;
+    mutable on_step_out : (thread -> unit) ;
+    mutable on_continue : (thread -> unit) ;
   }
 
 let threadk = ref 0
 let threads : (int,thread) Hashtbl.t = Hashtbl.create 0
 let singleThreadSupport = ref false
 let id (Thread th) = th.id
+let on (Thread th) = th.adapter
 let name (Thread th) = th.name
 let find = Hashtbl.find threads
 let living th = Hashtbl.mem threads (id th)
@@ -864,28 +865,20 @@ let stopped ~(reason:reason) ?description ?text ?all ?preserveFocus ?frames thre
     ]
   end
 
-let () = register "pause"
-    begin fun adapter args ->
-      let threadId = Json.jfield "threadId" args |> Json.jint in
-      Option.iter
-        (function (Thread th) -> Queue.push th.on_pause adapter.callback)
-        (Hashtbl.find_opt threads threadId) ;
-      `Null
-    end
-
-let resume mode adapter args =
+let on_thread mode adapter args =
   let threadId = Json.jfield "threadId" args |> Json.jint in
   let single = Json.jfield "sinleThread" args |> Json.jbool in
   Option.iter
-    (fun th -> Queue.push (mode th) adapter.callback)
+    (fun th -> Queue.push (fun _ -> mode th th) adapter.callback)
     (Hashtbl.find_opt threads threadId) ;
   if not !singleThreadSupport || not single then `Null else
     Json.assoc [ "allThreadsContinued", `Bool (not single) ]
 
-let () = register "next" @@ resume (function Thread th -> th.on_next)
-let () = register "stepIn" @@ resume (function Thread th -> th.on_step_in)
-let () = register "stepOut" @@ resume (function Thread th -> th.on_step_out)
-let () = register "continue" @@ resume (function Thread th -> th.on_continue)
+let () = register "next" @@ on_thread (function Thread th -> th.on_next)
+let () = register "stepIn" @@ on_thread (function Thread th -> th.on_step_in)
+let () = register "stepOut" @@ on_thread (function Thread th -> th.on_step_out)
+let () = register "continue" @@ on_thread (function Thread th -> th.on_continue)
+let () = register "pause" @@ on_thread (function Thread th -> th.on_pause)
 
 let () = register "threads"
     begin fun _adapter _args ->

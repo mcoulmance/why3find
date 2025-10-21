@@ -19,6 +19,41 @@ let pp_goal_location fmt goal =
 
 let root = Dap.attribute ()
 
+type frame = {
+  frame : Dap.frame ;
+  failed : Dap.variable Darray.buffer ;
+  paused : Dap.variable Darray.buffer ;
+}
+
+let new_frame ~name () =
+  let failed = Darray.create () in
+  let paused = Darray.create () in
+  let s_failed = Dap.scope ~name:"Failed" ~named:(Darray.contents failed) () in
+  let s_paused = Dap.scope ~name:"Paused" ~named:(Darray.contents paused) () in
+  let frame = Dap.frame ~name ~scopes:[s_failed;s_paused] () in
+  { frame ; failed ; paused }
+
+let rec variables stack frame n =
+  match Hammer.state n with
+  | Paused ->
+    let g = Hammer.goal n in
+    Darray.add frame.paused @@ Dap.variable ~name:(Session.goal_name g) ~value:"Paused" ()
+  | Failed _ ->
+    let g = Hammer.goal n in
+    Darray.add frame.failed @@ Dap.variable ~name:(Session.goal_name g) ~value:"Failed" ()
+  | Stacked(tactic,children) ->
+    let frame = new_frame ~name:(Tactic.name tactic) () in
+    List.iter (variables stack frame) children ;
+    Darray.add stack frame.frame
+  | _ -> ()
+
+let frames thread =
+  let stk = Darray.create () in
+  let frame = new_frame ~name:"Proof" () in
+  Option.iter (variables stk frame) (Dap.get_opt root thread) ;
+  Darray.add stk frame.frame ;
+  Darray.contents stk
+
 (* -------------------------------------------------------------------------- *)
 (* ---  Running State                                                     --- *)
 (* -------------------------------------------------------------------------- *)
@@ -78,17 +113,13 @@ let observe () =
   | Exited -> exited ()
   | Paused -> paused ()
 
-let pause_thread thread _adapter =
+let on_pause thread =
   stopping := Some(thread,`pause) ;
   Hammer.pause ()
 
-let on_pause _adapter =
-  stopping := None ;
-  Hammer.pause ()
-
-let on_continue adapter =
-  stopping := None ;
-  started adapter ;
+let on_continue thread =
+  stopping := Some(thread,`pause) ;
+  started (Dap.on thread) ;
   Hammer.resume ()
 
 let on_failed node =
@@ -115,8 +146,7 @@ let cc_proof adapter hammer theory goal hint =
   let tname = Session.thy_name thy in
   let gname = Session.goal_name goal in
   let name = Printf.sprintf "Goal %s.%s" tname gname in
-  let thread = Dap.thread adapter ~on_continue ~name () in
-  Dap.connect thread ~on_pause:(pause_thread thread) () ;
+  let thread = Dap.thread adapter ~on_continue ~on_pause ~name ~frames () in
   let node = Hammer.thread hammer ~id:(Dap.id thread) goal hint in
   Dap.set root thread node ;
   let callback crc =

@@ -241,24 +241,25 @@ val thread :
   adapter ->
   name:string ->
   ?frames:(thread -> frame Darray.t) ->
-  ?on_pause:(adapter -> unit) ->
-  ?on_next:(adapter -> unit) ->
-  ?on_step_in:(adapter -> unit) ->
-  ?on_step_out:(adapter -> unit) ->
-  ?on_continue:(adapter -> unit) ->
+  ?on_pause:(thread -> unit) ->
+  ?on_next:(thread -> unit) ->
+  ?on_step_in:(thread -> unit) ->
+  ?on_step_out:(thread -> unit) ->
+  ?on_continue:(thread -> unit) ->
   unit -> thread
 
 val connect :
   thread ->
   ?frames:(thread -> frame Darray.t) ->
-  ?on_pause:(adapter -> unit) ->
-  ?on_next:(adapter -> unit) ->
-  ?on_step_in:(adapter -> unit) ->
-  ?on_step_out:(adapter -> unit) ->
-  ?on_continue:(adapter -> unit) ->
+  ?on_pause:(thread -> unit) ->
+  ?on_next:(thread -> unit) ->
+  ?on_step_in:(thread -> unit) ->
+  ?on_step_out:(thread -> unit) ->
+  ?on_continue:(thread -> unit) ->
   unit -> unit
 
 val id : thread -> int
+val on : thread -> adapter
 val name : thread -> string
 
 (** Sorted by Id. *)

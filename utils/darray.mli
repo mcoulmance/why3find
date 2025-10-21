@@ -35,8 +35,11 @@ val addi : 'a buffer -> 'a -> int
 (** Returns all the elements added to the buffer {i so far}. *)
 val contents : 'a buffer -> 'a t
 
-(** Build the collection from a sequence. *)
+(** Build the collection from a sequence. Can not be reversed. *)
 val sequence : ?overhead:int -> 'a Seq.t -> 'a t
+
+(** Reverse the order of elements. *)
+val reverse : 'a t -> 'a t
 
 (** Low-level constructor *)
 val make : length:(unit -> int) -> value:(int -> 'a) -> 'a t
