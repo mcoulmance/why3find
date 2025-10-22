@@ -228,6 +228,7 @@ type frame
 val label : name:string -> frame
 val frame :
   name:string ->
+  ?subtle:bool ->
   ?range:location ->
   ?restart:(adapter -> unit) ->
   ?scopes:scope list ->

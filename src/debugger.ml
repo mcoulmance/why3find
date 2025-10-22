@@ -17,6 +17,19 @@ let pp_goal_location fmt goal =
     let file,line,_,_,_ = Why3.Loc.get loc in
     Format.fprintf fmt "%s:%d: " file line
 
+let dloc (p : Why3.Loc.position) : Dap.location =
+  let source,l1,c1,l2,c2 = Why3.Loc.get p in
+  Dap.loc ~source ~line:(l1-1) ~column:c1 ~end_line:(l2-1) ~end_column:c2 ()
+
+let dloc_of_goal g = Option.map dloc @@ Session.goal_loc g
+let rec dloc_of_node n =
+  match dloc_of_goal @@ Hammer.goal n with
+  | Some _ as r -> r
+  | None ->
+    match Hammer.parent n with
+    | Thread _ -> None
+    | Node n -> dloc_of_node n
+
 let root = Dap.attribute ()
 
 type frame = {
@@ -25,12 +38,12 @@ type frame = {
   paused : Dap.variable Darray.buffer ;
 }
 
-let new_frame ~name () =
+let new_frame ~name ?range ?subtle () =
   let failed = Darray.create () in
   let paused = Darray.create () in
   let s_failed = Dap.scope ~name:"Failed" ~named:(Darray.contents failed) () in
   let s_paused = Dap.scope ~name:"Paused" ~named:(Darray.contents paused) () in
-  let frame = Dap.frame ~name ~scopes:[s_failed;s_paused] () in
+  let frame = Dap.frame ~name ?range ?subtle ~scopes:[s_failed;s_paused] () in
   { frame ; failed ; paused }
 
 let rec variables stack frame n =
@@ -42,15 +55,18 @@ let rec variables stack frame n =
     let g = Hammer.goal n in
     Darray.add frame.failed @@ Dap.variable ~name:(Session.goal_name g) ~value:"Failed" ()
   | Stacked(tactic,children) ->
-    let frame = new_frame ~name:(Tactic.name tactic) () in
+    let range = dloc_of_node n in
+    let frame = new_frame ?range ~name:(Tactic.name tactic) () in
     List.iter (variables stack frame) children ;
     Darray.add stack frame.frame
   | _ -> ()
 
 let frames thread =
   let stk = Darray.create () in
-  let frame = new_frame ~name:"Proof" () in
-  Option.iter (variables stk frame) (Dap.get_opt root thread) ;
+  let root = Dap.get_opt root thread in
+  let range = Option.bind root dloc_of_node in
+  let frame = new_frame ?range ~subtle:true ~name:"root" () in
+  Option.iter (variables stk frame) root ;
   Darray.add stk frame.frame ;
   Darray.contents stk
 

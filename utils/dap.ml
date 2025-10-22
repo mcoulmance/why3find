@@ -690,6 +690,7 @@ type frame =
   | Label of string
   | Frame of {
       name : string ;
+      subtle : bool ;
       range : location ;
       restart : (adapter -> unit) option ;
       scopes : scope list ;
@@ -711,10 +712,10 @@ let setRestartableFrames ()  =
   end
 
 let label ~name = Label name
-let frame ~name ?(range=empty) ?restart ?(scopes=[]) ?(values=[]) () =
+let frame ~name ?(subtle=false) ?(range=empty) ?restart ?(scopes=[]) ?(values=[]) () =
   if not (!restartableFrames || restart = None) then
     raise (Invalid_argument "Dap.restartableFrames") ;
-  Frame { name ; range ; restart ; scopes ; values }
+  Frame { name ; subtle ;range ; restart ; scopes ; values }
 
 let js_frame (fr : frame) =
   let id = Hashtbl.length scopes in
@@ -740,6 +741,7 @@ let js_frame (fr : frame) =
       "endLine" , to_column r.end_line ;
       "endColumn" , to_column r.end_column ;
       "canRestart" , `Bool (fr.restart <> None) ;
+      "presentationHint" , if fr.subtle then `String "subtle" else `Null ;
     ]
 
 (* -------------------------------------------------------------------------- *)
