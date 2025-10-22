@@ -63,7 +63,7 @@ let rec node_stats (a : Crc.crc) (b : Crc.crc) =
       incr nstuck ;
 
     | Stuck, _ ->
-      (if Crc.is_complete b then fixed else updated) += Crc.size b ;
+      incr (if Crc.is_complete b then fixed else updated) ;
       nstuck += Crc.get_stuck b ;
       nproved += Crc.get_proved b ;
 
@@ -91,7 +91,7 @@ let rec node_stats (a : Crc.crc) (b : Crc.crc) =
         | true, false -> broken
         | false, true -> fixed
       in
-      r += Crc.size b ;
+      incr r ;
       nstuck += Crc.get_stuck b ;
       nproved += Crc.get_proved b ;
 
