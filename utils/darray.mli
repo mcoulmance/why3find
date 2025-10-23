@@ -17,7 +17,7 @@ val iter : ('a -> unit) -> 'a t -> unit
 val iteri : (int -> 'a -> unit) -> 'a t -> unit
 
 val empty : 'a t
-val const : length:int -> 'a -> 'a t
+val const : ?length:int -> 'a -> 'a t
 val option : 'a option -> 'a t
 val array : 'a array -> 'a t
 val list : 'a list -> 'a t

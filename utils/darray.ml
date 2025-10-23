@@ -26,7 +26,7 @@ let concat a b =
     let value k = if k < na then a.value k else b.value k in
     { length = (fun () -> na + nb) ; value }
 
-let const ~length e = { length = (fun () -> length) ; value = fun _ -> e }
+let const ?(length=1) e = { length = (fun () -> length) ; value = fun _ -> e }
 let option = function None -> empty | Some e -> const ~length:1 e
 let array m = { length = (fun () -> Array.length m) ; value = Array.get m }
 let list xs = array (Array.of_list xs)
