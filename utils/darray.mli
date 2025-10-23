@@ -41,6 +41,9 @@ val sequence : ?overhead:int -> 'a Seq.t -> 'a t
 (** Reverse the order of elements. *)
 val reverse : 'a t -> 'a t
 
+(** Delayed computation *)
+val delayed : ('a -> 'b t) -> 'a -> 'b t
+
 (** Low-level constructor *)
 val make : length:(unit -> int) -> value:(int -> 'a) -> 'a t
 

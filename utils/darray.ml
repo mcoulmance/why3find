@@ -83,3 +83,9 @@ let sequence ?(overhead=20) (seq : 'a Seq.t) =
     more = true ;
     overhead ;
   } in { length = plength pager ; value = pvalue pager }
+
+let delayed f a =
+  let m = lazy (f a) in
+  let length () = (Lazy.force m).length () in
+  let value k = (Lazy.force m).value k in
+  { length ; value }

@@ -185,7 +185,10 @@ val find_by_varId : 'a attribute -> int -> 'a
 val find_by_frameId : 'a attribute -> int -> 'a
 val find_by_threadId : 'a attribute -> int -> 'a
 
-(** {2 Variables} *)
+(** {2 Variables}
+
+    Its is recommended to use {!Darray.delayed} for returning
+    large array of variables. *)
 
 type variable
 val variable :
@@ -208,7 +211,10 @@ val variable :
    @param visibility ["public"], ["private"], ["protected"], ["internal"], ["final"], etc.
 *)
 
-(** {2 Scopes} *)
+(** {2 Scopes}
+
+    Its is recommended to use {!Darray.delayed} for returning
+    large array of variables. *)
 
 type scope
 val scope :
@@ -266,7 +272,7 @@ val name : thread -> string
 (** Sorted by Id. *)
 val pending : unit -> thread list
 
-(** Find by Id @raises Not_found *)
+(** Find by Id *)
 val find : int -> thread
 
 val get : 'a attribute -> thread -> 'a
