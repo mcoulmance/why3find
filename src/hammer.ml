@@ -36,6 +36,7 @@ type node = {
   result : Crc.crc Fibers.t ;
   cancel : unit Fibers.signal option ;
   mutable state : state ;
+  mutable window : Vc.window option ;
 }
 
 and state =
@@ -55,6 +56,18 @@ let state n = n.state
 let parent n = n.parent
 let rec thread_id n =
   match n.parent with Thread id -> id | Node n -> thread_id n
+
+(* -------------------------------------------------------------------------- *)
+(* --- Node Window                                                        --- *)
+(* -------------------------------------------------------------------------- *)
+
+let window n =
+  match n.window with Some w -> w | None ->
+    let file = Session.goal_file n.goal in
+    let thy = Session.goal_theory n.goal in
+    let task = Session.goal_task n.goal in
+    let window = Vc.window ~file thy task in
+    n.window <- Some window ; window
 
 (* -------------------------------------------------------------------------- *)
 (* --- Queue Management                                                   --- *)
@@ -188,6 +201,7 @@ let node hammer ~parent ?cancel ?hint goal =
     parent ; depth ;
     hint ; cancel ; result ;
     state = Paused ;
+    window = None ;
   }
 
 let push hammer ~parent ?cancel goal hint =

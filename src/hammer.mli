@@ -52,6 +52,7 @@ val goal : node -> Session.goal
 val parent : node -> parent
 val state : node -> state
 val thread_id : node -> int
+val window : node -> Vc.window
 
 (** Creates a root node for some goal to be proved. *)
 val thread : hammer -> ?id:int -> ?cancel:unit Fibers.signal -> goal -> crc -> node
