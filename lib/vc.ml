@@ -45,10 +45,10 @@ let default_shape kind loc term s =
   | Empty, Some pos -> Range(kind,pos,term)
   | shape, _ -> shape
 
-let default_term kind term s = default_shape kind term.Term.t_loc term s
+let default_term kind term s = default_shape kind (Term.t_loc term) term s
 
 let rec collect kind (term : Term.term) =
-  match term.t_loc with
+  match Term.t_loc term with
   | Some pos -> Range(kind,pos,term)
   | None -> Term.t_fold (fun rgs t -> rgs <+> collect kind t) Empty term
 
