@@ -43,10 +43,10 @@ let default_shape kind loc term s =
   | Empty, Some pos -> Range(kind,pos,term)
   | shape, _ -> shape
 
-let default_term kind term s = default_shape kind term.Why3.Term.t_loc term s
+let default_term kind term s = default_shape kind (Term.t_loc term) term s
 
 let rec collect kind (term : Term.term) =
-  match term.t_loc with
+  match Term.t_loc term with
   | Some pos -> Range(kind,pos,term)
   | None -> Term.t_fold (fun rgs t -> rgs <+> collect kind t) Empty term
 
@@ -84,7 +84,7 @@ let shape_of_chunks (d: Decl.decl) : shape =
 exception Loc of Why3.Loc.position
 
 let rec find_loc (t : Why3.Term.term) =
-  match t.t_loc with
+  match Why3.Term.t_loc t with
   | Some l -> raise (Loc l)
   | None -> Term.t_iter find_loc t
 
