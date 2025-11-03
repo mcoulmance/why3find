@@ -45,7 +45,7 @@ let dloc_of_node n =
 
 let rec node_var n =
   let decl = dloc_of_node n in
-  let name = Format.asprintf "Node %a" Session.pp_goal @@ Hammer.goal n in
+  let name = Session.goal_expl @@ Hammer.goal n in
   match Hammer.state n with
   | Paused | Scheduled ->
     Dap.variable ~name ~value:"(paused)" ~kind:"property" ?decl ()

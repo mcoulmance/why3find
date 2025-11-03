@@ -226,58 +226,6 @@ let () = Lspserver.on_definition ~kind:`Typedef typedef
 (* --- Proof Results                                                      --- *)
 (* -------------------------------------------------------------------------- *)
 
-module M = Map.Make(String)
-
-let add k a =
-  M.add k (try succ @@ M.find k a with Not_found -> 1) a
-
-let rec provers m (crc : Crc.crc) =
-  match crc.status with
-  | Stuck -> ()
-  | Prover (p, _) ->
-    m := add (Prover.desc_name p) !m
-  | Tactic { id ; children } ->
-    m := add id !m ; List.iter (provers m) children
-
-let pp_verdict fmt = function
-  | `Valid 0 -> Format.pp_print_string fmt "Valid (no goal)"
-  | `Valid _ -> Format.pp_print_string fmt "Valid"
-  | `Failed 1 -> Format.fprintf fmt "No Proof"
-  | `Failed n -> Format.fprintf fmt "Failed (%d goals)" n
-  | `Partial (s,n) -> Format.fprintf fmt "Partial (%d/%d)" s n
-
-let pp_time fmt t =
-  if t > 1e-3 then Format.fprintf fmt " (%a)" Utils.pp_time t
-
-let pp_depth fmt d =
-  if d > 0 then Format.fprintf fmt " (depth %d)" d
-
-let pp_solver fmt p n =
-  if n > 1
-  then Format.fprintf fmt " (%s %d)" p n
-  else Format.fprintf fmt " (%s)" p
-
-let pp_solvers fmt cs =
-  let m = ref M.empty in
-  List.iter (provers m) cs ;
-  M.iter (pp_solver fmt) !m
-
-let pp_crc fmt (crc : Crc.crc) =
-  begin
-    pp_verdict fmt @@ Crc.verdict crc ;
-    pp_time fmt @@ Crc.get_time crc ;
-    pp_solvers fmt [crc] ;
-    pp_depth fmt @@ Crc.get_depth crc ;
-  end
-
-let pp_crc_all fmt (cs : Crc.crc list) =
-  begin
-    pp_verdict fmt @@ Crc.verdict_all cs ;
-    pp_time fmt @@ Crc.get_time_all cs ;
-    pp_solvers fmt cs ;
-    pp_depth fmt @@ Crc.get_depth_all cs ;
-  end
-
 let get_proof source (id : Id.id) =
   let thy = Docref.Mstr.find_opt id.id_mod source.src.theories in
   Docref.find_proof id.self thy
@@ -485,7 +433,7 @@ let clone source ids =
               List.iter
                 (fun (id,decl) ->
                    Option.iter
-                     (Format.fprintf fmt "@\n  (* %a *)" pp_crc)
+                     (Format.fprintf fmt "@\n  (* %a *)" Crc.pp_crc)
                      (get_proof source id) ;
                    Format.fprintf fmt "@\n  %a" pp_decl decl ;
                 ) ds
@@ -533,14 +481,14 @@ let lenses _channel ~uri =
           | Clone(_,ids) ->
             let cs = List.filter_map (get_proof source) ids in
             if cs <> [] then
-              let title = Format.asprintf "%a" pp_crc_all cs in
+              let title = Format.asprintf "%a" Crc.pp_crc_all cs in
               let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
               pool := Lspserver.resolved pos cmd :: !pool
           | Def id ->
             match get_proof source id with
             | None -> ()
             | Some crc ->
-              let title = Format.asprintf "%a" pp_crc crc in
+              let title = Format.asprintf "%a" Crc.pp_crc crc in
               let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
               pool := Lspserver.resolved pos cmd :: !pool
       end source.refs ;
