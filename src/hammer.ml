@@ -57,6 +57,12 @@ let parent n = n.parent
 let rec thread_id n =
   match n.parent with Thread id -> id | Node n -> thread_id n
 
+let rec proof n =
+  match n.state with
+  | Paused | Scheduled -> Crc.stuck ()
+  | Failed crc | Closed crc -> crc
+  | Stacked(tactic,children) -> Crc.tactic tactic (List.map proof children)
+
 (* -------------------------------------------------------------------------- *)
 (* --- Node Window                                                        --- *)
 (* -------------------------------------------------------------------------- *)

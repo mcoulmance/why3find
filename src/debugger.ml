@@ -48,34 +48,59 @@ let rec node_var n =
   let name = Session.goal_expl @@ Hammer.goal n in
   match Hammer.state n with
   | Paused | Scheduled ->
-    Dap.variable ~name ~value:"(paused)" ~kind:"property" ?decl ()
-  | Failed crc ->
-    let value = Format.asprintf "Failed %a" Crc.pretty crc in
+    Dap.variable ~name ~value:"Paused" ~kind:"property" ?decl ()
+  | Failed crc | Closed crc ->
+    let value = Format.asprintf "%a" Crc.pp_crc crc in
     Dap.variable ~name ~value ~kind:"property" ?decl ()
-  | Hammer.Closed crc ->
-    let status = if Crc.is_complete crc then "Valid" else "Failed" in
-    let value = Format.asprintf "%s %a" status Crc.pretty crc in
-    Dap.variable ~name ~value ~kind:"property" ?decl ()
-  | Hammer.Stacked (tactic, children) ->
-    let value = Format.asprintf "Tactic %a" Tactic.pretty tactic in
+  | Stacked (tactic, children) ->
+    let value = Format.asprintf "[%a] %a"
+        Tactic.pretty tactic
+        Crc.pp_crc_all (List.map Hammer.proof children) in
     let named = Darray.delayed node_vars children in
     Dap.variable ~name ~value ~kind:"method" ~named ?decl ()
 
 and node_vars ns = Darray.list @@ List.map node_var ns
 
 (* -------------------------------------------------------------------------- *)
-(* ---  Observing Frames                                                  --- *)
+(* ---  Callstack                                                         --- *)
+(* -------------------------------------------------------------------------- *)
+
+let rec reach stack n =
+  match Hammer.state n with
+  | Closed _ -> None
+  | Paused | Scheduled | Failed _ -> Some (n , stack)
+  | Stacked(tactic, children) ->
+    List.find_map (reach ((n,tactic,children) :: stack)) children
+
+let callframe (n,tactic,children) =
+  let range = dloc_of_node n in
+  let named = Darray.delayed node_vars children in
+  let children = Dap.scope ~name:"Children" ~named () in
+  Dap.frame ~name:(Tactic.name tactic) ~scopes:[children] ?range ()
+
+let topframe n =
+  let range = dloc_of_node n in
+  let name = Session.goal_expl @@ Hammer.goal n in
+  let named = Darray.const (node_var n) in
+  let goal = Dap.scope ~name:"Goal" ~named () in
+  Dap.frame ~name ~scopes:[goal] ?range ()
+
+let callstack n =
+  let n, stk =
+    match reach [] n with None -> n,[] | Some r -> r in
+  topframe n :: List.map callframe stk
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Observing Thread                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
 let root = Dap.attribute ()
 
 let frames thread =
-  let root = Dap.get_opt root thread in
-  let range = Option.bind root dloc_of_node in
-  let nodes = match root with None -> [] | Some n -> [n] in
-  let tree = Dap.scope ~name:"Proot Tree" ~named:(node_vars nodes) () in
-  let frame = Dap.frame ~name:"Proof" ~scopes:[tree] ?range () in
-  Darray.const frame
+  Darray.list @@
+  match Dap.get_opt root thread with
+  | None -> []
+  | Some n -> callstack n
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Running State                                                     --- *)

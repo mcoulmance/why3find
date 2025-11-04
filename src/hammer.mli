@@ -48,6 +48,7 @@ type state =
   | Stacked of Tactic.tactic * node list (* children still queued *)
 
 val result : node -> Crc.crc Fibers.t
+val proof : node -> Crc.crc
 val goal : node -> Session.goal
 val parent : node -> parent
 val state : node -> state
