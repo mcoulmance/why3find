@@ -11,7 +11,7 @@
 (* -------------------------------------------------------------------------- *)
 
 type kind = Goal | When | WhenNot
-type chunk = { kind : kind ; range : Range.range }
+type chunk = { kind : kind ; range : Range.range ; term : Why3.Term.term }
 type window = { g1 : int ; g2 : int ; h1 : int ; h2 : int ; chunks : chunk list }
 
 val by_range : chunk -> chunk -> int

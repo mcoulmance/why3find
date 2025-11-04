@@ -20,7 +20,7 @@ type kind = Goal | When | WhenNot
 type shape =
   | Empty
   | Cat of shape * shape (* each is non-empty *)
-  | Range of kind * Loc.position
+  | Range of kind * Loc.position * Why3.Term.term
 
 (* Collects all colored parts the two shapes *)
 let (<+>) (a : shape) (b : shape) : shape =
@@ -38,18 +38,20 @@ let (<*>) (a : shape) (b : shape) : shape =
 (* ---  Range Extraction                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
-let default kind l s =
-  match s, l with
-  | Empty, Some p -> Range(kind,p)
+let default_shape kind loc term s =
+  match s, loc with
+  | Empty, Some pos -> Range(kind,pos,term)
   | shape, _ -> shape
 
-let rec collect kind (t : Term.term) =
-  match t.t_loc with
-  | Some p -> Range(kind,p)
-  | None -> Term.t_fold (fun rgs t -> rgs <+> collect kind t) Empty t
+let default_term kind term s = default_shape kind term.Why3.Term.t_loc term s
+
+let rec collect kind (term : Term.term) =
+  match term.t_loc with
+  | Some pos -> Range(kind,pos,term)
+  | None -> Term.t_fold (fun rgs t -> rgs <+> collect kind t) Empty term
 
 let rec hyp (t : Term.term) =
-  default When t.t_loc @@
+  default_term When t @@
   match t.t_node with
   | Tbinop(Tand,a,b) -> hyp a <*> hyp b
   | Tquant(Texists,bnd) ->
@@ -60,7 +62,7 @@ let rec hyp (t : Term.term) =
   | _ -> collect When t
 
 let rec goal (t : Term.term) =
-  default Goal t.t_loc @@
+  default_term Goal t @@
   match t.t_node with
   | Tbinop(Timplies,h,p) -> hyp h <*> goal p
   | Tquant(Tforall,bnd) ->
@@ -71,8 +73,8 @@ let rec goal (t : Term.term) =
 
 let decl (d: Decl.decl) : shape =
   match d.d_node with
-  | Dprop(Pgoal,pr,f) -> default Goal pr.pr_name.id_loc @@ goal f
-  | Dprop(Paxiom,pr,f) -> default When pr.pr_name.id_loc @@ hyp f
+  | Dprop(Pgoal,pr,f) -> default_shape Goal pr.pr_name.id_loc f @@ goal f
+  | Dprop(Paxiom,pr,f) -> default_shape When pr.pr_name.id_loc f @@ hyp f
   | _ -> Empty
 
 let tdecl (td : Thy.tdecl) : shape =
@@ -85,7 +87,7 @@ let rec task (acc : shape) (t : Tsk.task) : shape =
     let d = tdecl task_decl in
     (task[@tailcall]) (d <+> acc) task_prev
 
-type chunk = { kind : kind ; range : Range.range }
+type chunk = { kind : kind ; range : Range.range ; term : Why3.Term.term }
 
 type env = {
   file : string ;
@@ -98,12 +100,12 @@ let make ~file = { file ; goal = [] ; hyps = [] }
 let rec collect env = function
   | Empty -> ()
   | Cat(a,b) -> collect env a ; collect env b
-  | Range(kind,p) ->
-    let f,l1,c1,l2,c2 = Loc.get p in
+  | Range(kind,pos,term) ->
+    let f,l1,c1,l2,c2 = Loc.get pos in
     if f = env.file then
       let p = Range.at ~line:(l1-1) ~col:c1 () in
       let q = Range.at ~line:(l2-1) ~col:c2 () in
-      let chunk = { kind ; range = p,q } in
+      let chunk = { kind ; range = p,q ; term } in
       match kind with
       | Goal ->
         env.goal <- chunk :: env.goal
