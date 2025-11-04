@@ -34,7 +34,6 @@ type node = {
   parent : parent ;
   hammer : hammer ;
   result : Crc.crc Fibers.t ;
-  cancel : unit Fibers.signal option ;
   mutable state : state ;
   mutable window : Vc.window option ;
 }
@@ -200,30 +199,30 @@ let interrupt () =
 (* --- Scheduling Nodes                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
-let node hammer ~parent ?cancel ?hint goal =
+let node hammer ~parent ?hint goal =
   let hint = match hint with Some h -> h | None -> Crc.stuck ~goal () in
   let result = Fibers.var () in
   let depth = match parent with Thread _ -> 0 | Node n -> succ n.depth in
   {
     hammer ; goal ;
     parent ; depth ;
-    hint ; cancel ; result ;
+    hint ; result ;
     state = Paused ;
     window = None ;
   }
 
-let push hammer ~parent ?cancel goal hint =
-  let node = node hammer ~parent ?cancel ~hint goal in
+let push hammer ~parent goal hint =
+  let node = node hammer ~parent ~hint goal in
   subgoal node ; node
 
-let rec push_all hammer ~parent ?cancel goals hints =
+let rec push_all hammer ~parent goals hints =
   match goals, hints with
   | [], _ -> []
   | g::gs, [] ->
     let s = Crc.stuck () in
-    push hammer ~parent ?cancel g s :: push_all hammer ~parent ?cancel gs []
+    push hammer ~parent g s :: push_all hammer ~parent gs []
   | g::gs, h::hs ->
-    push hammer ~parent ?cancel g h :: push_all hammer ~parent ?cancel gs hs
+    push hammer ~parent g h :: push_all hammer ~parent gs hs
 
 let pop () =
   try Some (Queue.pop q_broken) with Queue.Empty ->
@@ -250,7 +249,7 @@ let rec sequence (f : 'a -> strategy) (xs : 'a list) : strategy =
 
 let decompose node tactic gs hs =
   let parent = Node node in
-  let children = push_all node.hammer ~parent ?cancel:node.cancel gs hs in
+  let children = push_all node.hammer ~parent gs hs in
   node.state <- Stacked(tactic,children) ;
   let callback crc = node.state <- Closed crc in
   Fibers.finally ~callback @@
@@ -282,7 +281,6 @@ let prove ?cancel timeout prover : strategy = fun n ->
       let handler = Fibers.emit kill in
       let runner =
         Fibers.monitor ?signal:cancel ~handler @@
-        Fibers.monitor ?signal:n.cancel ~handler @@
         Fibers.monitor ~signal:killall ~handler @@
         Fibers.map to_profile @@
         Fibers.finally ~callback:(Cache.set h.env.cache task prover) @@
@@ -364,10 +362,10 @@ let create
     provers ; tactics ; profile ; preprocess ;
   }
 
-let thread hammer ?(id=(-1)) ?cancel goal hint =
+let thread hammer ?(id=(-1)) goal hint =
   let parent = Thread id in
   match hammer.preprocess with
-  | None -> push hammer ~parent ?cancel goal hint
+  | None -> push hammer ~parent goal hint
   | Some tactic ->
     match
       Session.apply hammer.env.why3.env tactic ~allow_no_effect:true goal
@@ -375,12 +373,12 @@ let thread hammer ?(id=(-1)) ?cancel goal hint =
     | None ->
       Log.warning "Ignored goal %s: preprocessing tactic %a failed"
         (Session.goal_name goal) Tactic.pretty tactic ;
-      push hammer ~parent ?cancel goal hint
+      push hammer ~parent goal hint
     | Some goals ->
       let hints = match hint.status with
         | Tactic { id; children; _ } when id = Tactic.name tactic -> children
         | _ -> [] in
-      let root = node hammer ~parent ?cancel ~hint goal in
+      let root = node hammer ~parent ~hint goal in
       Fibers.background ~callback:(Fibers.set root.result) @@
       decompose root tactic goals hints ; root
 

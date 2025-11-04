@@ -56,7 +56,7 @@ val thread_id : node -> int
 val window : node -> Vc.window
 
 (** Creates a root node for some goal to be proved. *)
-val thread : hammer -> ?id:int -> ?cancel:unit Fibers.signal -> goal -> crc -> node
+val thread : hammer -> ?id:int -> goal -> crc -> node
 
 (** Current Task Server State *)
 type progress = {
