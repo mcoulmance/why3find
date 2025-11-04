@@ -43,7 +43,7 @@ type parent = Thread of int | Node of node
 type state =
   | Paused            (* in q_paused *)
   | Scheduled         (* in q_proven or q_broken *)
-  | Failed of Crc.crc (* in q_failed *)
+  | Failed            (* in q_failed *)
   | Closed of Crc.crc (* not in any queue *)
   | Stacked of Tactic.tactic * node list (* children still queued *)
 

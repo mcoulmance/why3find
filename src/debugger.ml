@@ -49,8 +49,9 @@ let dloc_of_node n =
 
 let rec is_stuck n =
   match Hammer.state n with
-  | Paused | Scheduled -> true
-  | Failed n | Closed n -> Crc.is_stuck n
+  | Paused | Scheduled -> false
+  | Failed -> true
+  | Closed crc -> Crc.is_stuck crc
   | Stacked(_,children) -> List.for_all is_stuck children
 
 let add buffer ~name ~value ?vdecl ?index () =
@@ -65,8 +66,9 @@ let add_vc buffer ~name ~file (chunk : Vc.chunk) =
 
 let node_status n =
   match Hammer.state n with
+  | Failed -> "Failed"
   | Paused | Scheduled -> "Paused"
-  | Failed crc | Closed crc -> Format.asprintf "%a" Crc.pp_crc crc
+  | Closed crc -> Format.asprintf "%a" Crc.pp_crc crc
   | Stacked(tactic,children) ->
     Format.asprintf "[%a] %a"
       Tactic.pretty tactic
@@ -74,7 +76,7 @@ let node_status n =
 
 let node_index n =
   match Hammer.state n with
-  | Paused | Scheduled | Failed _ | Closed _ -> None
+  | Paused | Scheduled | Failed | Closed _ -> None
   | Stacked(_,children) ->
     if List.for_all is_stuck children then None else Some children
 
@@ -122,7 +124,7 @@ let vc_scope ~goal n =
 let rec reach stack n =
   match Hammer.state n with
   | Closed _ -> None
-  | Paused | Scheduled | Failed _ -> Some (n::stack)
+  | Paused | Scheduled | Failed -> Some (n::stack)
   | Stacked(_, children) ->
     if List.for_all is_stuck children then Some (n::stack) else
       List.find_map (reach (n::stack)) children
@@ -229,13 +231,13 @@ let on_continue thread =
 let rec step_in n =
   match Hammer.state n with
   | Closed _ -> None
-  | Paused | Scheduled | Failed _ -> Some n
+  | Paused | Scheduled | Failed -> Some n
   | Stacked(_,children) -> List.find_map step_in children
 
 let rec step_out n =
   match Hammer.state n with
   | Closed _ -> None
-  | Paused | Scheduled | Failed _ -> None
+  | Paused | Scheduled | Failed -> None
   | Stacked(_,children) ->
     match List.find_map step_out children with
     | None -> Some children

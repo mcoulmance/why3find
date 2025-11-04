@@ -42,7 +42,7 @@ type node = {
 and state =
   | Paused            (* in q_paused *)
   | Scheduled         (* in q_proven or q_broken *)
-  | Failed of Crc.crc (* in q_failed *)
+  | Failed            (* in q_failed *)
   | Closed of Crc.crc (* not in any queue *)
   | Stacked of Tactic.tactic * node list (* children still queued *)
 
@@ -57,10 +57,12 @@ let parent n = n.parent
 let rec thread_id n =
   match n.parent with Thread id -> id | Node n -> thread_id n
 
+let stuck n = Crc.stuck ~goal:n.goal ()
+
 let rec proof n =
   match n.state with
-  | Paused | Scheduled -> Crc.stuck ()
-  | Failed crc | Closed crc -> crc
+  | Closed crc -> crc
+  | Paused | Failed | Scheduled -> stuck n
   | Stacked(tactic,children) -> Crc.tactic tactic (List.map proof children)
 
 (* -------------------------------------------------------------------------- *)
@@ -91,8 +93,8 @@ let q_dispatch ~stepping n =
   Queue.push n
     (if not stepping && Crc.is_complete n.hint then q_proven else q_broken)
 let q_pause n = n.state <- Paused ; Fibers.Queue.push q_paused n
-let q_fail n crc =
-  n.state <- Failed crc ; Fibers.emit failed n ; Fibers.Queue.push q_failed n
+let q_fail n =
+  n.state <- Failed ; Fibers.emit failed n ; Fibers.Queue.push q_failed n
 let q_schedule ~stepping n = n.state <- Scheduled ; q_dispatch ~stepping n
 let q_resume n = if n.state = Paused then q_schedule ~stepping:true n
 
@@ -129,21 +131,19 @@ let finalize n crc =
   | Interrupting | Pausing ->
     if Crc.is_complete crc then close n crc else q_pause n
   | StepIn | StepOut ->
-    if Crc.is_complete crc then close n crc else q_fail n crc
-
-let stuck n = Crc.stuck ~goal:n.goal ()
+    if Crc.is_complete crc then close n crc else q_fail n
 
 let rec terminate n =
   match n.state with
   | Closed _ -> ()
-  | Failed crc -> close n crc
+  | Failed -> close n (stuck n)
   | Stacked(_,ns) -> List.iter terminate ns
   | Paused | Scheduled -> close n (stuck n)
 
 let schedule n =
   match n.state with
   | Paused -> q_resume n
-  | Failed crc -> close n crc
+  | Failed -> close n (stuck n)
   | Scheduled | Stacked _ | Closed _ -> ()
 
 let step ns =
