@@ -43,23 +43,77 @@ let dloc_of_node n =
     else
       dloc_of_goal goal
 
-let rec node_var n =
-  let decl = dloc_of_node n in
-  let name = Session.goal_expl @@ Hammer.goal n in
-  match Hammer.state n with
-  | Paused | Scheduled ->
-    Dap.variable ~name ~value:"Paused" ~kind:"property" ?decl ()
-  | Failed crc | Closed crc ->
-    let value = Format.asprintf "%a" Crc.pp_crc crc in
-    Dap.variable ~name ~value ~kind:"property" ?decl ()
-  | Stacked (tactic, children) ->
-    let value = Format.asprintf "[%a] %a"
-        Tactic.pretty tactic
-        Crc.pp_crc_all (List.map Hammer.proof children) in
-    let named = Darray.delayed node_vars children in
-    Dap.variable ~name ~value ~kind:"method" ~named ?decl ()
+(* -------------------------------------------------------------------------- *)
+(* ---  Proof Tree Scope                                                  --- *)
+(* -------------------------------------------------------------------------- *)
 
-and node_vars ns = Darray.list @@ List.map node_var ns
+let rec is_stuck n =
+  match Hammer.state n with
+  | Paused | Scheduled -> true
+  | Failed n | Closed n -> Crc.is_stuck n
+  | Stacked(_,children) -> List.for_all is_stuck children
+
+let add buffer ~name ~value ?vdecl ?index () =
+  Darray.add buffer @@
+  Dap.variable ~name ~value ?vdecl ?index ()
+
+let add_vc buffer ~name ~file (chunk : Vc.chunk) =
+  let value = Format.asprintf "@[<hov 2>%a@]"
+      Why3.Pretty.print_term chunk.term in
+  let vdecl = dloc_of_range ~file chunk.Vc.range in
+  add buffer ~name ~value ~vdecl ()
+
+let node_status n =
+  match Hammer.state n with
+  | Paused | Scheduled -> "Paused"
+  | Failed crc | Closed crc -> Format.asprintf "%a" Crc.pp_crc crc
+  | Stacked(tactic,children) ->
+    Format.asprintf "[%a] %a"
+      Tactic.pretty tactic
+      Crc.pp_crc_all (List.map Hammer.proof children)
+
+let node_index n =
+  match Hammer.state n with
+  | Paused | Scheduled | Failed _ | Closed _ -> None
+  | Stacked(_,children) ->
+    if List.for_all is_stuck children then None else Some children
+
+let rec vc_vars ~goal ?(status=goal) n =
+  let buffer = Darray.create () in
+  let vc = Hammer.window n in
+  let file = vc.file in
+  List.iter
+    (fun chunk ->
+       match chunk.Vc.kind with
+       | Goal when goal -> add_vc buffer ~file ~name:"Goal" chunk
+       | When when not goal -> add_vc buffer ~file ~name:"Hyp" chunk
+       | WhenNot when not goal -> add_vc buffer ~file ~name:"Not" chunk
+       | _ -> ()
+    ) vc.chunks ;
+  begin
+    if status then
+      let value = node_status n in
+      let index = Option.map (Darray.delayed index_vars) (node_index n) in
+      add buffer ~name:"Status" ~value ?index () ;
+  end ;
+  Darray.contents buffer
+
+and index_vars children =
+  Darray.list @@
+  List.mapi
+    (fun i n ->
+       Dap.variable
+         ~name:(string_of_int i)
+         ~value:(node_status n)
+         ~named:(Darray.delayed (vc_vars ~status:false ~goal:true) n)
+         ()
+    ) children
+
+let vc_scope ~goal n =
+  Dap.scope
+    ~name:(if goal then "Proof" else "Context")
+    ~expensive:true
+    ~named:(Darray.delayed (vc_vars ~goal) n) ()
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Callstack                                                         --- *)
@@ -68,27 +122,26 @@ and node_vars ns = Darray.list @@ List.map node_var ns
 let rec reach stack n =
   match Hammer.state n with
   | Closed _ -> None
-  | Paused | Scheduled | Failed _ -> Some (n , stack)
-  | Stacked(tactic, children) ->
-    List.find_map (reach ((n,tactic,children) :: stack)) children
+  | Paused | Scheduled | Failed _ -> Some (n::stack)
+  | Stacked(_, children) ->
+    if List.for_all is_stuck children then Some (n::stack) else
+      List.find_map (reach (n::stack)) children
 
-let callframe (n,tactic,children) =
+let frame n =
   let range = dloc_of_node n in
-  let named = Darray.delayed node_vars children in
-  let children = Dap.scope ~name:"Children" ~named () in
-  Dap.frame ~name:(Tactic.name tactic) ~scopes:[children] ?range ()
-
-let topframe n =
-  let range = dloc_of_node n in
-  let name = Session.goal_expl @@ Hammer.goal n in
-  let named = Darray.const (node_var n) in
-  let goal = Dap.scope ~name:"Goal" ~named () in
-  Dap.frame ~name ~scopes:[goal] ?range ()
+  let name =
+    match Hammer.state n with
+    | Stacked(tactic,_) -> Tactic.name tactic
+    | _ -> Session.goal_expl @@ Hammer.goal n in
+  Dap.frame ~name ~scopes:[
+    vc_scope ~goal:false n ;
+    vc_scope ~goal:true n ;
+  ] ?range ()
 
 let callstack n =
-  let n, stk =
-    match reach [] n with None -> n,[] | Some r -> r in
-  topframe n :: List.map callframe stk
+  match reach [] n with
+  | None -> [frame n]
+  | Some stk -> List.map frame stk
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Observing Thread                                                  --- *)
@@ -127,12 +180,14 @@ let update = Timer.throttle
 
 let started adapter =
   let progress = Dap.progress adapter ~title:"Provers" () in
+  Log.message "Debugger Started" ;
   state := Running { progress }
 
 let exited () =
   match !state with
   | Paused -> ()
   | Running { progress } ->
+    Log.message "Debugger Exited" ;
     state := Paused ;
     Dap.finished progress ~message:"exit" ()
 
@@ -151,6 +206,7 @@ let paused () =
   match !state with
   | Paused -> ()
   | Running { progress } ->
+    Log.message "Debugger Paused" ;
     state := Paused ;
     Dap.finished progress ~message:"paused" () ;
     stopped !stopping
@@ -169,6 +225,43 @@ let on_continue thread =
   stopping := Some(thread,`pause) ;
   started (Dap.on thread) ;
   Hammer.resume ()
+
+let rec step_in n =
+  match Hammer.state n with
+  | Closed _ -> None
+  | Paused | Scheduled | Failed _ -> Some n
+  | Stacked(_,children) -> List.find_map step_in children
+
+let rec step_out n =
+  match Hammer.state n with
+  | Closed _ -> None
+  | Paused | Scheduled | Failed _ -> None
+  | Stacked(_,children) ->
+    match List.find_map step_out children with
+    | None -> Some children
+    | Some _ as result -> result
+
+let on_step_in thread =
+  match Dap.get_opt root thread with
+  | None -> on_continue thread
+  | Some n ->
+    match step_in n with
+    | None -> on_continue thread
+    | Some n ->
+      stopping := Some(thread,`step) ;
+      started (Dap.on thread) ;
+      Hammer.step_in [n]
+
+let on_step_out thread =
+  match Dap.get_opt root thread with
+  | None -> on_continue thread
+  | Some n ->
+    match step_out n with
+    | None -> on_step_in thread
+    | Some children ->
+      stopping := Some(thread,`step) ;
+      started (Dap.on thread) ;
+      Hammer.step_out children
 
 let on_failed node =
   begin
@@ -194,8 +287,8 @@ let cc_proof adapter hammer theory goal hint =
   let tname = Session.thy_name thy in
   let gname = Session.goal_name goal in
   let name = Printf.sprintf "Goal %s.%s" tname gname in
-  let frames = Darray.delayed frames in
-  let thread = Dap.thread adapter ~on_continue ~on_pause ~name ~frames () in
+  let thread = Dap.thread adapter ~on_continue ~on_pause
+      ~on_step_in ~on_step_out ~name ~frames:(Darray.delayed frames) () in
   let node = Hammer.thread hammer ~id:(Dap.id thread) goal hint in
   Dap.set root thread node ;
   let callback crc =

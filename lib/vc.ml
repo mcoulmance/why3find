@@ -205,8 +205,8 @@ let dump ~file task =
 (* ---  Windowing Chunks                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
-type window = { g1 : int ; g2 : int ; h1 : int ; h2 : int ; chunks : chunk list }
-let empty = { h1 = 0 ; h2 = 0 ; g1 = 0 ; g2 = 0 ; chunks = [] }
+type window = { file : string ; g1 : int ; g2 : int ; h1 : int ; h2 : int ; chunks : chunk list }
+let empty = { file = "" ; h1 = 0 ; h2 = 0 ; g1 = 0 ; g2 = 0 ; chunks = [] }
 
 let window ~file thy task =
   let chunks = chunks ~file task in
@@ -234,7 +234,7 @@ let window ~file thy task =
              true
            end
         ) chunks
-    in { g1 = p ; g2 = q ; h1 = !hp ; h2 = !hq ; chunks }
+    in { file ; g1 = p ; g2 = q ; h1 = !hp ; h2 = !hq ; chunks }
 
 let is_postcond w = w.g2 < w.h2
 let by_goal u v =

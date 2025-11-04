@@ -124,12 +124,12 @@ let close n crc =
   | None -> n.state <- Closed crc ; Fibers.set n.result crc
 
 let finalize n crc =
-  if Crc.is_complete crc then close n crc else
-    match n.state , !runmode with
-    | _ , (Running | Interrupting) -> close n crc
-    | Scheduled , Pausing -> q_pause n
-    | Scheduled , (StepIn | StepOut) -> q_fail n crc
-    | (Paused | Closed _ | Failed _ | Stacked _) , _ -> ()
+  match !runmode with
+  | Running -> close n crc
+  | Interrupting | Pausing ->
+    if Crc.is_complete crc then close n crc else q_pause n
+  | StepIn | StepOut ->
+    if Crc.is_complete crc then close n crc else q_fail n crc
 
 let stuck n = Crc.stuck ~goal:n.goal ()
 
@@ -142,7 +142,8 @@ let rec terminate n =
 
 let schedule n =
   match n.state with
-  | Paused | Failed _ -> q_resume n
+  | Paused -> q_resume n
+  | Failed crc -> close n crc
   | Scheduled | Stacked _ | Closed _ -> ()
 
 let step ns =
@@ -158,14 +159,14 @@ let step_out ns = runmode := StepOut ; step ns
 let resume () =
   begin
     runmode := StepOut ;
-    Fibers.Queue.iter q_paused q_resume ;
+    Fibers.Queue.iter q_paused schedule ;
     Fibers.Queue.clear q_paused ;
   end
 
 let resume_to_end () =
   begin
     runmode := Running ;
-    Fibers.Queue.iter q_paused q_resume ;
+    Fibers.Queue.iter q_paused schedule ;
     Fibers.Queue.clear q_paused ;
   end
 
@@ -186,7 +187,6 @@ let pause () =
 
 let interrupt () =
   begin
-    Format.eprintf "INTERRUPTED@." ;
     runmode := Interrupting ;
     iter terminate ;
     Queue.clear q_proven ;
