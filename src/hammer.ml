@@ -87,13 +87,14 @@ let q_failed = Fibers.Queue.create () (* Failed nodes *)
 let q_paused = Fibers.Queue.create () (* Paused nodes *)
 let q_broken = Queue.create () (* Stuck hints, scheduled first *)
 let q_proven = Queue.create () (* Complete hints, scheduled last *)
-let q_dispatch n =
-  Queue.push n (if Crc.is_complete n.hint then q_proven else q_broken)
+let q_dispatch ~stepping n =
+  Queue.push n
+    (if not stepping && Crc.is_complete n.hint then q_proven else q_broken)
 let q_pause n = n.state <- Paused ; Fibers.Queue.push q_paused n
 let q_fail n crc =
   n.state <- Failed crc ; Fibers.emit failed n ; Fibers.Queue.push q_failed n
-let q_schedule n = n.state <- Scheduled ; q_dispatch n
-let q_resume n = if n.state = Paused then q_schedule n
+let q_schedule ~stepping n = n.state <- Scheduled ; q_dispatch ~stepping n
+let q_resume n = if n.state = Paused then q_schedule ~stepping:true n
 
 let iter f =
   begin
@@ -113,8 +114,9 @@ let runmode = ref Running
 let subgoal n =
   match !runmode with
   | Interrupting -> ()
+  | Running -> q_schedule ~stepping:false n
+  | StepOut -> q_schedule ~stepping:true n
   | Pausing | StepIn -> q_pause n
-  | Running | StepOut -> q_schedule n
 
 let close n crc =
   match Fibers.get n.result with
