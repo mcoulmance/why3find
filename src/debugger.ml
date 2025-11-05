@@ -289,15 +289,19 @@ let cc_proof adapter hammer theory goal hint =
   let tname = Session.thy_name thy in
   let gname = Session.goal_name goal in
   let name = Printf.sprintf "Goal %s.%s" tname gname in
-  let thread = Dap.thread adapter ~on_continue ~on_pause
-      ~on_step_in ~on_step_out ~name ~frames:(Darray.delayed frames) () in
-  let node = Hammer.thread hammer ~id:(Dap.id thread) goal hint in
-  Dap.set root thread node ;
+  let frames = Darray.delayed frames in
+  let thread = Dap.thread adapter
+      ~on_continue ~on_pause ~on_step_in ~on_step_out ~name ~frames () in
+  let result = Fibers.var () in
   let callback crc =
-    Dap.terminate thread ;
-    Log.message "%s %a" name Crc.pretty crc ;
-    Prove.merge_stats hint crc
-  in Fibers.finally ~callback (Hammer.result node)
+    begin
+      Dap.terminate thread ;
+      Log.message "%s %a" name Crc.pretty crc ;
+      Prove.merge_stats hint crc ;
+      Fibers.set result crc ;
+    end in
+  let node = Hammer.thread hammer ~id:(Dap.id thread) ~callback goal hint in
+  Dap.set root thread node ; result
 
 let cc_theory adapter hammer buffer strategy gnames theory =
   let module M = Why3.Wstdlib.Mstr in

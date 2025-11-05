@@ -199,8 +199,10 @@ let accept ~gnames thy goal =
 
 let prove_goal ~file ~hammer ~results ~force buffer theory gname goal hint =
   let hint = if force then Crc.stuck () else hint in
-  let node = Hammer.thread hammer goal hint in
-  let+ crc = Crc.update ~hint @+ Hammer.result node in
+  let result = Fibers.var () in
+  let callback = Fibers.set result in
+  let _root = Hammer.thread hammer goal ~callback hint in
+  let+ crc = Crc.update ~hint @+ result in
   Option.iter (Proofs.add theory goal crc) buffer;
   if Utils.tty then merge_stats hint crc ;
   if not (Crc.is_complete crc) then

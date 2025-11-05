@@ -39,7 +39,9 @@ val create :
   Project.env -> hammer
 
 type node
-type parent = Thread of int | Node of node
+type parent =
+  | Node of node
+  | Thread of { id : int ; callback : (Crc.crc -> unit) }
 type state =
   | Paused            (* in q_paused *)
   | Scheduled         (* in q_proven or q_broken *)
@@ -47,7 +49,6 @@ type state =
   | Closed of Crc.crc (* not in any queue *)
   | Stacked of Tactic.tactic * node list (* children still queued *)
 
-val result : node -> Crc.crc Fibers.t
 val proof : node -> Crc.crc
 val goal : node -> Session.goal
 val parent : node -> parent
@@ -56,7 +57,7 @@ val thread_id : node -> int
 val window : node -> Vc.window
 
 (** Creates a root node for some goal to be proved. *)
-val thread : hammer -> ?id:int -> goal -> crc -> node
+val thread : hammer -> ?id:int -> ?callback:(crc -> unit) -> goal -> crc -> node
 
 (** Current Task Server State *)
 type progress = {

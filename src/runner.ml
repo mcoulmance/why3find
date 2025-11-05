@@ -323,7 +323,7 @@ let call_prover (config : Why3.Whyconf.main)
         | Timeout ->
           Result.Timeout timeout, false
         | Invalid | Unknown _ | OutOfMemory | StepLimitExceeded ->
-          Result.Unknown pr.pr_time, true
+          Result.Unknown pr.pr_time, false
         | Failure _ | HighFailure _ ->
           let result =
             if !canceled then Result.NoResult
