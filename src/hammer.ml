@@ -121,8 +121,7 @@ let q_close n crc =
 
 let iter f =
   begin
-    Fibers.Queue.iter q_failed f ;
-    Fibers.Queue.iter q_paused f ;
+    Fibers.Queue.iter f q_paused ;
     Queue.iter f q_broken ;
     Queue.iter f q_proven ;
   end
@@ -165,14 +164,14 @@ let step_out ns = runmode := StepOut ; step ns
 let resume () =
   begin
     runmode := StepOut ;
-    Fibers.Queue.iter q_paused schedule ;
+    Fibers.Queue.iter schedule q_paused ;
     Fibers.Queue.clear q_paused ;
   end
 
 let resume_to_end () =
   begin
     runmode := Running ;
-    Fibers.Queue.iter q_paused schedule ;
+    Fibers.Queue.iter schedule q_paused ;
     Fibers.Queue.clear q_paused ;
   end
 

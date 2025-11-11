@@ -79,7 +79,7 @@ sig
   val length : 'a t -> int
   val push : 'a t -> 'a -> unit
   val pop : 'a t -> 'a
-  val iter : 'a t -> ('a -> unit) -> unit
+  val iter : ('a -> unit) -> 'a t -> unit
   val filter : 'a t -> ('a -> bool) -> unit
   val clear : 'a t -> unit
 end =
@@ -125,7 +125,7 @@ struct
     q.size <- (-1) ;
     q.head <- List.filter f @@ flatten q
 
-  let iter q f =
+  let iter f q =
     List.iter f @@ flatten q
 
   let clear q =
@@ -144,7 +144,7 @@ end
 type 'a signal = ('a -> unit) Queue.t
 
 let signal = Queue.create
-let emit s v = Queue.iter s (fun f -> f v)
+let emit s v = Queue.iter (fun f -> f v) s
 let on = Queue.push
 let off q k = Queue.filter q (fun k0 -> k0 != k)
 let once q k = let rec fn v = k v ; off q fn in on q fn

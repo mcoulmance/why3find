@@ -180,8 +180,9 @@ let get_task server goal =
 let get_worker server id =
   let exception Found of worker in
   try
-    Fibers.Queue.iter server.workers
-      (fun w -> if w.worker @= id then raise (Found w)) ;
+    Fibers.Queue.iter
+      (fun w -> if w.worker @= id then raise (Found w))
+      server.workers ;
     let w = { worker = id ; cores = 0 ; busy = 0 ; provers = [] } in
     Fibers.Queue.push server.workers w ; w
   with Found w -> w.worker <- id ; w
@@ -334,12 +335,12 @@ let do_kill server id goal =
 let do_hangup server id =
   begin
     let others id w = id @<> w.worker in
-    Fibers.Queue.iter server.pending
+    Fibers.Queue.iter
       (fun task ->
          task.waiting <- id_remove id task.waiting ;
          task.loading <- id_remove id task.loading ;
          task.running <- List.filter (others id) task.running ;
-      );
+      ) server.pending ;
     Fibers.Queue.filter server.workers (others id) ;
   end
 
@@ -443,18 +444,18 @@ let print_stats server =
     let running = ref 0 in
     let busy = ref 0 in
     let cores = ref 0 in
-    Fibers.Queue.iter server.pending
+    Fibers.Queue.iter
       (fun task ->
          incr @@
          if task.running <> [] then running else
          if task.loading <> [] then loading else
            waiting
-      );
-    Fibers.Queue.iter server.workers
+      ) server.pending ;
+    Fibers.Queue.iter
       (fun w ->
          busy := w.busy + !busy ;
          cores := w.cores + !cores ;
-      );
+      ) server.workers ;
     let workers = Fibers.Queue.length server.workers in
     Utils.progress "Tasks:%d/%d/%d  Workers:%d(%d/%d)"
       !waiting !loading !running workers !busy !cores
@@ -468,12 +469,12 @@ let poll ~timeout server =
   let mask = Zmq.Poll.poll ~timeout server.polling in
   if Array.for_all (fun evt -> evt = None) mask then
     begin
-      Fibers.Queue.iter server.workers
+      Fibers.Queue.iter
         (fun w ->
            w.cores <- 0 ;
            w.provers <- [] ;
            send_raise server w.worker ;
-        );
+        ) server.workers ;
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -507,7 +508,7 @@ let establish ~database ~address ~polling =
       poll ~timeout server ;
       let time = Unix.time () in
       flush ~time server ;
-      Fibers.Queue.iter server.pending (process server ~time) ;
+      Fibers.Queue.iter (process server ~time) server.pending ;
       Fibers.Queue.filter server.pending alive_task ;
       Fibers.Queue.filter server.workers alive_worker ;
       print_stats server ;

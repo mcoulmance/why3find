@@ -92,7 +92,7 @@ sig
   val length : 'a t -> int
   val pop : 'a t -> 'a
   val push : 'a t -> 'a -> unit
-  val iter : 'a t -> ('a -> unit) -> unit
+  val iter : ('a -> unit) -> 'a t -> unit
   val filter : 'a t -> ('a -> bool) -> unit
   val clear : 'a t -> unit
 end
