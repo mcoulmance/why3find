@@ -49,6 +49,11 @@ and parent =
   | Node of node
   | Thread of { id : int ; callback : (Crc.crc -> unit) }
 
+let pp_node fmt n =
+  Format.fprintf fmt "%s[%s]"
+    (Session.goal_name n.goal) (Session.goal_expl n.goal)
+[@@warning "-32"]
+
 let goal n = n.goal
 let state n = n.state
 let parent n = n.parent
@@ -112,6 +117,7 @@ let q_dispatch ~stepping n =
     (if not stepping && Crc.is_complete n.hint then q_proven else q_broken)
 let q_schedule ~stepping n = n.state <- Scheduled ; q_dispatch ~stepping n
 let q_pause n =
+  Format.eprintf "PAUSED %a@." pp_node n ;
   n.state <- Paused ; Fibers.Queue.push q_paused n
 let q_fail n =
   n.state <- Failed ; Fibers.emit failed n ; Fibers.Queue.push q_paused n
@@ -150,7 +156,14 @@ let terminate n =
   | Closed _ -> ()
   | _ -> q_close n (proof n)
 
-let still_paused n = match n.state with Paused | Failed -> true | _ -> false
+let still_paused n =
+  match n.state with
+  | Paused | Failed -> true | Scheduled | Stacked _ | Closed _ -> false
+
+let still_pending n =
+  match n.state with
+  | Scheduled -> true
+  | Stacked _ | Closed _ | Paused | Failed -> false
 
 let step ns =
   begin
@@ -239,18 +252,13 @@ let pop () =
   try Some (Queue.pop q_proven) with Queue.Empty ->
     None
 
-type result = Resolved | NotFound | Interrupted
-type strategy = node -> result Fibers.t
+type resolution = Resolved | NotFound | Interrupted
+type strategy = node -> resolution Fibers.t
 
-let pp_result fmt = function
+let pp_resolution fmt = function
   | Resolved -> Format.pp_print_string fmt "Resolved"
   | NotFound -> Format.pp_print_string fmt "NotFound"
   | Interrupted -> Format.pp_print_string fmt "Interrupted"
-[@@warning "-32"]
-
-let pp_node fmt n =
-  Format.fprintf fmt "%s[%s]"
-    (Session.goal_name n.goal) (Session.goal_expl n.goal)
 [@@warning "-32"]
 
 let (@>) (h : strategy) : strategy = fun n ->
@@ -266,11 +274,6 @@ let (>>>) (h1 : strategy) (h2 : strategy) : strategy = fun n ->
   | NotFound -> h2 @> n
 
 let notfound _ = Fibers.return NotFound
-let unproved : strategy = fun n ->
-  match !runmode with
-  | Pausing -> Fibers.return Interrupted
-  | StepIn | StepOut -> q_fail n ; Fibers.return Resolved
-  | Interrupting | Running -> q_close n (stuck n) ; Fibers.return Resolved
 
 let rec sequence (f : 'a -> strategy) (xs : 'a list) : strategy =
   match xs with
@@ -449,8 +452,8 @@ let hammer13 minlevel timefactor n =
         (fun prv -> Fibers.finally ~callback @@ prove ~cancel time prv n)
         n.hammer.provers in
     match List.fold_left merge Unknown verdicts with
-    | Killed -> Interrupted
     | Unknown -> NotFound
+    | Killed -> Interrupted
     | Valid(p,t) ->
       let crc = Crc.prover ~goal:n.goal p.desc t in
       q_close n crc ; Resolved
@@ -473,7 +476,7 @@ let hammer =
   hammer1 >>> (* level -H 2 *)
   hammer2 >>> (* level -H 3 *)
   hammer3 >>> (* level -H 4 *)
-  unproved
+  notfound
 
 (* -------------------------------------------------------------------------- *)
 (* --- Node Processing                                                    --- *)
@@ -495,7 +498,7 @@ let try_prover d t : strategy = fun n ->
       let crc = Crc.prover ~goal:n.goal p.desc t in
       q_close n crc ; Resolved
 
-let replay_prover p t = try_prover p t >>> unproved
+let replay_prover p t = try_prover p t >>> notfound
 let update_prover p t = try_prover p t >>> hammer
 
 let try_tactic ~hint n =
@@ -517,12 +520,12 @@ let try_tactic ~hint n =
           NotFound
   in aux n.hammer.tactics
 
-let replay_tactic ~hint = try_tactic ~hint >>> unproved
-let reduce_tactic ?hint = (hammer1 >>> hammer2 ?hint >>> hammer3 >>> unproved)
+let replay_tactic ~hint = try_tactic ~hint
+let reduce_tactic ?hint = (hammer1 >>> hammer2 ?hint >>> hammer3)
 let update_tactic ?hint = (hammer2 ?hint >>> hammer)
 
 let explore : strategy =
-  fun n -> if n.hammer.replay then unproved n else hammer n
+  fun n -> if n.hammer.replay then notfound () else hammer n
 
 let execute n =
   try
@@ -585,7 +588,7 @@ let pp_status fmt = function
 
 let proving () =
   begin
-    false
+    !p_proven > 0  || !p_broken > 0
     || Queue.length q_proven > 0
     || Queue.length q_broken > 0
     || Runner.pending () > 0
@@ -605,6 +608,11 @@ let running () = proving () || Fibers.pending () > 0
 (* --- Task Processing                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
+let debugging node =
+  match !runmode with
+  | Interrupting | Running -> false
+  | Pausing | StepIn | StepOut -> still_pending node
+
 let process () =
   begin
     Client.yield () ;
@@ -612,8 +620,15 @@ let process () =
     match pop () with
     | Some node ->
       let pr = if Crc.is_complete node.hint then p_proven else p_broken in
-      let callback _ = decr pr in
-      incr pr ; Fibers.background (execute node) ~callback ; true
+      let callback r =
+        decr pr ;
+        match r with
+        | Resolved -> ()
+        | NotFound ->
+          if debugging node then q_fail node else q_close node (stuck node)
+        | Interrupted ->
+          if debugging node then q_pause node else q_close node (Crc.stuck ())
+      in incr pr ; Fibers.background (execute node) ~callback ; true
     | None -> false
   end
 

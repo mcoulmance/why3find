@@ -181,7 +181,7 @@ let update = Timer.throttle
     end
 
 let started adapter =
-  let progress = Dap.progress adapter ~title:"Provers" ~message:"started" () in
+  let progress = Dap.progress adapter ~title:"Why3" ~message:"started" () in
   Log.message "Debugger Started" ;
   state := Running { progress }
 
