@@ -134,7 +134,7 @@ let runmode = ref Running
 
 let subgoal n =
   match !runmode with
-  | Interrupting -> ()
+  | Interrupting -> q_close n (proof n)
   | Running -> q_schedule ~stepping:false n
   | StepOut -> q_schedule ~stepping:true n
   | Pausing | StepIn -> q_pause n
@@ -193,6 +193,7 @@ let pause () =
 let interrupt () =
   begin
     runmode := Interrupting ;
+    iter terminate ;
     Queue.clear q_proven ;
     Queue.clear q_broken ;
     Fibers.Queue.clear q_paused ;
@@ -574,7 +575,8 @@ let progress () = {
 let pp_progress fmt s =
   if s.proven > 0 then Format.fprintf fmt "!%d/" s.proven ;
   if s.broken > 0 then Format.fprintf fmt "?%d/" s.broken ;
-  Format.fprintf fmt "%d/%d" s.pending s.running
+  if s.pending > 0 then Format.fprintf fmt "%d/" s.pending ;
+  Format.pp_print_int fmt s.running
 
 let pp_status fmt = function
   | Proving s -> pp_progress fmt s

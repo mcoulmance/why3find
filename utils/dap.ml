@@ -33,19 +33,19 @@ let establish transport =
 
 let shutdown server = server.shutdown <- true
 
-let running { shutdown ; channel }=
+let running { shutdown ; channel } =
   not shutdown || Rpc.processing channel
 
 (* -------------------------------------------------------------------------- *)
 (* --- Message Encoding                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
-let next = let k = ref 0 in fun () -> incr k ; !k
+let nextseq = let k = ref 0 in fun () -> incr k ; !k
 
 let emit { channel } event body =
   if !trace then Format.eprintf "@[<hov 2>EMIT %S %a@]@." event Json.pretty body ;
   Rpc.push channel @@ Json.to_string @@ Json.assoc [
-    "seq" , `Int (next ()) ;
+    "seq" , `Int (nextseq ()) ;
     "type", `String "event" ;
     "event", `String event ;
     "body", body ;
@@ -54,7 +54,7 @@ let emit { channel } event body =
 let send_response { channel } ~seq command body =
   if !trace then Format.eprintf "@[<hov 2>RESPONSE %S %a@]@." command Json.pretty body ;
   Rpc.push channel @@ Json.to_string @@ Json.assoc [
-    "seq" , `Int (next ()) ;
+    "seq" , `Int (nextseq ()) ;
     "type" , `String "response" ;
     "request_seq" , `Int seq ;
     "command" , `String command ;
@@ -65,7 +65,7 @@ let send_response { channel } ~seq command body =
 let send_error { channel } ~seq command message =
   if !trace then Format.eprintf "@[<hov 2>ERROR %S %S@]@." command message ;
   Rpc.push channel @@ Json.to_string @@ Json.assoc [
-    "seq" , `Int (next ()) ;
+    "seq" , `Int (nextseq ()) ;
     "type" , `String "response" ;
     "request_seq" , `Int seq ;
     "command" , `String command ;
@@ -375,7 +375,7 @@ let update (progress : progress) ?(message="") ?percent () =
   match progress with
   | Idle -> ()
   | Progress { id ; adapter } ->
-    if message <> "" && percent <> None then
+    if message <> "" || percent <> None then
       emit adapter "progressUpdate" @@ Json.assoc [
         "progressId" , `String id ;
         "message" , js_string_opt message ;
@@ -800,15 +800,17 @@ let set_single_thread_support () =
     register_capability "supportsSingleThreadExecutionRequests" () ;
   end
 
+let nop = ignore
+
 let connect (Thread th)
     ?frames ?on_pause ?on_next ?on_step_in ?on_step_out ?on_continue () =
   begin
     let set_default fn =
       begin
-        if th.on_next == ignore then th.on_next <- fn ;
-        if th.on_step_in == ignore then th.on_step_in <- fn ;
-        if th.on_step_out == ignore then th.on_step_out <- fn ;
-        if th.on_continue == ignore then th.on_continue <- fn ;
+        if th.on_next == nop then th.on_next <- fn ;
+        if th.on_step_in == nop then th.on_step_in <- fn ;
+        if th.on_step_out == nop then th.on_step_out <- fn ;
+        if th.on_continue == nop then th.on_continue <- fn ;
       end in
     Option.iter (fun fn -> th.frames <- fn) frames ;
     Option.iter (fun fn -> th.on_pause <- fn) on_pause ;
@@ -828,11 +830,11 @@ let thread adapter
   let th = Thread {
       id ; adapter ; name ;
       frames ;
-      on_pause = ignore ;
-      on_continue = ignore ;
-      on_next = ignore ;
-      on_step_in = ignore ;
-      on_step_out = ignore ;
+      on_pause = nop ;
+      on_continue = nop ;
+      on_next = nop ;
+      on_step_in = nop ;
+      on_step_out = nop ;
     } in
   Hashtbl.add threads id th ;
   updated ~reason:"started" th ;
@@ -867,7 +869,7 @@ let stopped ~(reason:reason) ?description ?text ?all ?preserveFocus ?frames thre
     ]
   end
 
-let on_thread mode adapter args =
+let on_step mode adapter args =
   let threadId = Json.jfield "threadId" args |> Json.jint in
   let single = Json.jfield "sinleThread" args |> Json.jbool in
   Option.iter
@@ -876,11 +878,11 @@ let on_thread mode adapter args =
   if not !singleThreadSupport || not single then `Null else
     Json.assoc [ "allThreadsContinued", `Bool (not single) ]
 
-let () = register "next" @@ on_thread (function Thread th -> th.on_next)
-let () = register "stepIn" @@ on_thread (function Thread th -> th.on_step_in)
-let () = register "stepOut" @@ on_thread (function Thread th -> th.on_step_out)
-let () = register "continue" @@ on_thread (function Thread th -> th.on_continue)
-let () = register "pause" @@ on_thread (function Thread th -> th.on_pause)
+let () = register "next" @@ on_step (function Thread th -> th.on_next)
+let () = register "stepIn" @@ on_step (function Thread th -> th.on_step_in)
+let () = register "stepOut" @@ on_step (function Thread th -> th.on_step_out)
+let () = register "continue" @@ on_step (function Thread th -> th.on_continue)
+let () = register "pause" @@ on_step (function Thread th -> th.on_pause)
 
 let () = register "threads"
     begin fun _adapter _args ->

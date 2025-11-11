@@ -181,7 +181,7 @@ let update = Timer.throttle
     end
 
 let started adapter =
-  let progress = Dap.progress adapter ~title:"Provers" () in
+  let progress = Dap.progress adapter ~title:"Provers" ~message:"started" () in
   Log.message "Debugger Started" ;
   state := Running { progress }
 
@@ -228,26 +228,38 @@ let on_continue thread =
   started (Dap.on thread) ;
   Hammer.resume ()
 
-let rec step_in n =
+let rec find_step_in n =
   match Hammer.state n with
   | Closed _ -> None
   | Paused | Scheduled | Failed -> Some n
-  | Stacked(_,children) -> List.find_map step_in children
+  | Stacked(_,children) -> List.find_map find_step_in children
 
-let rec step_out n =
+let rec find_step_out n =
   match Hammer.state n with
   | Closed _ -> None
   | Paused | Scheduled | Failed -> None
   | Stacked(_,children) ->
-    match List.find_map step_out children with
+    match List.find_map find_step_out children with
     | None -> Some children
     | Some _ as result -> result
+
+let on_next thread =
+  Format.eprintf "ON-NEXT@." ;
+  match Dap.get_opt root thread with
+  | None -> on_continue thread
+  | Some n ->
+    match find_step_in n with
+    | None-> on_continue thread
+    | Some n ->
+      stopping := Some(thread,`step) ;
+      started (Dap.on thread) ;
+      Hammer.step_out [n]
 
 let on_step_in thread =
   match Dap.get_opt root thread with
   | None -> on_continue thread
   | Some n ->
-    match step_in n with
+    match find_step_in n with
     | None -> on_continue thread
     | Some n ->
       stopping := Some(thread,`step) ;
@@ -258,7 +270,7 @@ let on_step_out thread =
   match Dap.get_opt root thread with
   | None -> on_continue thread
   | Some n ->
-    match step_out n with
+    match find_step_out n with
     | None -> on_step_in thread
     | Some children ->
       stopping := Some(thread,`step) ;
@@ -291,7 +303,10 @@ let cc_proof adapter hammer theory goal hint =
   let name = Printf.sprintf "Goal %s.%s" tname gname in
   let frames = Darray.delayed frames in
   let thread = Dap.thread adapter
-      ~on_continue ~on_pause ~on_step_in ~on_step_out ~name ~frames () in
+      ~name ~frames
+      ~on_continue ~on_pause
+      ~on_next ~on_step_in ~on_step_out
+      () in
   let result = Fibers.var () in
   let callback crc =
     begin
@@ -312,7 +327,6 @@ let cc_theory adapter hammer buffer strategy gnames theory =
   let accept g =
     gnames = [] || List.mem thy gnames ||
     List.mem (thy ^ "." ^ (Session.goal_name g)) gnames in
-  Fibers.map (fun _ -> Log.message "Finished.") @@
   Fibers.all @@
   List.map
     (fun goal ->
@@ -426,11 +440,9 @@ let process adapter =
 
 let run adapter =
   while running adapter do
-    if not @@ process adapter then
-      begin
-        observe () ;
-        Unix.sleepf 0.01 ;
-      end
+    let busy = process adapter in
+    observe () ;
+    if not busy then Unix.sleepf 0.01 ;
   done ;
   Client.terminate ()
 
