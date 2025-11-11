@@ -44,8 +44,8 @@ type parent =
   | Thread of { id : int ; callback : (Crc.crc -> unit) }
 type state =
   | Paused            (* in q_paused *)
-  | Scheduled         (* in q_proven or q_broken *)
   | Failed            (* in q_failed *)
+  | Scheduled         (* in q_proven or q_broken *)
   | Closed of Crc.crc (* not in any queue *)
   | Stacked of Tactic.tactic * node list (* children still queued *)
 
