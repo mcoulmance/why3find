@@ -35,7 +35,7 @@ type node = {
   hammer : hammer ;
   mutable state : state ;
   mutable proof : Crc.crc option ;
-  mutable window : Vc.window option ;
+  mutable context : Vc.context option ;
 }
 
 and state =
@@ -94,13 +94,13 @@ let rec update result = function
 (* --- Node Window                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
-let window n =
-  match n.window with Some w -> w | None ->
+let context n =
+  match n.context with Some w -> w | None ->
     let file = Session.goal_file n.goal in
     let thy = Session.goal_theory n.goal in
     let task = Session.goal_task n.goal in
-    let window = Vc.window ~file thy task in
-    n.window <- Some window ; window
+    let context = Vc.context ~file thy task in
+    n.context <- Some context ; context
 
 (* -------------------------------------------------------------------------- *)
 (* --- Queue Management                                                   --- *)
@@ -117,7 +117,6 @@ let q_dispatch ~stepping n =
     (if not stepping && Crc.is_complete n.hint then q_proven else q_broken)
 let q_schedule ~stepping n = n.state <- Scheduled ; q_dispatch ~stepping n
 let q_pause n =
-  Format.eprintf "PAUSED %a@." pp_node n ;
   n.state <- Paused ; Fibers.Queue.push q_paused n
 let q_fail n =
   n.state <- Failed ; Fibers.emit failed n ; Fibers.Queue.push q_paused n
@@ -224,7 +223,7 @@ let node hammer ~parent ?hint goal =
     parent ; depth ;
     hint ; proof = None ;
     state = Paused ;
-    window = None ;
+    context = None ;
   }
 
 let push hammer ~parent goal hint =

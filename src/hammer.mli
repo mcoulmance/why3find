@@ -54,7 +54,7 @@ val goal : node -> Session.goal
 val parent : node -> parent
 val state : node -> state
 val thread_id : node -> int
-val window : node -> Vc.window
+val context : node -> Vc.context
 
 (** Creates a root node for some goal to be proved. *)
 val thread : hammer -> ?id:int -> ?callback:(crc -> unit) -> goal -> crc -> node

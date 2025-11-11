@@ -30,16 +30,16 @@ let dloc_of_goal g = Option.map dloc_of_position @@ Session.goal_loc g
 let dloc_of_node n =
   let goal = Hammer.goal n in
   let file = Session.goal_file goal in
-  let window = Hammer.window n in
+  let context = Hammer.context n in
   let loc =
     List.find_map
       (function Vc.{ kind = Goal ; range } -> Some range | _ -> None)
-      window.chunks in
+      context.chunks in
   match loc with
   | Some range -> Some (dloc_of_range ~file range)
   | None ->
-    if 0 <= window.g1 && window.g1 <= window.g2 && window.g2 < max_int then
-      Some (Dap.loc ~source:file ~line:window.g1 ~end_line:window.g2 ())
+    if 0 <= context.g1 && context.g1 <= context.g2 && context.g2 < max_int then
+      Some (Dap.loc ~source:file ~line:context.g1 ~end_line:context.g2 ())
     else
       dloc_of_goal goal
 
@@ -82,7 +82,7 @@ let node_index n =
 
 let rec vc_vars ~goal ?(status=goal) n =
   let buffer = Darray.create () in
-  let vc = Hammer.window n in
+  let vc = Hammer.context n in
   let file = vc.file in
   List.iter
     (fun chunk ->
@@ -104,9 +104,11 @@ and index_vars children =
   Darray.list @@
   List.mapi
     (fun i n ->
+       let expl = Session.goal_expl @@ Hammer.goal n in
+       let status = node_status n in
+       let value = Printf.sprintf "%s %s" expl status in
        Dap.variable
-         ~name:(string_of_int i)
-         ~value:(node_status n)
+         ~name:(string_of_int i) ~value
          ~named:(Darray.delayed (vc_vars ~status:false ~goal:true) n)
          ()
     ) children

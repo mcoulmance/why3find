@@ -35,7 +35,7 @@ let (<*>) (a : shape) (b : shape) : shape =
   | _ -> Cat(a,b)
 
 (* -------------------------------------------------------------------------- *)
-(* ---  Range Extraction                                                  --- *)
+(* ---  Chunk Extraction                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
 let default_shape kind loc term s =
@@ -71,21 +71,45 @@ let rec goal (t : Term.term) =
     let _,t = Term.t_open_bound fb in goal t
   | _ -> collect Goal t
 
-let decl (d: Decl.decl) : shape =
+let shape_of_chunks (d: Decl.decl) : shape =
   match d.d_node with
-  | Dprop(Pgoal,pr,f) -> default_shape Goal pr.pr_name.id_loc f @@ goal f
-  | Dprop(Paxiom,pr,f) -> default_shape When pr.pr_name.id_loc f @@ hyp f
+  | Dprop(Pgoal,pr,p) -> default_shape Goal pr.pr_name.id_loc p @@ goal p
+  | Dprop(Paxiom,pr,p) -> default_shape When pr.pr_name.id_loc p @@ hyp p
   | _ -> Empty
 
-let tdecl (td : Thy.tdecl) : shape =
-  match td.td_node with Decl d -> decl d | _ -> Empty
+(* -------------------------------------------------------------------------- *)
+(* ---  Context Extraction                                                --- *)
+(* -------------------------------------------------------------------------- *)
 
-let rec task (acc : shape) (t : Tsk.task) : shape =
+exception Loc of Why3.Loc.position
+
+let rec find_loc (t : Why3.Term.term) =
+  match t.t_loc with
+  | Some l -> raise (Loc l)
+  | None -> Term.t_iter find_loc t
+
+let prop kind (t : Why3.Term.term) =
+  try find_loc t ; Empty with Loc pos -> Range(kind,pos,t)
+
+let shape_of_context (d : Decl.decl) : shape =
+  match d.d_node with
+  | Dprop(Pgoal,pr,p) -> default_shape Goal pr.pr_name.id_loc p @@ prop Goal p
+  | Dprop(Paxiom,pr,p) -> default_shape When pr.pr_name.id_loc p @@ prop When p
+  | _ -> Empty
+
+(* -------------------------------------------------------------------------- *)
+(* --- Splitting Tasks                                                    --- *)
+(* -------------------------------------------------------------------------- *)
+
+let split_tdecl fn (td : Thy.tdecl) : shape =
+  match td.td_node with Decl d -> fn d | _ -> Empty
+
+let rec split_task fn acc (t : Tsk.task) : shape =
   match t with
   | None -> acc
   | Some { task_decl ; task_prev } ->
-    let d = tdecl task_decl in
-    (task[@tailcall]) (d <+> acc) task_prev
+    let d = split_tdecl fn task_decl in
+    (split_task[@tailcall]) fn (d <+> acc) task_prev
 
 type chunk = { kind : kind ; range : Range.range ; term : Why3.Term.term }
 
@@ -95,11 +119,9 @@ type env = {
   mutable hyps : chunk list ;
 }
 
-let make ~file = { file ; goal = [] ; hyps = [] }
-
-let rec collect env = function
+let rec dispatch env = function
   | Empty -> ()
-  | Cat(a,b) -> collect env a ; collect env b
+  | Cat(a,b) -> dispatch env a ; dispatch env b
   | Range(kind,pos,term) ->
     let f,l1,c1,l2,c2 = Loc.get pos in
     if f = env.file then
@@ -115,9 +137,9 @@ let rec collect env = function
 let by_range a b = Stdlib.compare a.range b.range
 let disjoint a b = Range.disjoint a.range b.range
 
-let chunks ~file (t : Tsk.task) =
-  let env = make ~file in
-  collect env (task Empty t) ;
+let split ~file fn (t : Tsk.task) =
+  let env = { file ; goal = [] ; hyps = [] } in
+  dispatch env (split_task fn Empty t) ;
   let goal = env.goal in
   let hyps = List.filter (fun h -> List.for_all (disjoint h) goal) env.hyps in
   List.sort by_range (goal @ hyps)
@@ -192,7 +214,7 @@ let pp_expl fmt t =
   if expl <> "" then Format.fprintf fmt ":%s" expl
 
 let dump ~file task =
-  let p,q = chunks ~file task |> range in
+  let p,q = split ~file shape_of_chunks task |> range in
   if p <= q then
     Format.printf "@{<orange>[%s:%a%a]@}@\n"
       file pp_range (p,q) pp_expl task ;
@@ -205,11 +227,10 @@ let dump ~file task =
 (* ---  Windowing Chunks                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
-type window = { file : string ; g1 : int ; g2 : int ; h1 : int ; h2 : int ; chunks : chunk list }
+type context = { file : string ; g1 : int ; g2 : int ; h1 : int ; h2 : int ; chunks : chunk list }
 let empty = { file = "" ; h1 = 0 ; h2 = 0 ; g1 = 0 ; g2 = 0 ; chunks = [] }
 
-let window ~file thy task =
-  let chunks = chunks ~file task in
+let window ~file thy chunks =
   let lines = decls ~file thy in
   let p,q = range chunks in
   if p > q then empty else
@@ -249,7 +270,7 @@ let rec by_chunks xs ys =
     let cmp = by_range x y in
     if cmp <> 0 then cmp else by_chunks xs ys
 
-let by_window u v =
+let by_context u v =
   let cmp = Int.compare u.h2 v.h2 in
   if cmp <> 0 then cmp else
     match is_postcond u , is_postcond v with
@@ -259,6 +280,13 @@ let by_window u v =
       let cmp = by_goal u v in
       if cmp <> 0 then cmp else
         by_chunks u.chunks v.chunks
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Context                                                           --- *)
+(* -------------------------------------------------------------------------- *)
+
+let chunks ~file thy task = window ~file thy @@ split shape_of_chunks ~file task
+let context ~file thy task = window ~file thy @@ split shape_of_context ~file task
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Printing Automaton                                                --- *)
@@ -454,7 +482,7 @@ let rec decorate cursor head tail =
 (* -------------------------------------------------------------------------- *)
 
 let highlight ~file ~context thy task =
-  let w = window ~file thy task in
+  let w = chunks ~file thy task in
   match w.chunks with [] -> () | head::tail ->
     Format.printf "@{<orange>[%s:%a%a]@}@\n"
       file pp_range (w.g1,w.g2) pp_expl task ;
