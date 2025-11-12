@@ -35,6 +35,7 @@ type node = {
   hammer : hammer ;
   mutable state : state ;
   mutable proof : Crc.crc option ;
+  mutable chunks : Vc.context option ;
   mutable context : Vc.context option ;
 }
 
@@ -94,6 +95,14 @@ let rec update result = function
 (* --- Node Window                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
+let chunks n =
+  match n.chunks with Some w -> w | None ->
+    let file = Session.goal_file n.goal in
+    let thy = Session.goal_theory n.goal in
+    let task = Session.goal_task n.goal in
+    let chunks = Vc.chunks ~file thy task in
+    n.chunks <- Some chunks ; chunks
+
 let context n =
   match n.context with Some w -> w | None ->
     let file = Session.goal_file n.goal in
@@ -115,7 +124,8 @@ let q_proven = Queue.create () (* Complete hints, scheduled last *)
 let q_dispatch ~stepping n =
   Queue.push n
     (if not stepping && Crc.is_complete n.hint then q_proven else q_broken)
-let q_schedule ~stepping n = n.state <- Scheduled ; q_dispatch ~stepping n
+let q_schedule ~stepping n =
+  n.state <- Scheduled ; q_dispatch ~stepping n
 let q_pause n =
   n.state <- Paused ; Fibers.Queue.push q_paused n
 let q_fail n =
@@ -223,6 +233,7 @@ let node hammer ~parent ?hint goal =
     parent ; depth ;
     hint ; proof = None ;
     state = Paused ;
+    chunks = None ;
     context = None ;
   }
 

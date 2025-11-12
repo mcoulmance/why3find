@@ -54,6 +54,7 @@ val goal : node -> Session.goal
 val parent : node -> parent
 val state : node -> state
 val thread_id : node -> int
+val chunks : node -> Vc.context
 val context : node -> Vc.context
 
 (** Creates a root node for some goal to be proved. *)
@@ -80,6 +81,7 @@ val status : unit -> status
 val progress : unit -> progress
 val running : unit -> bool
 val interrupting : unit -> bool
+
 val failed : node Fibers.signal
 
 (** Interrupt all running provers and discard all pending nodes. *)

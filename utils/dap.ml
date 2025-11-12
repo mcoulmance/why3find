@@ -31,8 +31,6 @@ let establish transport =
     callback = Queue.create () ;
   }
 
-let shutdown server = server.shutdown <- true
-
 let running { shutdown ; channel } =
   not shutdown || Rpc.processing channel
 

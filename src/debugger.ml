@@ -159,6 +159,45 @@ let frames thread =
   | Some n -> callstack n
 
 (* -------------------------------------------------------------------------- *)
+(* ---  BreakPoints                                                       --- *)
+(* -------------------------------------------------------------------------- *)
+
+type breakpoint = Brk of {
+    id : int ; line : int ;
+    mutable active : bool ;
+    mutable pending : bool ;
+  }
+
+let breakpointk = ref 0
+let breakpoints = Hashtbl.create 0
+
+let add_breakpoint ~file ~line ?(pending=false) () =
+  let id = incr breakpointk ; !breakpointk in
+  let brk = Brk { id ; line ; active = true ; pending } in
+  Hashtbl.add breakpoints file brk ; id
+
+let has_breakpoint ~file ~line th =
+  match Dap.get_opt root th with
+  | None -> false
+  | Some n ->
+    let vc = Hammer.chunks n in
+    vc.file = file && vc.h1 <= line && line <= vc.h2
+
+let () = Dap.on_breakpoint
+    begin function Dap.SourceBreakpoint { file ; line } ->
+      let threads = Dap.threads () in
+      if threads = [] then
+        let id = add_breakpoint ~file ~line ~pending:true () in
+        Dap.pending ~id ~message:"Waiting for proof threads" ()
+      else
+      if List.exists (has_breakpoint ~file ~line) threads then
+        let id = add_breakpoint ~file ~line () in
+        Dap.verified ~id ()
+      else
+        Dap.failed ~message:"Out of range" ()
+    end
+
+(* -------------------------------------------------------------------------- *)
 (* ---  Running State                                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -166,7 +205,7 @@ let exit = ref 0
 
 type state =
   | Paused
-  | Running of { progress : Dap.progress }
+  | Running of { adapter : Dap.adapter ; progress : Dap.progress }
 
 let state = ref Paused
 let stopping = ref None
@@ -184,7 +223,7 @@ let update = Timer.throttle
 let started adapter =
   let progress = Dap.progress adapter ~title:"Why3" ~message:"started" () in
   Log.message "Debugger Started" ;
-  state := Running { progress }
+  state := Running { adapter ; progress }
 
 let exited () =
   match !state with
@@ -194,31 +233,28 @@ let exited () =
     state := Paused ;
     Dap.finished progress ~message:"exit" ()
 
-let stopped s =
-  stopping := None ;
-  match s with
-  | Some(thread,reason) when Dap.living thread ->
-    Dap.stopped ~reason thread
-  | _ ->
-    match Dap.threads () with
-    | main::_ ->
-      Dap.stopped ~reason:`pause main
-    | _ -> ()
-
 let paused () =
   match !state with
   | Paused -> ()
-  | Running { progress } ->
+  | Running { adapter ; progress } ->
     Log.message "Debugger Paused" ;
     state := Paused ;
     Dap.finished progress ~message:"paused" () ;
-    stopped !stopping
+    let stop = !stopping in
+    stopping := None ;
+    match stop with
+    | Some(thread,reason) when Dap.living thread ->
+      Dap.stopped ~reason thread
+    | _ ->
+      match Dap.threads () with
+      | main::_ -> Dap.stopped ~reason:`pause main
+      | _ -> Dap.exited adapter 3
 
 let observe () =
   match Hammer.status () with
   | Proving h -> update h
-  | Exited -> exited ()
   | Paused -> paused ()
+  | Exited -> exited ()
 
 let on_pause thread =
   stopping := Some(thread,`pause) ;
@@ -393,6 +429,8 @@ let init gnames files =
         let echo category pp = Dap.output adapter ~category "%t" pp in
         Log.pp_stdout := echo `stdout ;
         Log.pp_stderr := echo `stderr ;
+        breakpointk := 0 ;
+        Hashtbl.clear breakpoints ;
         Hammer.pause () ;
         if files = [] then Log.warning "No files to debug." else
           match List.find_map Config.root_for files with

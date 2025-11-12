@@ -18,9 +18,6 @@ type handler = adapter -> Json.t -> Json.t
 (** Establish the adapter or exit *)
 val establish: Rpc.transport -> adapter
 
-(** Shutdown the adapter *)
-val shutdown: adapter -> unit
-
 (** Testing if the adapter is still running.
     Returns true when there is no more in/out pending messages. *)
 val running: adapter -> bool
