@@ -407,7 +407,7 @@ let () = register "cancel"
 
 (* 0-started, <0 means none, "" means none *)
 type location = Loc of {
-    source : string ;
+    file : string ;
     line : int ;
     column : int ;
     end_line : int ;
@@ -417,8 +417,8 @@ type location = Loc of {
 let locrefs : (location, int) Hashtbl.t = Hashtbl.create 0
 let locations : (int, location) Hashtbl.t = Hashtbl.create 0
 
-let loc ?(source="") ?(line=none) ?(column=none) ?(end_line=none) ?(end_column=none) () =
-  Loc { source ; line ; column ; end_line ; end_column }
+let loc ?(file="") ?(line=none) ?(column=none) ?(end_line=none) ?(end_column=none) () =
+  Loc { file ; line ; column ; end_line ; end_column }
 
 let empty = loc ()
 
@@ -435,7 +435,7 @@ let () = register "locations"
       let r = Json.jfield "locationReference" args |> Json.jint in
       let Loc l = Hashtbl.find locations r in
       Json.assoc [
-        "source" , to_source l.source ;
+        "source" , to_source l.file ;
         "line" , to_line l.line ;
         "column" , to_column l.column ;
         "endLine" , to_line l.end_line ;
@@ -447,27 +447,49 @@ let () = register "locations"
 (* ---  Breakpoints                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
-type breakpoint = Break of Json.t [@@ unboxed]
+type breakpoint = Breakpoint of Json.t [@@ unboxed]
 
-let breakpoint
-    ?(id=none) ?(verified=true) ?(message="") ?(source="")
+let jbreakpoint
+    ?(id=none) ?(verified=true) ?(message="") ?(file="")
     ?(line=none) ?(column=none) ?(end_line=none) ?(end_column=none)
     ?(reason="") ()
-  = Break (Json.assoc [
-      "id" , js_int_opt id ;
-      "source" , to_source source ;
-      "verified" , `Bool verified ;
-      "message" , js_string_opt message ;
-      "line" , to_line line ;
-      "column" , to_column column ;
-      "endLine" , to_line end_line ;
-      "endColumn" , to_column end_column ;
-      "reason", js_string_opt reason ;
-    ])
+  = Json.assoc [
+    "id" , js_int_opt id ;
+    "source" , to_source file ;
+    "verified" , `Bool verified ;
+    "message" , js_string_opt message ;
+    "line" , to_line line ;
+    "column" , to_column column ;
+    "endLine" , to_line end_line ;
+    "endColumn" , to_column end_column ;
+    "reason", js_string_opt reason ;
+  ]
+
+let failed ?message () =
+  Breakpoint (jbreakpoint ~verified:false ~reason:"failed" ?message ())
+
+let pending ~id ?message () =
+  Breakpoint (jbreakpoint ~id ~verified:false ~reason:"pending" ?message ())
+
+let verified ~id ?message ?file ?line ?column ?end_line ?end_column () =
+  Breakpoint (jbreakpoint ~id ~verified:true ?message ?file ?line ?column ?end_line ?end_column ())
+
+let breakpoint adapter ~id ?reason ?verified ?message ?file ?line ?column ?end_line ?end_column () =
+  let evt_reason, brk_verified, brk_reason =
+    match verified with
+    | Some true -> "verified", true, None
+    | None -> "changed", false, Some "pending"
+    | Some false -> "removed", false, Some "failed"
+  in emit adapter "breakpoint" @@ Json.assoc [
+    "reason", `String (Option.value ~default:evt_reason reason) ;
+    "breakpoint" ,
+    jbreakpoint ~id ~verified:brk_verified ?reason:brk_reason
+      ?message ?file ?line ?column ?end_line ?end_column ()
+  ]
 
 type source_breakpoint =
     SourceBreakpoint of {
-      source : string ;
+      file : string ;
       line : int ;
       column : int ;
       condition : string ;
@@ -475,18 +497,18 @@ type source_breakpoint =
       log_message : string ;
     }
 
-let of_source_breakpoint source js =
+let of_source_breakpoint file js =
   let line = Json.jfield "line" js |> of_line in
   let column = Json.jfield "number" js |> of_column in
   let condition = Json.jfield "condition" js |> Json.jstring in
   let hit_condition = Json.jfield "hitCondition" js |> Json.jstring in
   let log_message = Json.jfield "logMessage" js |> Json.jstring in
-  SourceBreakpoint { source ; line ; column ; condition ; hit_condition ; log_message }
+  SourceBreakpoint { file ; line ; column ; condition ; hit_condition ; log_message }
 
-let of_line_breakpoint source js =
+let of_line_breakpoint file js =
   let line = of_line js in
   SourceBreakpoint {
-    source ; line ; column = none ;
+    file ; line ; column = none ;
     condition = "" ; hit_condition = "" ; log_message = "" ;
   }
 
@@ -506,21 +528,21 @@ let on_breakpoint
 
 let () = register "setBreakpoints"
     begin fun _adapter args ->
-      let source = Json.jfield "source" args |> of_source in
+      let file = Json.jfield "source" args |> of_source in
       let breakpoints =
         List.map
           begin fun brk ->
-            let Break js =
+            let Breakpoint js =
               try !verify_source_breakpoint brk with err ->
-                breakpoint ~verified:false ~message:(Printexc.to_string err) ()
+                failed ~message:(Printexc.to_string err) ()
             in js
           end @@
         let breakpoints = Json.jfield "breakpoints" args |> Json.jlist in
         if breakpoints <> [] then
-          List.map (of_source_breakpoint source) breakpoints
+          List.map (of_source_breakpoint file) breakpoints
         else
           let lines = Json.jfield "lines" args |> Json.jlist in
-          List.map (of_line_breakpoint source) lines
+          List.map (of_line_breakpoint file) lines
       in Json.assoc [ "breakpoints" , `List breakpoints ]
     end
 
@@ -667,7 +689,7 @@ let js_scope (Scope s) =
     "indexedVariables" , js_int_opt indexed ;
     "namedVariables" , js_int_opt named ;
     "expensive" , `Bool s.expensive ;
-    "source" , to_source r.source ;
+    "source" , to_source r.file ;
     "line" , to_line r.line ;
     "column" , to_column r.column ;
     "endLine" , to_column r.end_line ;
@@ -735,7 +757,7 @@ let js_frame (fr : frame) =
     Json.assoc [
       "id" , `Int id ;
       "name" , `String fr.name ;
-      "source" , to_source r.source ;
+      "source" , to_source r.file ;
       "line" , to_line r.line ;
       "column" , to_column r.column ;
       "endLine" , to_column r.end_line ;
@@ -763,21 +785,21 @@ type thread = Thread of {
   }
 
 let threadk = ref 0
-let threads : (int,thread) Hashtbl.t = Hashtbl.create 0
+let threadm : (int,thread) Hashtbl.t = Hashtbl.create 0
 let singleThreadSupport = ref false
 let id (Thread th) = th.id
 let on (Thread th) = th.adapter
 let name (Thread th) = th.name
-let find = Hashtbl.find threads
-let living th = Hashtbl.mem threads (id th)
+let find = Hashtbl.find threadm
+let living th = Hashtbl.mem threadm (id th)
 let get attr th = Hashtbl.find attr.bythreads (id th)
 let set attr th v = Hashtbl.replace attr.bythreads (id th) v
 let get_opt attr th = try Some (get attr th) with Not_found -> None
 let remove attr th = Hashtbl.remove attr.bythreads (id th)
 
-let pending () =
+let threads () =
   let pool = ref [] in
-  Hashtbl.iter (fun _ th -> pool := th :: !pool) threads ;
+  Hashtbl.iter (fun _ th -> pool := th :: !pool) threadm ;
   List.sort (fun a b -> Int.compare (id a) (id b)) !pool
 
 let reset_identifiers () =
@@ -836,22 +858,21 @@ let thread adapter
       on_step_in = nop ;
       on_step_out = nop ;
     } in
-  Hashtbl.add threads id th ;
+  Hashtbl.add threadm id th ;
   updated ~reason:"started" th ;
   connect th ?on_pause ?on_next ?on_step_in ?on_step_out ?on_continue () ; th
 
 let terminate thread =
   let Thread { id } = thread in
-  Hashtbl.remove threads id ;
+  Hashtbl.remove threadm id ;
   updated ~reason:"exited" thread
 
-let stopped ~(reason:reason) ?description ?text ?all ?preserveFocus ?frames thread =
+let stopped ~(reason:reason) ?description ?text ?all ?preserveFocus ?(breakpoints=[]) thread =
   begin
     if all = Some false && not !singleThreadSupport then
       raise (Invalid_argument "no single thread support") ;
     let all = Option.value ~default:(not !singleThreadSupport) all in
     let Thread th = thread in
-    Option.iter (fun frames -> th.frames <- frames) frames ;
     let reason = match reason with
       | `entry -> "entry"
       | `step -> "step"
@@ -866,6 +887,7 @@ let stopped ~(reason:reason) ?description ?text ?all ?preserveFocus ?frames thre
       "threadId" , `Int th.id ;
       "allThreadsStopped" , if all then `Bool true else `Null ;
       "preserveFocusHint" , Json.option_map Json.bool preserveFocus ;
+      "hitBreakpointIds", Json.list_map Json.int breakpoints ;
     ]
   end
 
@@ -874,7 +896,7 @@ let on_step mode adapter args =
   let single = Json.jfield "sinleThread" args |> Json.jbool in
   Option.iter
     (fun th -> Queue.push (fun _ -> mode th th) adapter.callback)
-    (Hashtbl.find_opt threads threadId) ;
+    (Hashtbl.find_opt threadm threadId) ;
   if not !singleThreadSupport || not single then `Null else
     Json.assoc [ "allThreadsContinued", `Bool (not single) ]
 
@@ -887,7 +909,7 @@ let () = register "pause" @@ on_step (function Thread th -> th.on_pause)
 let () = register "threads"
     begin fun _adapter _args ->
       let pool = ref [] in
-      Hashtbl.iter (fun _ th -> pool := th :: !pool) threads ;
+      Hashtbl.iter (fun _ th -> pool := th :: !pool) threadm ;
       let byId (Thread a) (Thread b) = Int.compare a.id b.id in
       let jthread (Thread th) = Json.assoc [
           "id" , `Int th.id ;
@@ -901,7 +923,7 @@ let () = register "stackTrace"
       let thId = Json.jfield "threadId" args |> Json.jint in
       let start = Json.jfield "startFrame" args |> Json.jint in
       let levels = Json.jfield "levels" args |> Json.jdefault max_int Json.jint in
-      let Thread t as th = Hashtbl.find threads thId in
+      let Thread t as th = Hashtbl.find threadm thId in
       let frames = try t.frames th with Not_found -> Darray.empty in
       let total = Darray.length frames in
       let last = min (start + levels) total - 1 in

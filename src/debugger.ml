@@ -18,12 +18,11 @@ let pp_goal_location fmt goal =
     Format.fprintf fmt "%s:%d: " file line
 
 let dloc_of_position (p : Why3.Loc.position) : Dap.location =
-  let source,l1,c1,l2,c2 = Why3.Loc.get p in
-  Dap.loc ~source ~line:(l1-1) ~column:c1 ~end_line:(l2-1) ~end_column:c2 ()
+  let file,l1,c1,l2,c2 = Why3.Loc.get p in
+  Dap.loc ~file ~line:(l1-1) ~column:c1 ~end_line:(l2-1) ~end_column:c2 ()
 
 let dloc_of_range ~file ((p,q) : Range.range) : Dap.location =
-  Dap.loc ~source:file
-    ~line:p.line ~column:p.col ~end_line:q.line ~end_column:q.col ()
+  Dap.loc ~file ~line:p.line ~column:p.col ~end_line:q.line ~end_column:q.col ()
 
 let dloc_of_goal g = Option.map dloc_of_position @@ Session.goal_loc g
 
@@ -39,7 +38,7 @@ let dloc_of_node n =
   | Some range -> Some (dloc_of_range ~file range)
   | None ->
     if 0 <= context.g1 && context.g1 <= context.g2 && context.g2 < max_int then
-      Some (Dap.loc ~source:file ~line:context.g1 ~end_line:context.g2 ())
+      Some (Dap.loc ~file ~line:context.g1 ~end_line:context.g2 ())
     else
       dloc_of_goal goal
 
@@ -201,7 +200,7 @@ let stopped s =
   | Some(thread,reason) when Dap.living thread ->
     Dap.stopped ~reason thread
   | _ ->
-    match Dap.pending () with
+    match Dap.threads () with
     | main::_ ->
       Dap.stopped ~reason:`pause main
     | _ -> ()
@@ -246,7 +245,6 @@ let rec find_step_out n =
     | Some _ as result -> result
 
 let on_next thread =
-  Format.eprintf "ON-NEXT@." ;
   match Dap.get_opt root thread with
   | None -> on_continue thread
   | Some n ->

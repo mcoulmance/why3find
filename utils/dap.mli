@@ -128,7 +128,7 @@ val to_source : string -> Json.t
 
 type location
 val loc :
-  ?source:string ->
+  ?file:string ->
   ?line:int -> ?column:int ->
   ?end_line:int -> ?end_column:int ->
   unit -> location
@@ -136,19 +136,26 @@ val loc :
 (** {2 Breakpoints} *)
 
 type breakpoint
+
+val failed : ?message:string -> unit -> breakpoint
+val pending : id:int -> ?message:string -> unit -> breakpoint
+val verified : id:int -> ?message:string ->
+  ?file:string -> ?line:int -> ?column:int -> ?end_line:int -> ?end_column:int ->
+  unit -> breakpoint
+
 val breakpoint :
-  ?id:int ->
+  adapter ->
+  id:int ->
+  ?reason:string ->
   ?verified:bool ->
   ?message:string ->
-  ?source:string -> ?line:int -> ?column:int -> ?end_line:int -> ?end_column:int ->
-  ?reason:string ->
-  unit -> breakpoint
-(** Generally, it would be enough to use [breakpoint ()]. Other fields
-    are only mandatory to decline or update the specified breakpoints. *)
+  ?file:string -> ?line:int -> ?column:int -> ?end_line:int -> ?end_column:int ->
+  unit -> unit
+(** Update a (pending) breakpoint. *)
 
 type source_breakpoint =
     SourceBreakpoint of {
-      source : string ;
+      file : string ;
       line : int ;
       column : int ;
       condition : string ;
@@ -270,7 +277,7 @@ val on : thread -> adapter
 val name : thread -> string
 
 (** Sorted by Id. *)
-val pending : unit -> thread list
+val threads : unit -> thread list
 
 (** Find by Id *)
 val find : int -> thread
@@ -288,8 +295,10 @@ type reason = [ `step | `pause | `entry | `except | `error ]
 val stopped :
   reason:reason ->
   ?description:string ->
-  ?text:string -> ?all:bool -> ?preserveFocus:bool ->
-  ?frames:(thread -> frame Darray.t) ->
+  ?text:string ->
+  ?all:bool ->
+  ?preserveFocus:bool ->
+  ?breakpoints:int list ->
   thread -> unit
 
 val set_single_thread_support : unit -> unit
