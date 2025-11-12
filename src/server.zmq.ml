@@ -341,7 +341,7 @@ let do_hangup server id =
          task.loading <- id_remove id task.loading ;
          task.running <- List.filter (others id) task.running ;
       ) server.pending ;
-    Fibers.Queue.filter server.workers (others id) ;
+    Fibers.Queue.filter (others id) server.workers ;
   end
 
 (* -------------------------------------------------------------------------- *)
@@ -509,8 +509,8 @@ let establish ~database ~address ~polling =
       let time = Unix.time () in
       flush ~time server ;
       Fibers.Queue.iter (process server ~time) server.pending ;
-      Fibers.Queue.filter server.pending alive_task ;
-      Fibers.Queue.filter server.workers alive_worker ;
+      Fibers.Queue.filter alive_task server.pending ;
+      Fibers.Queue.filter alive_worker server.workers ;
       print_stats server ;
     done
   with Sys.Break ->

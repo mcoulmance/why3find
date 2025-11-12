@@ -510,22 +510,26 @@ let of_line_breakpoint file js =
     condition = "" ; hit_condition = "" ; log_message = "" ;
   }
 
+let clear_breakpoints = ref ignore
 let verify_source_breakpoint = ref (fun _ -> failwith "unsupported breakpoints")
 
 let on_breakpoint
     ?(condition=false)
     ?(hit_condition=false)
     ?(log_message=false)
+    ?(clear=ignore)
     fn =
   begin
     if condition then register_capability "supportsConditionalBreakpoints" () ;
     if hit_condition then register_capability "supportsHitConditionalBreakpoints" () ;
     if log_message then register_capability "supportsLogPoints" () ;
+    clear_breakpoints := clear ;
     verify_source_breakpoint := fn ;
   end
 
 let () = register "setBreakpoints"
     begin fun _adapter args ->
+      !clear_breakpoints () ;
       let file = Json.jfield "source" args |> of_source in
       let breakpoints =
         List.map

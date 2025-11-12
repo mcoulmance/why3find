@@ -116,22 +116,29 @@ let context n =
 (* -------------------------------------------------------------------------- *)
 
 let failed = Fibers.signal ()
+let on_failed = Fibers.on failed
+let off_failed = Fibers.off failed
+let breakpoints = Fibers.Queue.create ()
+let on_breakpoint fn = Fibers.Queue.push breakpoints fn
+let off_breakpoint fn = Fibers.Queue.filter (fun f -> f != fn) breakpoints
 let p_proven = ref 0
 let p_broken = ref 0
 let q_paused = Fibers.Queue.create () (* Failed & Paused nodes *)
 let q_broken = Queue.create () (* Stuck hints, scheduled first *)
 let q_proven = Queue.create () (* Complete hints, scheduled last *)
-let q_dispatch ~stepping n =
-  Queue.push n
-    (if not stepping && Crc.is_complete n.hint then q_proven else q_broken)
-let q_schedule ~stepping n =
-  n.state <- Scheduled ; q_dispatch ~stepping n
 let q_pause n =
   n.state <- Paused ; Fibers.Queue.push q_paused n
 let q_fail n =
   n.state <- Failed ; Fibers.emit failed n ; Fibers.Queue.push q_paused n
 let q_close n crc =
   n.state <- Closed crc ; n.proof <- Some crc ; update crc n.parent
+let q_schedule ~stepping n =
+  try
+    Fibers.Queue.iter (fun fn -> if fn n then raise Exit) breakpoints ;
+    n.state <- Scheduled ;
+    Queue.push n @@
+    if not stepping && Crc.is_complete n.hint then q_proven else q_broken ;
+  with Exit -> q_pause n
 
 let iter f =
   begin
@@ -177,7 +184,7 @@ let still_pending n =
 let step ns =
   begin
     List.iter schedule ns ;
-    Fibers.Queue.filter q_paused still_paused ;
+    Fibers.Queue.filter still_paused q_paused ;
   end
 
 let step_in ns = runmode := StepIn ; step ns

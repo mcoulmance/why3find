@@ -164,6 +164,7 @@ val on_breakpoint :
   ?condition:bool ->
   ?hit_condition:bool ->
   ?log_message:bool ->
+  ?clear:(unit -> unit) ->
   (source_breakpoint -> breakpoint) -> unit
 (** If specified, the flags will activate the associated capabilities. *)
 

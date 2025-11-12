@@ -80,7 +80,7 @@ sig
   val push : 'a t -> 'a -> unit
   val pop : 'a t -> 'a
   val iter : ('a -> unit) -> 'a t -> unit
-  val filter : 'a t -> ('a -> bool) -> unit
+  val filter : ('a -> bool) -> 'a t -> unit
   val clear : 'a t -> unit
 end =
 struct
@@ -121,12 +121,12 @@ struct
       q.tail <- [] ;
       let xs = q.head @ List.rev tl in q.head <- xs ; xs
 
-  let filter q f =
-    q.size <- (-1) ;
-    q.head <- List.filter f @@ flatten q
-
   let iter f q =
     List.iter f @@ flatten q
+
+  let filter f q =
+    q.size <- (-1) ;
+    q.head <- List.filter f @@ flatten q
 
   let clear q =
     begin
@@ -146,7 +146,7 @@ type 'a signal = ('a -> unit) Queue.t
 let signal = Queue.create
 let emit s v = Queue.iter (fun f -> f v) s
 let on = Queue.push
-let off q k = Queue.filter q (fun k0 -> k0 != k)
+let off q k = Queue.filter (fun k0 -> k0 != k) q
 let once q k = let rec fn v = k v ; off q fn in on q fn
 let clear = Queue.clear
 let connected s = Queue.length s > 0
@@ -225,7 +225,7 @@ let yield =
       begin
         lock := true ;
         try
-          Queue.filter queue (fun yd -> yd ()) ;
+          Queue.filter (fun yd -> yd ()) queue ;
           lock := false ;
         with exn ->
           lock := false ;

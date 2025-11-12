@@ -165,34 +165,31 @@ let frames thread =
 type breakpoint = Brk of {
     id : int ; line : int ;
     mutable active : bool ;
-    mutable pending : bool ;
   }
 
 let breakpointk = ref 0
 let breakpoints = Hashtbl.create 0
+let clear_breakpoints () = breakpointk := 0 ; Hashtbl.clear breakpoints
 
-let add_breakpoint ~file ~line ?(pending=false) () =
+let add_breakpoint ~file ~line =
   let id = incr breakpointk ; !breakpointk in
-  let brk = Brk { id ; line ; active = true ; pending } in
+  let brk = Brk { id ; line ; active = true } in
   Hashtbl.add breakpoints file brk ; id
+
+let hit_breakpoint ~file ~line node =
+  let vc = Hammer.chunks node in
+  vc.file = file && vc.h1 <= line && line <= vc.h2
 
 let has_breakpoint ~file ~line th =
   match Dap.get_opt root th with
   | None -> false
-  | Some n ->
-    let vc = Hammer.chunks n in
-    vc.file = file && vc.h1 <= line && line <= vc.h2
+  | Some n -> hit_breakpoint ~file ~line n
 
-let () = Dap.on_breakpoint
+let () = Dap.on_breakpoint ~clear:clear_breakpoints
     begin function Dap.SourceBreakpoint { file ; line } ->
       let threads = Dap.threads () in
-      if threads = [] then
-        let id = add_breakpoint ~file ~line ~pending:true () in
-        Dap.pending ~id ~message:"Waiting for proof threads" ()
-      else
       if List.exists (has_breakpoint ~file ~line) threads then
-        let id = add_breakpoint ~file ~line () in
-        Dap.verified ~id ()
+        Dap.verified ~id:(add_breakpoint ~file ~line) ()
       else
         Dap.failed ~message:"Out of range" ()
     end
@@ -312,6 +309,13 @@ let on_step_out thread =
       stopping := Some(thread,`step) ;
       started (Dap.on thread) ;
       Hammer.step_out children
+
+let on_breakpoint node =
+  let file = Session.goal_file @@ Hammer.goal node in
+  List.exists
+    (function Brk { active ; line } ->
+       active && let vc = Hammer.chunks node in vc.h1 <= line && line <= vc.h2
+    ) (Hashtbl.find_all breakpoints file)
 
 let on_failed node =
   begin
@@ -465,7 +469,8 @@ let init gnames files =
         ignore restart ;
         Hammer.interrupt () ;
       end ;
-    Fibers.on Hammer.failed on_failed ;
+    Hammer.on_failed on_failed ;
+    Hammer.on_breakpoint on_breakpoint ;
   end
 
 let running adapter =
