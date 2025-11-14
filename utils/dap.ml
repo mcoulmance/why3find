@@ -427,18 +427,17 @@ let locref (loc : location) : int =
     Hashtbl.add locations r loc ; r
 
 let js_locref = function None -> `Null | Some loc -> `Int (locref loc)
-
+let js_locfields = function Loc l -> [
+    "source" , to_source l.file ;
+    "line" , to_line l.line ;
+    "column" , to_column l.column ;
+    "endLine" , to_line l.end_line ;
+    "endColumn" , to_column l.end_column ;
+  ]
 let () = register "locations"
     begin fun _adapter args ->
       let r = Json.jfield "locationReference" args |> Json.jint in
-      let Loc l = Hashtbl.find locations r in
-      Json.assoc [
-        "source" , to_source l.file ;
-        "line" , to_line l.line ;
-        "column" , to_column l.column ;
-        "endLine" , to_line l.end_line ;
-        "endColumn" , to_column l.end_column ;
-      ]
+      Json.assoc @@ js_locfields @@ Hashtbl.find locations r
     end
 
 (* -------------------------------------------------------------------------- *)

@@ -54,6 +54,12 @@
         "title": "Start the Why3 Debugger",
         "enablement": "!inDebugMode",
         "icon": "$(debug-alt)"
+      },
+      {
+        "category": "Why3",
+        "command": "why3.diagnostic.clear",
+        "title": "Clear Failed Proofs",
+        "icon": "$(clear-all)"
       }
     ],
     "submenus": [
@@ -83,6 +89,10 @@
         },
         {
           "command": "why3.lsp.stop",
+          "when": "resourceLangId == why3"
+        },
+        {
+          "command": "why3.diagnostic.clear",
           "when": "resourceLangId == why3"
         }
       ]

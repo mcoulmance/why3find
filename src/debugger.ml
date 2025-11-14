@@ -67,7 +67,9 @@ let node_status n =
   match Hammer.state n with
   | Failed -> "Failed"
   | Paused | Scheduled -> "Paused"
-  | Closed crc -> Format.asprintf "%a" Crc.pp_crc crc
+  | Closed crc ->
+    if Crc.is_stuck crc then "Failed" else
+      Format.asprintf "%a" Crc.pp_crc crc
   | Stacked(tactic,children) ->
     Format.asprintf "[%a] %a"
       Tactic.pretty tactic
@@ -346,11 +348,17 @@ let on_failed node =
     let goal = Hammer.goal node in
     try
       let id = Hammer.thread_id node in
+      let gname = Session.goal_expl goal in
       let thread = Dap.find id in
       let name = Dap.name thread in
       stopping := Some (thread,`error) ;
       Hammer.pause () ;
-      Log.error "%a%s @{<red>failed@}" pp_goal_location goal name
+      Log.error "%a%s @{<red>failed@}" pp_goal_location goal name ;
+      Option.iter
+        begin fun loc ->
+          Dap.emit (Dap.on thread) "why3/failed" @@
+          Json.assoc (("goal", `String gname) :: Dap.js_locfields loc)
+        end @@ dloc_of_node node
     with Not_found ->
       Log.error "%aGoal @{<red>failed@}" pp_goal_location goal
   end
