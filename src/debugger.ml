@@ -159,6 +159,25 @@ let frames thread =
   | Some n -> callstack n
 
 (* -------------------------------------------------------------------------- *)
+(* ---  Current Node                                                      --- *)
+(* -------------------------------------------------------------------------- *)
+
+let rec current n =
+  match Hammer.state n with
+  | Closed _ -> None
+  | Paused | Scheduled | Failed -> Some n
+  | Stacked(_,children) -> List.find_map current children
+
+let rec context n =
+  match Hammer.state n with
+  | Closed _ -> None
+  | Paused | Scheduled | Failed -> None
+  | Stacked(_,children) ->
+    match List.find_map context children with
+    | None -> Some children
+    | Some _ as result -> result
+
+(* -------------------------------------------------------------------------- *)
 (* ---  BreakPoints                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -171,34 +190,45 @@ let breakpointk = ref 0
 let breakpoints = Hashtbl.create 0
 let clear_breakpoints () = breakpointk := 0 ; Hashtbl.clear breakpoints
 
-let add_breakpoint ~file ~line =
+let add_breakpoint ~thread ~line =
+  let th = Dap.id thread in
   let id = incr breakpointk ; !breakpointk in
   let brk = Brk { id ; line ; active = true } in
-  Hashtbl.add breakpoints file brk ; id
+  Hashtbl.add breakpoints th brk ; id
 
-let hit_breakpoint ~file ~line node =
-  let vc = Hammer.chunks node in
-  vc.file = file && vc.h1 <= line && line <= vc.h2
-
-let has_breakpoint ~file ~line th =
-  match Dap.get_opt root th with
+let has_breakpoint ~line thread =
+  match Dap.get_opt root thread with
   | None -> false
-  | Some n -> hit_breakpoint ~file ~line n
+  | Some node ->
+    let vc = Hammer.chunks node in
+    vc.h1 <= line && line <= vc.h2
+
+let hit_breakpoints thread =
+  match Dap.get_opt root thread with
+  | None -> []
+  | Some n ->
+    match current n with
+    | None -> []
+    | Some n ->
+      let vc = Hammer.context n in
+      List.filter_map
+        (function Brk b ->
+           if b.active && b.line <= vc.g2 then
+             (b.active <- false ; Some b.id)
+           else None)
+        (Hashtbl.find_all breakpoints (Dap.id thread))
 
 let () = Dap.on_breakpoint ~clear:clear_breakpoints
-    begin function Dap.SourceBreakpoint { file ; line } ->
+    begin function Dap.SourceBreakpoint { line } ->
       let threads = Dap.threads () in
-      if List.exists (has_breakpoint ~file ~line) threads then
-        Dap.verified ~id:(add_breakpoint ~file ~line) ()
-      else
-        Dap.failed ~message:"Out of range" ()
+      match List.find_opt (has_breakpoint ~line) threads with
+      | Some thread -> Dap.verified ~id:(add_breakpoint ~thread ~line) ()
+      | None -> Dap.failed ~message:"Out of range" ()
     end
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Running State                                                     --- *)
 (* -------------------------------------------------------------------------- *)
-
-let exit = ref 0
 
 type state =
   | Paused
@@ -218,40 +248,48 @@ let update = Timer.throttle
     end
 
 let started adapter =
-  let progress = Dap.progress adapter ~title:"Why3" ~message:"started" () in
-  Log.message "Debugger Started" ;
+  let progress = Dap.progress adapter ~title:"Why3" ~message:"Started" () in
   state := Running { adapter ; progress }
 
-let exited () =
+let terminated () =
   match !state with
   | Paused -> ()
   | Running { progress } ->
-    Log.message "Debugger Exited" ;
     state := Paused ;
-    Dap.finished progress ~message:"exit" ()
+    Dap.finished progress ~message:"Terminated" ()
+
+let breaked thread =
+  match hit_breakpoints thread with
+  | [] -> None
+  | bks -> Some (thread,bks)
 
 let paused () =
   match !state with
   | Paused -> ()
-  | Running { adapter ; progress } ->
-    Log.message "Debugger Paused" ;
+  | Running { progress } ->
     state := Paused ;
     Dap.finished progress ~message:"paused" () ;
     let stop = !stopping in
     stopping := None ;
     match stop with
     | Some(thread,reason) when Dap.living thread ->
-      Dap.stopped ~reason thread
+      let breakpoints = hit_breakpoints thread in
+      Dap.stopped ~reason ~breakpoints thread
     | _ ->
-      match Dap.threads () with
-      | main::_ -> Dap.stopped ~reason:`pause main
-      | _ -> Dap.exited adapter 3
+      let threads = Dap.threads () in
+      match List.find_map breaked threads with
+      | Some (thread,breakpoints) ->
+        Dap.stopped ~reason:`breakpoint ~breakpoints thread
+      | None ->
+        match Dap.threads () with
+        | thread::_ -> Dap.stopped ~reason:`pause thread
+        | _ -> terminated ()
 
 let observe () =
   match Hammer.status () with
   | Proving h -> update h
   | Paused -> paused ()
-  | Exited -> exited ()
+  | Exited -> terminated ()
 
 let on_pause thread =
   stopping := Some(thread,`pause) ;
@@ -262,26 +300,11 @@ let on_continue thread =
   started (Dap.on thread) ;
   Hammer.resume ()
 
-let rec find_step_in n =
-  match Hammer.state n with
-  | Closed _ -> None
-  | Paused | Scheduled | Failed -> Some n
-  | Stacked(_,children) -> List.find_map find_step_in children
-
-let rec find_step_out n =
-  match Hammer.state n with
-  | Closed _ -> None
-  | Paused | Scheduled | Failed -> None
-  | Stacked(_,children) ->
-    match List.find_map find_step_out children with
-    | None -> Some children
-    | Some _ as result -> result
-
 let on_next thread =
   match Dap.get_opt root thread with
   | None -> on_continue thread
   | Some n ->
-    match find_step_in n with
+    match current n with
     | None-> on_continue thread
     | Some n ->
       stopping := Some(thread,`step) ;
@@ -292,7 +315,7 @@ let on_step_in thread =
   match Dap.get_opt root thread with
   | None -> on_continue thread
   | Some n ->
-    match find_step_in n with
+    match current n with
     | None -> on_continue thread
     | Some n ->
       stopping := Some(thread,`step) ;
@@ -303,23 +326,23 @@ let on_step_out thread =
   match Dap.get_opt root thread with
   | None -> on_continue thread
   | Some n ->
-    match find_step_out n with
+    match context n with
     | None -> on_step_in thread
     | Some children ->
       stopping := Some(thread,`step) ;
       started (Dap.on thread) ;
       Hammer.step_out children
 
-let on_breakpoint node =
-  let file = Session.goal_file @@ Hammer.goal node in
-  List.exists
-    (function Brk { active ; line } ->
-       active && let vc = Hammer.chunks node in vc.h1 <= line && line <= vc.h2
-    ) (Hashtbl.find_all breakpoints file)
+let on_filter node =
+  let th = Hammer.thread_id node in
+  let line =
+    List.fold_left
+      (fun l (Brk b) -> if b.active then min l b.line else l)
+      max_int (Hashtbl.find_all breakpoints th) in
+  line = max_int || let vc = Hammer.context node in vc.g2 <= line
 
 let on_failed node =
   begin
-    exit := 1 ;
     let goal = Hammer.goal node in
     try
       let id = Hammer.thread_id node in
@@ -420,12 +443,6 @@ let cc_file adapter env gnames file =
 (* ---  Debugger Initialization                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-let pp_exit fmt =
-  if !exit = 0 then
-    Format.pp_print_string fmt "Terminated"
-  else
-    Format.fprintf fmt "Failed (Status %d)" !exit
-
 let init gnames files =
   begin
     Dap.on_init
@@ -444,15 +461,9 @@ let init gnames files =
           | Some root ->
             let config = Config.load_config ~root in
             let env = Project.create ~root ~config () in
-            let main =
-              Dap.thread adapter ~name:"Monitor" ~on_pause ~on_continue () in
             let callback _ =
-              begin
-                Dap.terminate main ;
-                Dap.output adapter "Why3 Debugger %t@." pp_exit ;
-                Dap.exited adapter !exit ;
-              end
-            in
+              Log.message "All proofs terminated." ;
+              Dap.terminated adapter () in
             Fibers.background ~callback @@ Fibers.all @@
             List.map (cc_file adapter env gnames) files ;
             Dap.initialized adapter
@@ -470,7 +481,7 @@ let init gnames files =
         Hammer.interrupt () ;
       end ;
     Hammer.on_failed on_failed ;
-    Hammer.on_breakpoint on_breakpoint ;
+    Hammer.on_filter on_filter ;
   end
 
 let running adapter =

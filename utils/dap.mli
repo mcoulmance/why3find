@@ -123,7 +123,14 @@ val to_column : int -> Json.t
 val of_source : Json.t -> string
 val to_source : string -> Json.t
 
-type location
+type location =  Loc of {
+    file : string ;
+    line : int ;
+    column : int ;
+    end_line : int ;
+    end_column : int ;
+  }
+
 val loc :
   ?file:string ->
   ?line:int -> ?column:int ->
@@ -289,7 +296,7 @@ val living : thread -> bool
 val updated : ?reason:string -> thread -> unit
 val terminate : thread -> unit
 
-type reason = [ `step | `pause | `entry | `except | `error ]
+type reason = [ `step | `breakpoint | `pause | `entry | `except | `error ]
 val stopped :
   reason:reason ->
   ?description:string ->

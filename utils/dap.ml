@@ -772,7 +772,7 @@ let js_frame (fr : frame) =
 (* ---  Threads                                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-type reason = [ `step | `pause | `entry | `except | `error ]
+type reason = [ `step | `breakpoint | `pause | `entry | `except | `error ]
 
 type thread = Thread of {
     id : int ;
@@ -875,9 +875,11 @@ let stopped ~(reason:reason) ?description ?text ?all ?preserveFocus ?(breakpoint
       raise (Invalid_argument "no single thread support") ;
     let all = Option.value ~default:(not !singleThreadSupport) all in
     let Thread th = thread in
-    let reason = match reason with
+    let reason =
+      match reason with
       | `entry -> "entry"
       | `step -> "step"
+      | `breakpoint -> "breakpoint"
       | `error -> "error"
       | `pause -> "pause"
       | `except -> "exception" in

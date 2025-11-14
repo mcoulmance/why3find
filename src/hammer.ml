@@ -118,9 +118,9 @@ let context n =
 let failed = Fibers.signal ()
 let on_failed = Fibers.on failed
 let off_failed = Fibers.off failed
-let breakpoints = Fibers.Queue.create ()
-let on_breakpoint fn = Fibers.Queue.push breakpoints fn
-let off_breakpoint fn = Fibers.Queue.filter (fun f -> f != fn) breakpoints
+let filters = Fibers.Queue.create ()
+let on_filter fn = Fibers.Queue.push filters fn
+let off_filter fn = Fibers.Queue.filter (fun f -> f != fn) filters
 let p_proven = ref 0
 let p_broken = ref 0
 let q_paused = Fibers.Queue.create () (* Failed & Paused nodes *)
@@ -134,7 +134,7 @@ let q_close n crc =
   n.state <- Closed crc ; n.proof <- Some crc ; update crc n.parent
 let q_schedule ~stepping n =
   try
-    Fibers.Queue.iter (fun fn -> if fn n then raise Exit) breakpoints ;
+    Fibers.Queue.iter (fun fn -> if not (fn n) then raise Exit) filters ;
     n.state <- Scheduled ;
     Queue.push n @@
     if not stepping && Crc.is_complete n.hint then q_proven else q_broken ;
@@ -193,15 +193,13 @@ let step_out ns = runmode := StepOut ; step ns
 let resume () =
   begin
     runmode := StepOut ;
-    Fibers.Queue.iter schedule q_paused ;
-    Fibers.Queue.clear q_paused ;
+    Fibers.Queue.flush schedule q_paused ;
   end
 
 let resume_to_end () =
   begin
     runmode := Running ;
-    Fibers.Queue.iter schedule q_paused ;
-    Fibers.Queue.clear q_paused ;
+    Fibers.Queue.flush schedule q_paused ;
   end
 
 (* -------------------------------------------------------------------------- *)
@@ -209,6 +207,7 @@ let resume_to_end () =
 (* -------------------------------------------------------------------------- *)
 
 let killall = Fibers.signal ()
+
 let pause () =
   begin
     runmode := Pausing ;

@@ -84,8 +84,8 @@ val interrupting : unit -> bool
 
 val on_failed : (node -> unit) -> unit
 val off_failed : (node -> unit) -> unit
-val on_breakpoint : (node -> bool) -> unit
-val off_breakpoint : (node -> bool) -> unit
+val on_filter : (node -> bool) -> unit
+val off_filter : (node -> bool) -> unit
 
 (** Interrupt all running provers and discard all pending nodes. *)
 val interrupt : unit -> unit

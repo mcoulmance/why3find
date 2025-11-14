@@ -80,7 +80,9 @@ sig
   val push : 'a t -> 'a -> unit
   val pop : 'a t -> 'a
   val iter : ('a -> unit) -> 'a t -> unit
+  val flush : ('a -> unit) -> 'a t -> unit
   val filter : ('a -> bool) -> 'a t -> unit
+  val elements : 'a t -> 'a list
   val clear : 'a t -> unit
 end =
 struct
@@ -114,7 +116,14 @@ struct
       if q.size > 0 then q.size <- pred q.size ;
       q.head <- hd ; h
 
-  let flatten q =
+  let clear q =
+    begin
+      q.size <- 0 ;
+      q.head <- [] ;
+      q.tail <- [] ;
+    end
+
+  let elements q =
     match q.tail with
     | [] -> q.head
     | tl ->
@@ -122,18 +131,15 @@ struct
       let xs = q.head @ List.rev tl in q.head <- xs ; xs
 
   let iter f q =
-    List.iter f @@ flatten q
+    List.iter f @@ elements q
+
+  let flush f q =
+    let xs = elements q in
+    clear q ; List.iter f xs
 
   let filter f q =
     q.size <- (-1) ;
-    q.head <- List.filter f @@ flatten q
-
-  let clear q =
-    begin
-      q.size <- 0 ;
-      q.head <- [] ;
-      q.tail <- [] ;
-    end
+    q.head <- List.filter f @@ elements q
 
 end
 
