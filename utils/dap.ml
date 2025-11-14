@@ -561,9 +561,9 @@ type value = (int -> unit)
 let hooks = ref []
 let varId n = 2*n
 let frameId n = 2*n+1
-let find_by_varId m id = Hashtbl.find m.temporary (varId id)
-let find_by_frameId m id = Hashtbl.find m.temporary (frameId id)
-let find_by_threadId m id = Hashtbl.find m.bythreads id
+let get_by_varId m id = Hashtbl.find_opt m.temporary (varId id)
+let get_by_frameId m id = Hashtbl.find_opt m.temporary (frameId id)
+let get_by_threadId m id = Hashtbl.find_opt m.bythreads id
 let store id values = List.iter (fun v -> v id) values
 let value attr value id = Hashtbl.add attr.temporary id value
 let attribute () =
@@ -741,7 +741,7 @@ let frame ~name ?(subtle=false) ?(range=empty) ?restart ?(scopes=[]) ?(values=[]
   Frame { name ; subtle ;range ; restart ; scopes ; values }
 
 let js_frame (fr : frame) =
-  let id = Hashtbl.length scopes in
+  let id = Hashtbl.length scopes + 1 in
   match fr with
   | Label name ->
     Hashtbl.add scopes id [] ;
@@ -793,9 +793,8 @@ let on (Thread th) = th.adapter
 let name (Thread th) = th.name
 let find = Hashtbl.find threadm
 let living th = Hashtbl.mem threadm (id th)
-let get attr th = Hashtbl.find attr.bythreads (id th)
+let get attr th = Hashtbl.find_opt attr.bythreads (id th)
 let set attr th v = Hashtbl.replace attr.bythreads (id th) v
-let get_opt attr th = try Some (get attr th) with Not_found -> None
 let remove attr th = Hashtbl.remove attr.bythreads (id th)
 
 let threads () =

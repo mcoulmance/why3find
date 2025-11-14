@@ -10,6 +10,8 @@
 (* ---  Observing Nodes                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
+let anchor = Dap.attribute ()
+
 let pp_goal_location fmt goal =
   match Session.goal_loc goal with
   | None -> ()
@@ -138,10 +140,10 @@ let frame n =
     match Hammer.state n with
     | Stacked(tactic,_) -> Tactic.name tactic
     | _ -> Session.goal_expl @@ Hammer.goal n in
-  Dap.frame ~name ~scopes:[
+  Dap.frame ~name ?range ~scopes:[
     vc_scope ~goal:false n ;
     vc_scope ~goal:true n ;
-  ] ?range ()
+  ] ~values:[Dap.value anchor n] ()
 
 let callstack n =
   match reach [] n with
@@ -152,11 +154,9 @@ let callstack n =
 (* ---  Observing Thread                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
-let root = Dap.attribute ()
-
 let frames thread =
   Darray.list @@
-  match Dap.get_opt root thread with
+  match Dap.get anchor thread with
   | None -> []
   | Some n -> callstack n
 
@@ -199,14 +199,14 @@ let add_breakpoint ~thread ~line =
   Hashtbl.add breakpoints th brk ; id
 
 let has_breakpoint ~line thread =
-  match Dap.get_opt root thread with
+  match Dap.get anchor thread with
   | None -> false
   | Some node ->
     let vc = Hammer.chunks node in
     vc.h1 <= line && line <= vc.h2
 
 let hit_breakpoints thread =
-  match Dap.get_opt root thread with
+  match Dap.get anchor thread with
   | None -> []
   | Some n ->
     match current n with
@@ -226,6 +226,39 @@ let () = Dap.on_breakpoint ~clear:clear_breakpoints
       match List.find_opt (has_breakpoint ~line) threads with
       | Some thread -> Dap.verified ~id:(add_breakpoint ~thread ~line) ()
       | None -> Dap.failed ~message:"Out of range" ()
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Proof Context                                                     --- *)
+(* -------------------------------------------------------------------------- *)
+
+let jchunk ~file (ch : Vc.chunk) =
+  let jkind =
+    match ch.kind with
+    | Goal -> "goal"
+    | When -> "positive"
+    | WhenNot -> "negative"
+  in Json.assoc @@
+  ("kind", `String jkind) ::
+  (Dap.js_locfields @@ dloc_of_range ~file ch.range)
+
+let () = Dap.register "why3/context"
+    begin fun _adapter args ->
+      let threadId = Json.jfield "threadId" args |> Json.jint in
+      let frameId = Json.jfield "frameId" args |> Json.jint in
+      let root =
+        match Dap.get_by_frameId anchor frameId with
+        | Some _ as result -> result
+        | None -> Dap.get_by_threadId anchor threadId in
+      match Option.bind root current with
+      | None -> `Null
+      | Some node ->
+        let context = Hammer.chunks node in
+        let file = context.file in
+        Json.assoc [
+          "source" , `String file ;
+          "chunks" , Json.list_map (jchunk ~file) context.chunks ;
+        ]
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -303,7 +336,7 @@ let on_continue thread =
   Hammer.resume ()
 
 let on_next thread =
-  match Dap.get_opt root thread with
+  match Dap.get anchor thread with
   | None -> on_continue thread
   | Some n ->
     match current n with
@@ -314,7 +347,7 @@ let on_next thread =
       Hammer.step_out [n]
 
 let on_step_in thread =
-  match Dap.get_opt root thread with
+  match Dap.get anchor thread with
   | None -> on_continue thread
   | Some n ->
     match current n with
@@ -325,7 +358,7 @@ let on_step_in thread =
       Hammer.step_in [n]
 
 let on_step_out thread =
-  match Dap.get_opt root thread with
+  match Dap.get anchor thread with
   | None -> on_continue thread
   | Some n ->
     match context n with
@@ -387,7 +420,7 @@ let cc_proof adapter hammer theory goal hint =
       Fibers.set result crc ;
     end in
   let node = Hammer.thread hammer ~id:(Dap.id thread) ~callback goal hint in
-  Dap.set root thread node ; result
+  Dap.set anchor thread node ; result
 
 let cc_theory adapter hammer buffer strategy gnames theory =
   let module M = Why3.Wstdlib.Mstr in

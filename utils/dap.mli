@@ -195,9 +195,9 @@ type 'a attribute and value
 
 val attribute : unit -> 'a attribute
 val value : 'a attribute -> 'a -> value
-val find_by_varId : 'a attribute -> int -> 'a
-val find_by_frameId : 'a attribute -> int -> 'a
-val find_by_threadId : 'a attribute -> int -> 'a
+val get_by_varId : 'a attribute -> int -> 'a option
+val get_by_frameId : 'a attribute -> int -> 'a option
+val get_by_threadId : 'a attribute -> int -> 'a option
 
 (** {2 Variables}
 
@@ -289,10 +289,9 @@ val threads : unit -> thread list
 (** Find by Id *)
 val find : int -> thread
 
-val get : 'a attribute -> thread -> 'a
+val get : 'a attribute -> thread -> 'a option
 val set : 'a attribute -> thread -> 'a -> unit
 val remove : 'a attribute -> thread -> unit
-val get_opt : 'a attribute -> thread -> 'a option
 
 val living : thread -> bool
 val updated : ?reason:string -> thread -> unit

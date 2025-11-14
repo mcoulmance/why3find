@@ -11,13 +11,11 @@ import {
   ExtensionContext, Diagnostic,
   DebugSession, DebugSessionCustomEvent, Uri, Range,
   workspace,
+  DebugStackFrame,
+  DebugThread,
 } from 'vscode';
 import Lsp from './lsp';
 import Dap from './dap';
-
-/* -------------------------------------------------------------------------- */
-/* --- Proof Failed Diagnostics                                           --- */
-/* -------------------------------------------------------------------------- */
 
 /* -------------------------------------------------------------------------- */
 /* --- Why3 Platform Extension                                            --- */
@@ -30,19 +28,34 @@ export function activate(context: ExtensionContext): void {
   const failed: Diagnostic[] = [];
   const diagnostic = languages.createDiagnosticCollection('Why3 Debugger');
 
+  // Clear Failed Proofs Dignostic
   function onDebugClear() {
     failed.length = 0;
     diagnostic.clear();
   }
 
+  // DAP custom event 'why3/failed'
   function onDebugEvent(evt: DebugSessionCustomEvent): void {
     if (evt.session.type === 'why3' && evt.event === 'why3/failed') {
       const uri = Uri.file(evt.body.source.path);
-      const { goal, line, endLine, column, endColumn } = evt.body ;
+      const { goal, line, endLine, column, endColumn } = evt.body;
       const message = `Proof Failed (${goal})`;
-      const range = new Range(line-1, column-1, endLine-1, endColumn-1);
+      const range = new Range(line - 1, column - 1, endLine - 1, endColumn - 1);
       failed.push(new Diagnostic(range, message));
       diagnostic.set(uri, failed);
+    }
+  }
+
+  // DAP custom request 'why3/context'
+  function onDebugStackFrame
+    (evt: DebugStackFrame | undefined): void {
+    if (evt && evt.session.type === 'why3') {
+      evt.session.customRequest('why3/context', {
+        threadId: evt.threadId,
+        frameId: evt.frameId,
+      }).then((response) => {
+        console.log('CONTEXT', evt, response );
+      });
     }
   }
 
@@ -57,12 +70,12 @@ export function activate(context: ExtensionContext): void {
     debug.registerDebugAdapterDescriptorFactory('why3', dap),
     debug.onDidReceiveDebugSessionCustomEvent(onDebugEvent),
     debug.onDidStartDebugSession(onDebugClear),
+    debug.onDidChangeActiveStackItem(onDebugStackFrame),
     workspace.onDidSaveTextDocument(onDebugClear),
   );
 
   // Start the LSP client. This will also launch the server
   lsp.start();
-
 }
 
 export function deactivate(): void { }
