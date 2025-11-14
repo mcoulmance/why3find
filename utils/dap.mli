@@ -131,7 +131,8 @@ type location =  Loc of {
     end_column : int ;
   }
 
-val js_locfields : location -> (string * Json.t) list
+val js_rangefields : location -> (string * Json.t) list
+val js_sourcefields : location -> (string * Json.t) list
 
 val loc :
   ?file:string ->

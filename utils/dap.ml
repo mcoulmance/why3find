@@ -427,17 +427,20 @@ let locref (loc : location) : int =
     Hashtbl.add locations r loc ; r
 
 let js_locref = function None -> `Null | Some loc -> `Int (locref loc)
-let js_locfields = function Loc l -> [
-    "source" , to_source l.file ;
+
+let js_rangefields = function Loc l -> [
     "line" , to_line l.line ;
     "column" , to_column l.column ;
     "endLine" , to_line l.end_line ;
     "endColumn" , to_column l.end_column ;
   ]
+let js_sourcefields = function (Loc l) as loc ->
+  ("source" , to_source l.file) :: js_rangefields loc
+
 let () = register "locations"
     begin fun _adapter args ->
       let r = Json.jfield "locationReference" args |> Json.jint in
-      Json.assoc @@ js_locfields @@ Hashtbl.find locations r
+      Json.assoc @@ js_sourcefields @@ Hashtbl.find locations r
     end
 
 (* -------------------------------------------------------------------------- *)

@@ -234,23 +234,20 @@ let () = Dap.on_breakpoint ~clear:clear_breakpoints
 
 let jchunk ~file (ch : Vc.chunk) =
   let jkind =
-    match ch.kind with
-    | Goal -> "goal"
-    | When -> "positive"
-    | WhenNot -> "negative"
-  in Json.assoc @@
+    match ch.kind with Goal -> "goal" | When -> "hpos" | WhenNot -> "hneg" in
+  Json.assoc @@
   ("kind", `String jkind) ::
-  (Dap.js_locfields @@ dloc_of_range ~file ch.range)
+  (Dap.js_rangefields @@ dloc_of_range ~file ch.range)
 
 let () = Dap.register "why3/context"
     begin fun _adapter args ->
       let threadId = Json.jfield "threadId" args |> Json.jint in
       let frameId = Json.jfield "frameId" args |> Json.jint in
-      let root =
+      let node =
         match Dap.get_by_frameId anchor frameId with
         | Some _ as result -> result
-        | None -> Dap.get_by_threadId anchor threadId in
-      match Option.bind root current with
+        | None -> Option.bind (Dap.get_by_threadId anchor threadId) current in
+      match node with
       | None -> `Null
       | Some node ->
         let context = Hammer.chunks node in
@@ -390,7 +387,7 @@ let on_failed node =
       Option.iter
         begin fun loc ->
           Dap.emit (Dap.on thread) "why3/failed" @@
-          Json.assoc (("goal", `String gname) :: Dap.js_locfields loc)
+          Json.assoc (("goal", `String gname) :: Dap.js_sourcefields loc)
         end @@ dloc_of_node node
     with Not_found ->
       Log.error "%aGoal @{<red>failed@}" pp_goal_location goal
