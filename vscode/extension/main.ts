@@ -8,10 +8,11 @@
 
 import {
   commands, languages, debug, window, workspace,
-  ExtensionContext, Diagnostic,
+  ExtensionContext, EventEmitter, Diagnostic,
   DebugSessionCustomEvent, Uri, Range,
-  DebugStackFrame,
+  DebugStackFrame, ProviderResult,
   TextEditorDecorationType,
+  TextDocumentContentProvider,
   ThemeColor,
 } from 'vscode';
 import Lsp from './lsp';
@@ -32,7 +33,7 @@ interface Failed extends DapRange { goal: string }
 interface Chunk extends DapRange { kind: string }
 
 interface ProofContext {
-  source: string ;
+  source: string;
   chunks: readonly Chunk[];
 }
 
@@ -79,6 +80,27 @@ function showProofContext(deco: ChunksDecorator, context: ProofContext) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* --- Why3 Task Provider                                                 --- */
+/* -------------------------------------------------------------------------- */
+
+
+class Why3DocumentProvider implements TextDocumentContentProvider {
+  task = Uri.parse('why3:Proof Task');
+  emitter = new EventEmitter<Uri>();
+  onDidChange = this.emitter.event;
+  update() { this.emitter.fire(this.task); }
+  provideTextDocumentContent(uri: Uri): ProviderResult<string> {
+    const stack = debug.activeStackItem;
+    if (stack) {
+      const { session, threadId, frameId } = stack as DebugStackFrame;
+      return session.customRequest('why3/task', { threadId, frameId });
+    } else {
+      return undefined;
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* --- Why3 Platform Extension                                            --- */
 /* -------------------------------------------------------------------------- */
 
@@ -88,28 +110,39 @@ export function activate(context: ExtensionContext): void {
   const dap = new Dap();
   const failedproofs: Diagnostic[] = [];
   const diagnostic = languages.createDiagnosticCollection('Why3 Debugger');
+  const provider = new Why3DocumentProvider();
   const hneg = bg('diffEditor.removedLineBackground');
   const hpos = bg('diffEditor.insertedLineBackground');
   const goal = bg('diffEditor.removedTextBackground');
 
-  // Clear Failed Proofs Dignostic
-  function onDebugClear() {
+  function clearDiagnostics() {
     failedproofs.length = 0;
     diagnostic.clear();
   }
 
-  // Cleanup Decorators
-  function onDebugCleanup() {
-    const editor = window.activeTextEditor;
-    if (editor) {
-      editor.setDecorations(goal, []);
-      editor.setDecorations(hpos, []);
-      editor.setDecorations(hneg, []);
-    }
+  function clearDecorators() {
+    window.visibleTextEditors.forEach(editor => {
+      if (editor.document.languageId == 'why3') {
+        editor.setDecorations(goal, []);
+        editor.setDecorations(hpos, []);
+        editor.setDecorations(hneg, []);
+      }
+    });
+  }
+
+  // Starting a new debug session
+  function onDebugStart() {
+    clearDiagnostics();
+    clearDecorators();
+  }
+
+  // Terminating the debug session
+  function onDebugTerminate() {
+    clearDecorators();
   }
 
   // DAP custom event 'why3/failed'
-  function onDebugEvent(evt: DebugSessionCustomEvent): void {
+  function onDebugCustomEvent(evt: DebugSessionCustomEvent): void {
     if (evt.session.type === 'why3' && evt.event === 'why3/failed') {
       const uri = Uri.file(evt.body.source.path);
       const failed = evt.body as Failed;
@@ -120,16 +153,30 @@ export function activate(context: ExtensionContext): void {
   }
 
   // DAP custom request 'why3/context'
-  function onDebugStackFrame(evt: DebugStackFrame | undefined): void {
-    if (evt && evt.session.type === 'why3') {
-      evt.session.customRequest('why3/context', {
-        threadId: evt.threadId,
-        frameId: evt.frameId,
-      }).then((response) => {
-        if (response)
-          showProofContext({ goal, hpos, hneg }, response);
-        else
-          onDebugCleanup();
+  function onDebugStackFrame(stack: DebugStackFrame | undefined): void {
+    if (stack && stack.session.type === 'why3') {
+      provider.update();
+      const { session, threadId, frameId } = stack;
+      session
+        .customRequest('why3/context', { threadId, frameId })
+        .then((response) => {
+          if (response)
+            showProofContext({ goal, hpos, hneg }, response);
+          else
+            onDebugTerminate();
+        });
+    }
+  }
+
+  function onDebugShowTaskPreview(): void {
+    const active = debug.activeStackItem as (DebugStackFrame | undefined);
+    if (active && active.session.type === 'why3') {
+      window.showTextDocument(provider.task, {
+        viewColumn: 2,
+        preserveFocus: true,
+        preview: true,
+      }).then(editor => {
+        languages.setTextDocumentLanguage(editor.document, 'why3');
       });
     }
   }
@@ -140,15 +187,16 @@ export function activate(context: ExtensionContext): void {
     commands.registerCommand('why3.lsp.start', lsp.start),
     commands.registerCommand('why3.lsp.stop', lsp.stop),
     commands.registerCommand('why3.dap.start', dap.startDebugging),
-    commands.registerCommand('why3.diagnostic.clear', onDebugClear),
+    commands.registerCommand('why3.diagnostic.clear', onDebugStart),
+    commands.registerCommand('why3.debug.task', onDebugShowTaskPreview),
     debug.registerDebugConfigurationProvider('why3', dap),
     debug.registerDebugAdapterDescriptorFactory('why3', dap),
-    debug.onDidReceiveDebugSessionCustomEvent(onDebugEvent),
-    debug.onDidStartDebugSession(onDebugClear),
-    debug.onDidStartDebugSession(onDebugCleanup),
-    debug.onDidTerminateDebugSession(onDebugCleanup),
+    debug.onDidReceiveDebugSessionCustomEvent(onDebugCustomEvent),
+    debug.onDidStartDebugSession(onDebugStart),
     debug.onDidChangeActiveStackItem(onDebugStackFrame),
-    workspace.onDidSaveTextDocument(onDebugClear),
+    debug.onDidTerminateDebugSession(onDebugTerminate),
+    workspace.onDidSaveTextDocument(clearDiagnostics),
+    workspace.registerTextDocumentContentProvider('why3', provider),
   );
 
   // Start the LSP client. This will also launch the server

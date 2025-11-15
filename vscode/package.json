@@ -60,6 +60,12 @@
         "command": "why3.diagnostic.clear",
         "title": "Clear Failed Proofs",
         "icon": "$(clear-all)"
+      },
+      {
+        "category": "Why3",
+        "command": "why3.debug.task",
+        "title": "Show Proof Task",
+        "icon": "$(open-preview)"
       }
     ],
     "submenus": [
@@ -80,6 +86,12 @@
           "command": "why3.dap.start",
           "when": "resourceLangId == why3",
           "group": "navigation@1"
+        }
+      ],
+      "debug/toolBar": [
+        {
+          "command": "why3.debug.task",
+          "when": "debugType == why3"
         }
       ],
       "why3.menu": [

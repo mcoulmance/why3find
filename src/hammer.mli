@@ -57,6 +57,9 @@ val thread_id : node -> int
 val chunks : node -> Vc.context
 val context : node -> Vc.context
 
+val pp_node : Format.formatter -> node -> unit
+val pp_state : Format.formatter -> state -> unit
+
 (** Creates a root node for some goal to be proved. *)
 val thread : hammer -> ?id:int -> ?callback:(crc -> unit) -> goal -> crc -> node
 

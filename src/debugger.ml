@@ -239,15 +239,16 @@ let jchunk ~file (ch : Vc.chunk) =
   ("kind", `String jkind) ::
   (Dap.js_rangefields @@ dloc_of_range ~file ch.range)
 
+let frame_node ~threadId ~frameId =
+  match Dap.get_by_frameId anchor frameId with
+  | Some _ as result -> result
+  | None -> Option.bind (Dap.get_by_threadId anchor threadId) current
+
 let () = Dap.register "why3/context"
     begin fun _adapter args ->
       let threadId = Json.jfield "threadId" args |> Json.jint in
       let frameId = Json.jfield "frameId" args |> Json.jint in
-      let node =
-        match Dap.get_by_frameId anchor frameId with
-        | Some _ as result -> result
-        | None -> Option.bind (Dap.get_by_threadId anchor threadId) current in
-      match node with
+      match frame_node ~threadId ~frameId  with
       | None -> `Null
       | Some node ->
         let context = Hammer.chunks node in
@@ -256,6 +257,33 @@ let () = Dap.register "why3/context"
           "source" , `String file ;
           "chunks" , Json.list_map (jchunk ~file) context.chunks ;
         ]
+    end
+
+let () = Dap.register "why3/task"
+    begin fun _adapter args ->
+      let threadId = Json.jfield "threadId" args |> Json.jint in
+      let frameId = Json.jfield "frameId" args |> Json.jint in
+      match frame_node ~threadId ~frameId  with
+      | None -> `Null
+      | Some node ->
+        let task = Session.goal_task @@ Hammer.goal node in
+        let state = Hammer.state node in
+        let line = "------------------------------" in
+        let rec pp_stack fmt = function
+          | Hammer.Thread _ -> ()
+          | Hammer.Node n ->
+            Format.fprintf fmt
+              "@\nfrom %a" Hammer.pp_state (Hammer.state n) ;
+            pp_stack fmt (Hammer.parent n)
+        in
+        let text =
+          Format.asprintf
+            "%a%s Proof  %s@\n@\nproof : %a%a@\n@\n%s--------%s@."
+            Why3.Pretty.print_sequent task
+            line line Hammer.pp_state state
+            pp_stack (Hammer.parent node)
+            line line
+        in `String text
     end
 
 (* -------------------------------------------------------------------------- *)

@@ -53,7 +53,6 @@ and parent =
 let pp_node fmt n =
   Format.fprintf fmt "%s[%s]"
     (Session.goal_name n.goal) (Session.goal_expl n.goal)
-[@@warning "-32"]
 
 let goal n = n.goal
 let state n = n.state
@@ -74,6 +73,18 @@ let rec proof n =
       | Stacked(tactic,children) ->
         Crc.tactic ~goal:n.goal tactic (List.map proof children)
     in n.proof <- Some crc ; crc
+
+let pp_state fmt = function
+  | Failed -> Format.fprintf fmt "Failed"
+  | Paused | Scheduled -> Format.fprintf fmt "Paused"
+  | Closed crc ->
+    if Crc.is_stuck crc then
+      Format.fprintf fmt "Failed"
+    else
+      Format.fprintf fmt "%a" Crc.pp_crc crc
+  | Stacked(tactic,nodes) ->
+    Format.fprintf fmt "%a %a" Tactic.pretty tactic Crc.pp_crc_all
+      (List.map proof nodes)
 
 let rec touch n = n.proof <- None ; touchp n.parent
 and touchp = function Thread _ -> () | Node n -> touch n
