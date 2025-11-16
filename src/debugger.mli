@@ -6,7 +6,8 @@
 (*                                                                        *)
 (**************************************************************************)
 
-val init : string list -> string list -> unit
+val files : string list ref
+val goals : string list ref
 val running : Dap.adapter -> bool
 val process : Dap.adapter -> bool
 val run : Dap.adapter -> unit

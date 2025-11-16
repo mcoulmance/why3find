@@ -505,50 +505,67 @@ let cc_file adapter env gnames file =
       file line Why3.Exn_printer.exn_printer exn ;
     Fibers.return ()
 
+let files = ref []
+let goals = ref []
+
+let compile adapter =
+  let files = !files in
+  if files = [] then
+    begin
+      Log.warning "No files to debug." ;
+      Dap.exited adapter 1
+    end
+  else
+    begin
+      match List.find_map Config.root_for files with
+      | None ->
+        Log.warning "No config file found." ;
+        Dap.exited adapter 1
+      | Some root ->
+        let config = Config.load_config ~root in
+        let env = Project.create ~root ~config () in
+        let callback _ =
+          Log.message "Debugger Terminated." ;
+          Dap.terminated adapter () in
+        Fibers.background ~callback @@ Fibers.all @@
+        List.map (cc_file adapter env !goals) files ;
+        Hammer.resume ()
+    end
+
 (* -------------------------------------------------------------------------- *)
-(* ---  Debugger Initialization                                           --- *)
+(* ---  DAP Life Cycle                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
-let init gnames files =
-  begin
-    Dap.on_init
-      begin fun adapter ->
-        let echo category pp = Dap.output adapter ~category "%t" pp in
-        Log.pp_stdout := echo `stdout ;
-        Log.pp_stderr := echo `stderr ;
-        breakpointk := 0 ;
-        Hashtbl.clear breakpoints ;
-        Hammer.pause () ;
-        if files = [] then Log.warning "No files to debug." else
-          match List.find_map Config.root_for files with
-          | None ->
-            Log.warning "No config file found." ;
-            Dap.exited adapter 1
-          | Some root ->
-            let config = Config.load_config ~root in
-            let env = Project.create ~root ~config () in
-            let callback _ =
-              Log.message "All proofs terminated." ;
-              Dap.terminated adapter () in
-            Fibers.background ~callback @@ Fibers.all @@
-            List.map (cc_file adapter env gnames) files ;
-            Dap.initialized adapter
-      end ;
-    Dap.on_launch
-      begin fun adapter ->
-        Dap.output adapter "Why3 Debugger Started.@." ;
-        started adapter ;
-        Hammer.resume () ;
-      end ;
-    Dap.on_terminate
-      begin fun adapter ~restart ->
-        ignore adapter ;
-        ignore restart ;
-        Hammer.interrupt () ;
-      end ;
-    Hammer.on_failed on_failed ;
-    Hammer.on_filter on_filter ;
-  end
+let () = Dap.on_init
+    begin fun adapter ->
+      let echo category pp = Dap.output adapter ~category "%t" pp in
+      Log.pp_stdout := echo `stdout ;
+      Log.pp_stderr := echo `stderr ;
+      breakpointk := 0 ;
+      Hashtbl.clear breakpoints ;
+      Hammer.pause () ;
+      Hammer.on_failed on_failed ;
+      Hammer.on_filter on_filter ;
+      Dap.initialized adapter ;
+    end
+
+let () = Dap.on_launch
+    begin fun adapter ->
+      Dap.output adapter "Why3 Debugger Started.@." ;
+      started adapter ;
+      compile adapter ;
+    end
+
+let () = Dap.on_terminate
+    begin fun adapter ~restart ->
+      ignore adapter ;
+      ignore restart ;
+      Hammer.interrupt () ;
+    end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Debugger Processing                                               --- *)
+(* -------------------------------------------------------------------------- *)
 
 let running adapter =
   Dap.running adapter || Hammer.running ()

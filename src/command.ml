@@ -847,14 +847,12 @@ let () = register ~name:"dap" ~args:"[OPTIONS]"
       let set_port n = transport := Some (Rpc.PORT n) in
       let set_pipe s = transport := Some (Rpc.PIPE s) in
       let add_list xs p = xs := p :: !xs in
-      let files = ref [] in
-      let goals = ref [] in
       Arg.parse_argv argv [
         "--pipe", Arg.String set_pipe, "<SOCKFILE> unix linux socket" ;
         "--port", Arg.Int set_port, "<PORT> use socket port" ;
         "--socket", Arg.Int set_port, "<PORT> use socket port (same as --port)" ;
-        "--goal" , Arg.String (add_list goals) , "<Thy|Thy.val> filter goals" ;
-      ] (add_list files)
+        "--goal" , Arg.String (add_list Debugger.goals) , "<Thy|Thy.val> filter goals" ;
+      ] (add_list Debugger.files)
         "USAGE:\n\
          \n  why3find dap [--pipe=<SOCKFILE>]\n\n\
          DESCRIPTION:\n\
@@ -864,7 +862,8 @@ let () = register ~name:"dap" ~args:"[OPTIONS]"
       match !transport with
       | None -> Log.error "No transport protocol specified." ; exit 1
       | Some transport ->
-        Debugger.init (List.rev !goals) (List.rev !files) ;
+        Debugger.goals := List.rev !Debugger.goals ;
+        Debugger.files := List.rev !Debugger.files ;
         Debugger.run @@ Dap.establish transport ;
     end
 
