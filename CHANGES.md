@@ -4,14 +4,19 @@
 
 ### Notable New Features
 
+- Support for Debugger Adapter Protocol
+
 ### Command Line Interface
 
-### LSP and VSCode Extension
+- New command `why3find dap [OPTIONS]`
+
+### IDE Integration
+
+- VSCode debugger client
 
 ### Bug Fixes
 
-- Allow preprocessing tactics to leave the goal unchanged
-  (#141, !187)
+- Allow preprocessing tactics to leave the goal unchanged (#141, !187)
 
 ### API
 
