@@ -111,7 +111,7 @@ let iter_sm f (sm : Theory.symbol_map) =
 (* -------------------------------------------------------------------------- *)
 
 let pp_thy fmt (th : Theory.theory) = Id.pp fmt th.th_name
-let pp_mod fmt (m : Pmodule.pmodule) = pp_thy fmt m.mod_theory
+let pp_mod fmt (m : Pmodule.pmodule0) = pp_thy fmt m.mod_theory
 
 let pp_decl fmt (d : Decl.decl) =
   match d.d_node with
@@ -197,8 +197,8 @@ let rec pp_munit fmt (m : Pmodule.mod_unit) =
 
 let pp_module fmt (m : Pmodule.pmodule) =
   begin
-    Format.fprintf fmt "@[<hv 0>@[<hv 2>module %a {" pp_mod m ;
-    List.iter (pp_munit fmt) m.mod_units ;
+    Format.fprintf fmt "@[<hv 0>@[<hv 2>module %a {" pp_mod m.mod_intf ;
+    List.iter (pp_munit fmt) m.mod_intf.mod_units ; (* mod_intf: TODO? *)
     Format.fprintf fmt "@]@ }@]" ;
   end
 

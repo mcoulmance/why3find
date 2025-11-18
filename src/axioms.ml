@@ -62,11 +62,6 @@ type henv = {
 (* --- Builtin & Extracted Environments                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
-let ocaml64 main =
-  Filename.concat (Why3.Whyconf.datadir main) @@
-  Filename.concat "extraction_drivers" @@
-  "ocaml64.drv"
-
 let pkg_drivers (pkg : Meta.pkg) =
   List.map (Filename.concat pkg.path) pkg.drivers
 
@@ -85,7 +80,7 @@ let init (env : Why3find.Project.env) =
   let builtins = List.fold_left add_builtins Mid.empty provers in
   let drivers = List.concat_map pkg_drivers env.pkgs @ env.config.drivers in
   let main = Whyconf.get_main env.why3.config in
-  let pdriver = Pdriver.load_driver main env.why3.env (ocaml64 main) drivers in
+  let pdriver = Pdriver.load_driver main env.why3.env "ocaml64" drivers in
   let externals = Mid.map fst pdriver.drv_syntax in
   { builtins ; externals ; signatures = Hid.create 0 }
 
@@ -290,7 +285,7 @@ let rec add_munit henv (hs : signature) (m : Pmodule.mod_unit) : signature =
   | Uscope(_,ms) -> List.fold_left (add_munit henv) hs ms
   | Umeta _ -> hs
 
-let module_signature henv (pm : Pmodule.pmodule) : signature =
+let module_signature henv (pm : Pmodule.pmodule0) : signature =
   List.fold_left (add_munit henv) empty pm.mod_units
 
 (* -------------------------------------------------------------------------- *)
@@ -302,7 +297,10 @@ let signature henv (thy : Theory.theory) =
   try Hid.find henv.signatures id
   with Not_found ->
     let hs =
-      try module_signature henv @@ Pmodule.restore_module thy
+      try
+        let pm = Pmodule.restore_module thy in
+        assert (thy == Pmodule.mod_theory pm);
+        module_signature henv pm.mod_intf
       with Not_found -> theory_signature henv thy
     in Hid.add henv.signatures id hs ; hs
 

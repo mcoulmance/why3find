@@ -13,7 +13,6 @@
 module Sid = Why3.Ident.Sid
 module Hid = Why3.Ident.Hid
 module Thy = Why3.Theory
-module Pmod = Why3.Pmodule
 module Mstr = Why3.Wstdlib.Mstr
 
 (* -------------------------------------------------------------------------- *)
@@ -214,6 +213,7 @@ let add_used cenv thy = cenv.used <- thy :: cenv.used
 
 let iter_module cenv ~scope (m : Why3.Pmodule.pmodule) =
   let open Why3.Pmodule in
+  let m = m.mod_intf in
   let rec walk scope = function
     | Uscope(a,mus) -> List.iter (walk @@ a::scope) mus
     | Uclone mi ->
@@ -415,7 +415,10 @@ let pns_find pm kind qid =
 (* Reference Lookup *)
 
 let find kind qid thy =
-  try pns_find (Why3.Pmodule.restore_module thy) kind qid
+  try
+    let pm = Why3.Pmodule.restore_module thy in
+    assert (thy == pm.mod_intf.mod_theory);
+    pns_find pm.mod_intf kind qid
   with Not_found -> ns_find thy.Thy.th_export kind qid
 
 let find_theory kind qid { theory } = find kind qid theory

@@ -29,7 +29,7 @@ val iter_sm : (Ident.ident -> Ident.ident -> unit) -> Theory.symbol_map -> unit
 val iter_mi : (Ident.ident -> Ident.ident -> unit) -> Pmodule.mod_inst -> unit
 
 val pp_thy : Format.formatter -> Theory.theory -> unit (* name *)
-val pp_mod : Format.formatter -> Pmodule.pmodule -> unit (* name *)
+val pp_mod : Format.formatter -> Pmodule.pmodule0 -> unit (* name *)
 val pp_pdecl : Format.formatter -> Pdecl.pdecl -> unit
 val pp_tdecl : Format.formatter -> Theory.tdecl -> unit
 val pp_munit : Format.formatter -> Pmodule.mod_unit -> unit
