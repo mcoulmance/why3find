@@ -306,7 +306,8 @@ let find_pdecl id (pd : Why3.Pdecl.pdecl) =
 let find thy id : decl =
   match Why3.Pmodule.restore_module thy with
   | m ->
-    find_pdecl id (Why3.Ident.Mid.find id m.mod_known)
+    assert (thy == (Why3.Pmodule.restore_module_id id).mod_intf.mod_theory);
+    find_pdecl id (Why3.Ident.Mid.find id m.mod_intf.mod_known)
   | exception Not_found ->
     find_decl id (Why3.Ident.Mid.find id thy.th_known)
 

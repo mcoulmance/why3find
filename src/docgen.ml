@@ -583,7 +583,7 @@ let declaration env n ~local ~source ~container ~target =
     try
       env.declared <- Sid.add target env.declared ;
       let m = Why3.Pmodule.restore_module container in
-      let pd = Why3.Ident.Mid.find target m.mod_known in
+      let pd = Why3.Ident.Mid.find target (Why3.Pmodule.mod_known_intf m) in
       mdecl env n ~local ~source pd ~target
     with Not_found ->
       let td = Why3.Ident.Mid.find target container.th_known in

@@ -11,7 +11,6 @@
 (* -------------------------------------------------------------------------- *)
 
 module Thy = Why3.Theory
-module Pmod = Why3.Pmodule
 module Mstr = Why3.Wstdlib.Mstr
 
 type clone =
