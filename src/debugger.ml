@@ -99,6 +99,12 @@ let rec vc_vars ~goal ?(status=goal) n =
     if status then
       let value = node_status n in
       let index = Option.map (Darray.delayed index_vars) (node_index n) in
+      List.iter
+        (fun (p,r) ->
+           add buffer
+             ~name:(Prover.desc_to_string p.Prover.desc)
+             ~value:(Format.asprintf "%a" Hammer.pp_result r) ()
+        ) (Hammer.results n) ;
       add buffer ~name:"Status" ~value ?index () ;
   end ;
   Darray.contents buffer
@@ -273,14 +279,22 @@ let () = Dap.register "why3/task"
           | Hammer.Thread _ -> ()
           | Hammer.Node n ->
             Format.fprintf fmt
-              "@\nfrom %a" Hammer.pp_state (Hammer.state n) ;
+              "@\n    from %a" Hammer.pp_state (Hammer.state n) ;
             pp_stack fmt (Hammer.parent n)
         in
         let text =
           Format.asprintf
-            "%a%s Proof  %s@\n@\nproof : %a%a@\n@\n%s--------%s@."
+            "%a%s Proof  %s@\n@\n%t(* Status : %a%a *)@\n@\n%s--------%s@."
             Why3.Pretty.print_sequent task
-            line line Hammer.pp_state state
+            line line
+            begin fun fmt ->
+              List.iter
+                (fun (p,r) ->
+                   Format.fprintf fmt "(* Prover %a : %a *)@\n"
+                     Prover.pp_desc p.Prover.desc Hammer.pp_result r
+                ) (Hammer.results node)
+            end
+            Hammer.pp_state state
             pp_stack (Hammer.parent node)
             line line
         in `String text
