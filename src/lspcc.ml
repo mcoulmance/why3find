@@ -433,7 +433,7 @@ let clone source ids =
               List.iter
                 (fun (id,decl) ->
                    Option.iter
-                     (Format.fprintf fmt "@\n  (* %a *)" Crc.pp_crc)
+                     (Format.fprintf fmt "@\n  (* %a *)" Crc.pp_hint)
                      (get_proof source id) ;
                    Format.fprintf fmt "@\n  %a" pp_decl decl ;
                 ) ds
@@ -481,14 +481,14 @@ let lenses _channel ~uri =
           | Clone(_,ids) ->
             let cs = List.filter_map (get_proof source) ids in
             if cs <> [] then
-              let title = Format.asprintf "%a" Crc.pp_crc_all cs in
+              let title = Format.asprintf "%a" Crc.pp_hints cs in
               let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
               pool := Lspserver.resolved pos cmd :: !pool
           | Def id ->
             match get_proof source id with
             | None -> ()
             | Some crc ->
-              let title = Format.asprintf "%a" Crc.pp_crc crc in
+              let title = Format.asprintf "%a" Crc.pp_hint crc in
               let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
               pool := Lspserver.resolved pos cmd :: !pool
       end source.refs ;

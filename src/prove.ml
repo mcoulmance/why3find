@@ -145,7 +145,7 @@ let print_stats allprovers alltactics fmt =
   begin
     Utils.flush () ;
     Format.fprintf fmt "Proofs %t"
-      (Crc.pp_result ~proved:!nproved ~stuck:!nstuck) ;
+      (Crc.pp_checked ~proved:!nproved ~stuck:!nstuck) ;
     if !fixed + !broken + !minimized + !updated = 0 then
       if !nproved >0 then
         Format.fprintf fmt " (unchanged)@\n"
@@ -375,7 +375,7 @@ let report ~(results:results) henv ~lib proofs =
       match results with
       | `Modules | `Default ->
         Format.printf "Library %s: %t@."
-          path (Crc.pp_result ~stuck:!stuck ~proved:!proved) ;
+          path (Crc.pp_checked ~stuck:!stuck ~proved:!proved) ;
         List.iter (report_signature henv ~lib) ths
       | `Theories | `Goals | `Proofs | `Tasks | `Context _ ->
         List.iter
@@ -386,7 +386,7 @@ let report ~(results:results) henv ~lib proofs =
                  (fun (s,p) (_,c) -> s + Crc.get_stuck c, p + Crc.get_proved c)
                  (0,0) goals in
              Format.printf "Theory %s.%s: %t@." path tn
-               (Crc.pp_result ~stuck:s ~proved:p) ;
+               (Crc.pp_checked ~stuck:s ~proved:p) ;
              begin
                match results with
                | `Default | `Modules | `Theories | `Tasks | `Context _ -> ()

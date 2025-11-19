@@ -93,7 +93,7 @@ let nverdict ~stuck:s ~proved:p =
 let verdict crc = nverdict ~stuck:(get_stuck crc) ~proved:(get_proved crc)
 let verdict_all cs = nverdict ~stuck:(get_stuck_all cs) ~proved:(get_proved_all cs)
 
-let pp_result fmt ~stuck:s ~proved:p =
+let pp_checked fmt ~stuck:s ~proved:p =
   if s = 0 then
     if p > 0
     then Format.fprintf fmt "%t (%d)" Utils.pp_ok p
@@ -110,7 +110,7 @@ let pp_status fmt = function
 let pretty fmt crc =
   let s = get_stuck crc in
   let p = get_proved crc in
-  pp_result fmt ~stuck:s ~proved:p
+  pp_checked fmt ~stuck:s ~proved:p
 
 (* -------------------------------------------------------------------------- *)
 (* --- Detailed Printers                                                  --- *)
@@ -132,7 +132,7 @@ let rec provers m (crc : crc) =
 let pp_verdict fmt = function
   | `Valid 0 -> Format.pp_print_string fmt "Valid (no goal)"
   | `Valid _ -> Format.pp_print_string fmt "Valid"
-  | `Failed 1 -> Format.fprintf fmt "No Proof"
+  | `Failed 1 -> Format.fprintf fmt "Failed"
   | `Failed n -> Format.fprintf fmt "Failed (%d goals)" n
   | `Partial (s,n) -> Format.fprintf fmt "Partial (%d/%d)" s n
 
@@ -152,7 +152,7 @@ let pp_provers fmt cs =
   List.iter (provers m) cs ;
   M.iter (pp_solver fmt) !m
 
-let pp_crc fmt (crc : crc) =
+let pp_proof fmt (crc : crc) =
   begin
     pp_verdict fmt @@ verdict crc ;
     pp_time fmt @@ get_time crc ;
@@ -160,13 +160,27 @@ let pp_crc fmt (crc : crc) =
     pp_depth fmt @@ get_depth crc ;
   end
 
-let pp_crc_all fmt (cs : crc list) =
+let pp_proofs fmt (cs : crc list) =
   begin
     pp_verdict fmt @@ verdict_all cs ;
     pp_time fmt @@ get_time_all cs ;
     pp_provers fmt cs ;
     pp_depth fmt @@ get_depth_all cs ;
   end
+
+let pp_hint fmt (crc : crc) =
+  if is_stuck crc then
+    Format.pp_print_string fmt "No proof"
+  else pp_proof fmt crc
+
+let pp_hints fmt = function
+  | [] -> Format.pp_print_string fmt "No goal"
+  | [c] -> pp_hint fmt c
+  | cs ->
+    if List.for_all is_stuck cs then
+      Format.pp_print_string fmt "No proofs"
+    else
+      pp_proofs fmt cs
 
 (* -------------------------------------------------------------------------- *)
 (* --- JSON                                                               --- *)

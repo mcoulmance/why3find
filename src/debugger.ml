@@ -69,13 +69,11 @@ let node_status n =
   match Hammer.state n with
   | Failed -> "Failed"
   | Paused | Scheduled -> "Paused"
-  | Closed crc ->
-    if Crc.is_stuck crc then "Failed" else
-      Format.asprintf "%a" Crc.pp_crc crc
+  | Closed crc -> Format.asprintf "%a" Crc.pp_proof crc
   | Stacked(tactic,children) ->
     Format.asprintf "[%a] %a"
       Tactic.pretty tactic
-      Crc.pp_crc_all (List.map Hammer.proof children)
+      Crc.pp_proofs (List.map Hammer.proof children)
 
 let node_index n =
   match Hammer.state n with

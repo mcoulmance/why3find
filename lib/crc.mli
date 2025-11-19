@@ -59,14 +59,18 @@ val is_complete : crc -> bool
 
 val pretty : Format.formatter -> crc -> unit
 val pp_status : Format.formatter -> status -> unit
-val pp_result : Format.formatter -> stuck:int -> proved:int -> unit
+val pp_checked : Format.formatter -> stuck:int -> proved:int -> unit
 
 val pp_time : Format.formatter -> float -> unit
 val pp_depth : Format.formatter -> int -> unit
 val pp_provers : Format.formatter -> crc list -> unit
 val pp_verdict : Format.formatter -> verdict -> unit
-val pp_crc : Format.formatter -> crc -> unit
-val pp_crc_all : Format.formatter -> crc list -> unit
+
+val pp_hint : Format.formatter -> crc -> unit
+val pp_hints : Format.formatter -> crc list -> unit
+
+val pp_proof : Format.formatter -> crc -> unit
+val pp_proofs : Format.formatter -> crc list -> unit
 
 val dump : Format.formatter -> crc -> unit
 val update : ?complete:bool -> hint:crc -> crc -> crc
