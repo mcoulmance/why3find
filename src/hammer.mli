@@ -42,12 +42,17 @@ type node
 type parent =
   | Node of node
   | Thread of { id : int ; callback : (Crc.crc -> unit) }
+
 type state =
   | Paused            (* in q_paused *)
   | Failed            (* in q_failed *)
   | Scheduled         (* in q_proven or q_broken *)
   | Closed of Crc.crc (* not in any queue *)
   | Stacked of Tactic.tactic * node list (* children still queued *)
+
+type result =
+  | Local of Result.t
+  | Profile of Result.t
 
 val proof : node -> Crc.crc
 val goal : node -> Session.goal
@@ -56,9 +61,13 @@ val state : node -> state
 val thread_id : node -> int
 val chunks : node -> Vc.context
 val context : node -> Vc.context
+val result : node -> Prover.prover -> result
+val results : node -> (Prover.prover * result) list
 
 val pp_node : Format.formatter -> node -> unit
 val pp_state : Format.formatter -> state -> unit
+val pp_result : Format.formatter -> result -> unit
+
 
 (** Creates a root node for some goal to be proved. *)
 val thread : hammer -> ?id:int -> ?callback:(crc -> unit) -> goal -> crc -> node

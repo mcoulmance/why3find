@@ -313,11 +313,9 @@ let velocity wmain cache profile prv : float Fibers.t =
       g.alpha <- Some ga ; ga
 
 let observed profile prv =
-  try
-    match Hashtbl.find profile prv.desc |> Fibers.find with
-    | { alpha = Some ga } -> Fibers.find ga
-    | _ -> 1.0
-  with Not_found -> 1.0
+  match Hashtbl.find profile prv.desc |> Fibers.find with
+  | { alpha = Some ga } -> Fibers.find ga
+  | _ -> raise Not_found
 
 let mem = Hashtbl.mem
 

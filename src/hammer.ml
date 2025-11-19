@@ -374,6 +374,24 @@ let prove ?cancel timeout prover = fun n ->
   | Valid t when t <= timeout -> Valid(prover,Utils.round t)
   | _ -> if !killed then Killed else Unknown
 
+type result = Local of Result.t | Profile of Result.t
+
+let result n prover =
+  let cache = n.hammer.env.cache in
+  let profile = n.hammer.profile in
+  let result = Cache.get cache (Session.goal_task n.goal) prover in
+  try
+    let alpha = Calibration.observed profile prover in
+    Profile (Result.map (fun t -> t /. alpha) result)
+  with Not_found ->
+    Local result
+
+let results (n : node) = List.map (fun p -> p, result n p) n.hammer.provers
+
+let pp_result fmt = function
+  | Profile r -> Result.pp_result fmt r
+  | Local r -> Format.fprintf fmt "%a (local)" Result.pp_result r
+
 (* -------------------------------------------------------------------------- *)
 (* --- Tactic Hint                                                        --- *)
 (* -------------------------------------------------------------------------- *)
