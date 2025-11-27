@@ -50,9 +50,7 @@ and parent =
   | Node of node
   | Thread of { id : int ; callback : (Crc.crc -> unit) }
 
-let pp_node fmt n =
-  Format.fprintf fmt "%s[%s]"
-    (Session.goal_name n.goal) (Session.goal_expl n.goal)
+let pp_node fmt n = Session.pp_goal fmt n.goal
 
 let goal n = n.goal
 let state n = n.state

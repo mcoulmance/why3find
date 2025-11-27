@@ -237,7 +237,7 @@ let debug_print_task fmt buf =
 
 let call_prover (config : Why3.Whyconf.main)
     ?(name : string option)
-    ?(idename : string option)
+    ?(idename = "<none>")
     ?(cancel : unit Fibers.signal option)
     ?(callback : callback option)
     ~(prepared : Buffer.t)
@@ -336,7 +336,7 @@ let call_prover (config : Why3.Whyconf.main)
           if log = stdout then Utils.flush ();
           Printf.fprintf log "%a\n" (Yojson.pretty_to_channel ~std:false)
             (`Assoc [
-                ("goal", `String (match idename with None -> "<none>" | Some s -> s));
+                ("goal", `String idename);
                 ("prover", `String (Prover.fullname prover));
                 ("timeout", `Float timeout);
                 ("time", `Float pr.pr_time);

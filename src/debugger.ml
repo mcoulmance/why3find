@@ -111,9 +111,9 @@ and index_vars children =
   Darray.list @@
   List.mapi
     (fun i n ->
-       let expl = Session.goal_expl @@ Hammer.goal n in
+       let name = Session.goal_idename @@ Hammer.goal n in
        let status = node_status n in
-       let value = Printf.sprintf "%s %s" expl status in
+       let value = Printf.sprintf "%s %s" name status in
        Dap.variable
          ~name:(string_of_int i) ~value
          ~named:(Darray.delayed (vc_vars ~status:false ~goal:true) n)
@@ -143,7 +143,7 @@ let frame n =
   let name =
     match Hammer.state n with
     | Stacked(tactic,_) -> Tactic.name tactic
-    | _ -> Session.goal_expl @@ Hammer.goal n in
+    | _ -> Session.goal_idename @@ Hammer.goal n in
   Dap.frame ~name ?range ~scopes:[
     vc_scope ~goal:false n ;
     vc_scope ~goal:true n ;
@@ -426,7 +426,7 @@ let on_failed node =
     let goal = Hammer.goal node in
     try
       let id = Hammer.thread_id node in
-      let gname = Session.goal_expl goal in
+      let gname = Session.goal_idename goal in
       let thread = Dap.find id in
       let name = Dap.name thread in
       stopping := Some (thread,`error) ;
