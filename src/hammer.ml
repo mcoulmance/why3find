@@ -139,12 +139,12 @@ let q_fail n =
   n.state <- Failed ; Fibers.emit failed n ; Fibers.Queue.push q_paused n
 let q_close n crc =
   n.state <- Closed crc ; n.proof <- Some crc ; update crc n.parent
-let q_schedule ~stepping n =
+let q_schedule n =
   try
     Fibers.Queue.iter (fun fn -> if not (fn n) then raise Exit) filters ;
     n.state <- Scheduled ;
     Queue.push n @@
-    if not stepping && Crc.is_complete n.hint then q_proven else q_broken ;
+    if Crc.is_complete n.hint then q_proven else q_broken ;
   with Exit -> q_pause n
 
 let iter f =
@@ -164,13 +164,12 @@ let runmode = ref Running
 let subgoal n =
   match !runmode with
   | Interrupting -> q_close n (proof n)
-  | Running -> q_schedule ~stepping:false n
-  | StepOut -> q_schedule ~stepping:true n
+  | Running | StepOut -> q_schedule n
   | Pausing | StepIn -> q_pause n
 
 let schedule n =
   match n.state with
-  | Paused -> q_schedule ~stepping:true n
+  | Paused -> q_schedule n
   | Failed -> q_close n (stuck n)
   | Scheduled | Stacked _ | Closed _ -> ()
 
