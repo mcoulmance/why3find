@@ -168,20 +168,28 @@ let frames thread =
 (* ---  Current Node                                                      --- *)
 (* -------------------------------------------------------------------------- *)
 
-let rec current n =
-  match Hammer.state n with
-  | Closed _ -> None
-  | Paused | Scheduled | Failed -> Some n
-  | Stacked(_,children) -> List.find_map current children
 
-let rec context n =
-  match Hammer.state n with
-  | Closed _ -> None
-  | Paused | Scheduled | Failed -> None
-  | Stacked(_,children) ->
-    match List.find_map context children with
-    | None -> Some children
-    | Some _ as result -> result
+let current root =
+  let exception Failed of Hammer.node in
+  let rec waiting last n =
+    match Hammer.state n with
+    | Closed _ -> last
+    | Failed -> raise (Failed n)
+    | Paused | Scheduled -> if last = None then Some n else last
+    | Stacked(_,children) -> List.fold_left waiting last children
+  in
+  try waiting None root with Failed n -> Some n
+
+let context root =
+  Option.bind (current root)
+    begin fun n ->
+      match Hammer.parent n with
+      | Hammer.Thread _ -> None
+      | Hammer.Node p ->
+        match Hammer.state p with
+        | Stacked(_,children) -> Some children
+        | _ -> None
+    end
 
 (* -------------------------------------------------------------------------- *)
 (* ---  BreakPoints                                                       --- *)
