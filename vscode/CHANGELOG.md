@@ -3,6 +3,11 @@
 All notable changes to the "why3-platform" VSCode extension will be documented
 in this file.
 
-## [Unreleased]
+## [1.2.0+dev]
 
-- Initial release
+- Debug Adapter Protocol
+
+## [1.1.0]
+
+- Language configuration
+- Language Server Protocol
