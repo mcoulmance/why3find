@@ -219,7 +219,7 @@ let hit_breakpoints thread =
       let vc = Hammer.context n in
       List.filter_map
         (function Brk b ->
-           if b.active && b.line <= vc.g2 then
+           if b.active && b.line <= vc.h2 then
              (b.active <- false ; Some b.id)
            else None)
         (Hashtbl.find_all breakpoints (Dap.id thread))
@@ -272,7 +272,7 @@ let () = Dap.register "why3/task"
       | Some node ->
         let task = Session.goal_task @@ Hammer.goal node in
         let state = Hammer.state node in
-        let line = "------------------------------" in
+        let line = String.make 30 '-' in
         let rec pp_stack fmt = function
           | Hammer.Thread _ -> ()
           | Hammer.Node n ->
