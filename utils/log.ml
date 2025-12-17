@@ -17,20 +17,23 @@ let summary = Queue.create ()
 
 type level = [ `Message | `Warning | `Error ]
 
-let pp_error pp = pp Format.err_formatter
-let summarize pp = Queue.push pp summary ; pp_error pp
+let pp_stdout = ref (fun pp -> pp Format.std_formatter)
+let pp_stderr = ref (fun pp -> pp Format.err_formatter)
+
+let summarize_err pp = Queue.push pp summary ; !pp_stderr pp
 
 let output level pp =
   Utils.flush ();
   match level with
-  | `Message -> Format.printf "@[<hov>%t@]@." pp
+  | `Message ->
+    Format.kdprintf !pp_stdout "@[<hov>%t@]@." pp
   | `Warning ->
     incr warnings ;
-    Format.kdprintf summarize
+    Format.kdprintf summarize_err
       "@[<hov>@{<bold>@{<bright magenta>Warning:@}@} %t@]@." pp
   | `Error ->
     incr errors ;
-    Format.kdprintf summarize
+    Format.kdprintf summarize_err
       "@[<hov>@{<bold>@{<bright red>Error:@}@} %t@]@." pp
 
 let set_log b =
@@ -41,14 +44,11 @@ let emit ?(level=`Message) msg =
   then Format.kdprintf (output level) msg
   else Format.ifprintf Format.std_formatter msg
 
-let message format =
-  emit ~level:`Message format
-
-let warning format =
-  emit ~level:`Warning format
-
-let error format =
-  emit ~level:`Error format
+let printf msg = Format.kdprintf !pp_stdout msg
+let eprintf msg = Format.kdprintf !pp_stderr msg
+let message msg = emit ~level:`Message msg
+let warning msg = emit ~level:`Warning msg
+let error   msg = emit ~level:`Error   msg
 
 let summary () =
   if !is_log_on then
@@ -58,14 +58,14 @@ let summary () =
         Utils.flush ();
         if not Utils.tty || Utils.overflows () then
           begin
-            Format.printf "Summary:@.";
-            Queue.iter pp_error summary ;
+            eprintf "Summary:@.";
+            Queue.iter !pp_stderr summary ;
           end ;
-        Format.printf "Emitted %d warning%a" wrn Utils.pp_s wrn ;
+        printf "Emitted %d warning%a" wrn Utils.pp_s wrn ;
         let err = !errors in
         if err > 0 then
-          Format.printf ", %d error%a" err Utils.pp_s err ;
-        Format.printf "@."
+          printf ", %d error%a" err Utils.pp_s err ;
+        printf "@."
       end
 
 let exit_summary () =

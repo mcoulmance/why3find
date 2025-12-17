@@ -6,9 +6,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-type pos = int * int
-type range = pos * pos
-
 type t =
   | Empty
   | Line of string
@@ -27,15 +24,13 @@ let rec line_at l = function
     let n = lines left in
     if l < n then line_at l left else line_at (l-n) right
 
-let char_at (l,c) a = String.get (line_at l a) c
-
-let start = 0,0
+let char_at (p:Range.pos) a = String.get (line_at p.line a) p.col
 
 let eof a =
-  let rec last l = function
-    | Empty -> l, 0
-    | Line s -> l, String.length s
-    | Cat { left ; right } -> last (l + lines left) right
+  let rec last line = function
+    | Empty -> Range.at ~line ()
+    | Line s -> Range.at ~line ~col:(String.length s) ()
+    | Cat { left ; right } -> last (line + lines left) right
   in last 0 a
 
 (* -------------------------------------------------------------------------- *)
@@ -137,16 +132,16 @@ let suffix_string c s =
     let n = String.length s in
     if c < n then String.sub s c (n-c) else ""
 
-let prefix p a =
+let prefix (p:Range.pos) a =
   let rec wprefix acc l = function
     | Empty -> acc, ""
     | Line s -> acc, if l = 0 then s else ""
     | Cat { left ; right } ->
       let n = lines left in
       if l < n then wprefix acc l left else wprefix (acc ++ left) (l-n) right
-  in let w,s =  wprefix Empty (fst p) a in w , prefix_string (snd p) s
+  in let w,s =  wprefix Empty p.line a in w , prefix_string p.col s
 
-let suffix p a =
+let suffix (p:Range.pos) a =
   let rec wsuffix l a acc =
     match a with
     | Empty -> "", acc
@@ -154,7 +149,7 @@ let suffix p a =
     | Cat { left ; right } ->
       let n = lines left in
       if l < n then wsuffix l left (right ++ acc) else wsuffix (l-n) right acc
-  in let s,w =  wsuffix (fst p) a Empty in suffix_string (snd p) s, w
+  in let s,w =  wsuffix p.line a Empty in suffix_string p.col s, w
 
 let update (p,q) s a =
   if Range.(<<=) p q then
@@ -165,13 +160,14 @@ let update (p,q) s a =
     end
   else a
 
-let substring (p,q) a =
-  let l1 = fst p in
-  let l2 = snd q in
+let substring ((p,q):Range.range) a =
+  let l1 = p.line in
+  let l2 = q.line in
   if l1 > l2 then "" else
   if l1 < l2 then
+    let wq = Range.at ~line:(l2-l1-1) ~col:q.col () in
     let u,w = suffix p a in
-    let w,v = prefix (l2-l1-1,snd q) w in
+    let w,v = prefix wq w in
     let b = Buffer.create 0 in
     ignore (bline b u) ;
     ignore (blines b w) ;
@@ -179,6 +175,6 @@ let substring (p,q) a =
     Buffer.contents b ;
   else
     let u = line_at l1 a in
-    let p = max (snd p) 0 in
-    let q = min (snd q) (String.length u) in
+    let p = max p.col 0 in
+    let q = min q.col (String.length u) in
     if p < q then String.sub u p (q-p) else ""

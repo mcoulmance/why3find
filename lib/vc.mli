@@ -11,9 +11,18 @@
 (* -------------------------------------------------------------------------- *)
 
 type kind = Goal | When | WhenNot
-type chunk = { kind : kind ; range : Range.range }
+type chunk = { kind : kind ; range : Range.range ; term : Why3.Term.term }
+type context = {
+  file : string ;
+  g1 : int ; g2 : int ;
+  h1 : int ; h2 : int ;
+  chunks : chunk list ;
+}
 
-val chunks: file:string -> Why3.Task.task -> chunk list
+val by_range : chunk -> chunk -> int
+val by_context : context -> context -> int
 
 val dump : file:string -> Why3.Task.task -> unit
+val chunks : file:string -> Why3.Theory.theory -> Why3.Task.task -> context
+val context : file:string -> Why3.Theory.theory -> Why3.Task.task -> context
 val highlight : file:string -> context:int -> Why3.Theory.theory -> Why3.Task.task -> unit

@@ -122,21 +122,32 @@ let is_empty = function
 
 let is_nonnull = function `Null -> false | _ -> true
 
+let null = `Null
 let int n  = `Int n
+let bool b = `Bool b
 let string s = `String s
 
-let assoc ?(keepnull=false) fts =
+let assoc ?(keepnull=false) ?(nullempty=false) fts =
   if keepnull then `Assoc fts
-  else `Assoc (List.filter (fun (_,v) -> is_nonnull v) fts)
+  else
+    match List.filter (fun (_,v) -> is_nonnull v) fts with
+    | [] when nullempty -> `Null
+    | lts -> `Assoc lts
 
-let list ?(keepnull=false) js =
+let list ?(keepnull=false) ?(nullempty=false) js =
   if keepnull then `List js
-  else `List (List.filter is_nonnull js)
+  else
+    match List.filter is_nonnull js with
+    | [] when nullempty -> `Null
+    | ls -> `List ls
 
 let option_map f = function None -> `Null | Some a -> f a
 
-let list_map ?(keepnull=false) f xs = `List
-    (List.filter_map
-       (fun x -> let v = f x in if keepnull || is_nonnull v then Some v else None) xs)
+let list_map ?(keepnull=false) ?(nullempty=false) f xs =
+  match
+    List.filter_map
+      (fun x -> let v = f x in if keepnull || is_nonnull v then Some v else None)
+      xs
+  with [] when nullempty -> `Null | js -> `List js
 
 (* -------------------------------------------------------------------------- *)

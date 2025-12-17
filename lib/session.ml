@@ -57,38 +57,45 @@ let save = function Session { session } ->
 (* ---  Theories                                                          --- *)
 (* -------------------------------------------------------------------------- *)
 
-type theory = Thy of { session : S.session ; theory : S.theory }
+type theory = Thy of { file : S.file ; session : S.session ; theory : S.theory }
 
 let name (Thy t) = (S.theory_name t.theory).id_string
 let theory (Thy t) = Th.restore_theory (S.theory_name t.theory)
 
 let theories (Session { file ; session }) : theory list =
-  List.map (fun theory -> Thy { theory ; session }) (S.file_theories file)
+  List.map (fun theory -> Thy { file ; theory ; session }) (S.file_theories file)
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Goals                                                             --- *)
 (* -------------------------------------------------------------------------- *)
 
 type goal = Goal of {
+    file : S.file ;
+    theory : S.theory ;
     session : S.session ;
     node : S.proofNodeID ;
     task : T.task ;
     idename :  string ;
   }
 
-let split (Thy { session ; theory }) : goal list =
+let split (Thy { file ; session ; theory }) : goal list =
   List.map
     (fun node ->
        let task = S.get_task session node in
        let idename = task_name task in
-       Goal { session ; node ; task ; idename }
+       Goal { file ; session ; theory ; node ; task ; idename }
     ) @@ S.theory_goals theory
 
 let split = Timer.timed ~name:"Split theories" split
 
 let goal_task (Goal g) = g.task
 let goal_idename (Goal g) = g.idename
+let goal_theory (Goal g) = Th.restore_theory (S.theory_name g.theory)
 let goal_loc g = (T.task_goal (goal_task g)).pr_name.id_loc
+let goal_file (Goal g) =
+  match (T.task_goal g.task).pr_name.id_loc with
+  | Some loc -> let file,_,_,_,_ = Why3.Loc.get loc in file
+  | None -> String.concat Filename.dir_sep @@ Why3.Sysutil.decompose_path @@ S.file_path g.file
 let goal_name g = task_name @@ goal_task g
 let goal_expl g = task_expl @@ goal_task g
 
@@ -124,7 +131,8 @@ let result (Goal { session ; node }) prv limits result =
   end ;
   S.update_goal_node silent session node
 
-let apply env tactic ?(allow_no_effect=false) (Goal { session ; node ; idename }) =
+let apply env tactic ?(allow_no_effect=false)
+    (Goal { file ; session ; theory ; node ; idename }) =
   try
     let tr = Tactic.name tactic in
     let ts = S.apply_trans_to_goal session env ~allow_no_effect tr [] node in
@@ -137,7 +145,7 @@ let apply env tactic ?(allow_no_effect=false) (Goal { session ; node ; idename }
     let child i node =
       let task = S.get_task session node in
       let idename = Printf.sprintf "%s.%d" idename i in
-      Goal { session ; node ; task ; idename }
+      Goal { file ; session ; theory ; node ; task ; idename }
     in Some (List.mapi child nodes)
   with S.NoProgress | Why3.Trans.TransFailure _ -> None
 

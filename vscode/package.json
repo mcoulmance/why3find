@@ -37,23 +37,6 @@
         "path": "./why3.syntax.json"
       }
     ],
-    "configuration": {
-      "type": "object",
-      "title": "Example configuration",
-      "properties": {
-        "why3lsp.trace.server": {
-          "scope": "window",
-          "type": "string",
-          "enum": [
-            "off",
-            "messages",
-            "verbose"
-          ],
-          "default": "off",
-          "description": "Trace exchanges with the LSP Server."
-        }
-      }
-    },
     "commands": [
       {
         "category": "Why3",
@@ -64,6 +47,25 @@
         "category": "Why3",
         "command": "why3.lsp.stop",
         "title": "Stop the Why3 LSP Server"
+      },
+      {
+        "category": "Why3",
+        "command": "why3.dap.start",
+        "title": "Start the Why3 Debugger",
+        "enablement": "!inDebugMode",
+        "icon": "$(debug-alt)"
+      },
+      {
+        "category": "Why3",
+        "command": "why3.diagnostic.clear",
+        "title": "Clear Failed Proofs",
+        "icon": "$(clear-all)"
+      },
+      {
+        "category": "Why3",
+        "command": "why3.debug.task",
+        "title": "Show Proof Task",
+        "icon": "$(open-preview)"
       }
     ],
     "submenus": [
@@ -79,6 +81,19 @@
           "group": "action"
         }
       ],
+      "editor/title/run": [
+        {
+          "command": "why3.dap.start",
+          "when": "resourceLangId == why3",
+          "group": "navigation@1"
+        }
+      ],
+      "debug/toolBar": [
+        {
+          "command": "why3.debug.task",
+          "when": "debugType == why3"
+        }
+      ],
       "why3.menu": [
         {
           "command": "why3.lsp.start",
@@ -87,9 +102,21 @@
         {
           "command": "why3.lsp.stop",
           "when": "resourceLangId == why3"
+        },
+        {
+          "command": "why3.diagnostic.clear",
+          "when": "resourceLangId == why3"
         }
       ]
-    }
+    },
+    "breakpoints": [ { "language": "why3" } ],
+    "debuggers": [
+      {
+        "type": "why3",
+        "label": "Why3 Debug",
+        "languages": [ "why3" ]
+      }
+    ]
   },
   "scripts": {
     "start": "tsc -b -w",

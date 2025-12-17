@@ -58,6 +58,8 @@ let par a b =
 
 module Monad =
 struct
+  let (>>=) = bind
+  let (|>>) = apply
   let (let*) = bind
   let (let+) = apply
   let (and*) = par
@@ -77,8 +79,10 @@ sig
   val length : 'a t -> int
   val push : 'a t -> 'a -> unit
   val pop : 'a t -> 'a
-  val iter : 'a t -> ('a -> unit) -> unit
-  val filter : 'a t -> ('a -> bool) -> unit
+  val iter : ('a -> unit) -> 'a t -> unit
+  val flush : ('a -> unit) -> 'a t -> unit
+  val filter : ('a -> bool) -> 'a t -> unit
+  val elements : 'a t -> 'a list
   val clear : 'a t -> unit
 end =
 struct
@@ -112,26 +116,30 @@ struct
       if q.size > 0 then q.size <- pred q.size ;
       q.head <- hd ; h
 
-  let flatten q =
-    match q.tail with
-    | [] -> q.head
-    | tl ->
-      q.tail <- [] ;
-      let xs = q.head @ List.rev tl in q.head <- xs ; xs
-
-  let filter q f =
-    q.size <- (-1) ;
-    q.head <- List.filter f @@ flatten q
-
-  let iter q f =
-    List.iter f @@ flatten q
-
   let clear q =
     begin
       q.size <- 0 ;
       q.head <- [] ;
       q.tail <- [] ;
     end
+
+  let elements q =
+    match q.tail with
+    | [] -> q.head
+    | tl ->
+      q.tail <- [] ;
+      let xs = q.head @ List.rev tl in q.head <- xs ; xs
+
+  let iter f q =
+    List.iter f @@ elements q
+
+  let flush f q =
+    let xs = elements q in
+    clear q ; List.iter f xs
+
+  let filter f q =
+    q.size <- (-1) ;
+    q.head <- List.filter f @@ elements q
 
 end
 
@@ -142,9 +150,9 @@ end
 type 'a signal = ('a -> unit) Queue.t
 
 let signal = Queue.create
-let emit s v = Queue.iter s (fun f -> f v)
+let emit s v = Queue.iter (fun f -> f v) s
 let on = Queue.push
-let off q k = Queue.filter q (fun k0 -> k0 != k)
+let off q k = Queue.filter (fun k0 -> k0 != k) q
 let once q k = let rec fn v = k v ; off q fn in on q fn
 let clear = Queue.clear
 let connected s = Queue.length s > 0
@@ -223,7 +231,7 @@ let yield =
       begin
         lock := true ;
         try
-          Queue.filter queue (fun yd -> yd ()) ;
+          Queue.filter (fun yd -> yd ()) queue ;
           lock := false ;
         with exn ->
           lock := false ;

@@ -14,6 +14,7 @@ val mkdirs : string -> unit
 val rmpath : string -> unit
 val copy : src:string -> tgt:string -> unit
 val locate : string -> (string * string) option
+val is_local : root:string -> file:string -> bool
 val chdir : string -> unit
 val absolute : string -> string
 val path : ?root:string -> string -> string
@@ -54,14 +55,18 @@ val pa_time : string -> float (* seconds *)
 val pp_s : Format.formatter -> int -> unit
 val pp_yies : Format.formatter -> int -> unit
 
+val to_string : (Format.formatter -> 'a -> unit) -> 'a -> string
+
 val round : float -> float
 
 val show_progress_opt : string * Arg.spec * string
 
 val tty : bool
+val set_ansi_tags : Format.formatter -> unit
+
 val flush : unit -> unit
 val overflows : unit -> bool
 val progress : ('a,Format.formatter,unit) format -> 'a
-val failwith : ('a, Format.formatter, unit, 'b) format4 -> 'a
+val failwith : ('a,Format.formatter,unit,'b) format4 -> 'a
 
 (* -------------------------------------------------------------------------- *)

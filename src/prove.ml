@@ -97,7 +97,24 @@ let rec node_stats (a : Crc.crc) (b : Crc.crc) =
 
   end
 
-let stats a b =
+let clear_stats () =
+  begin
+    unchanged := 0 ;
+    updated := 0 ;
+    minimized := 0 ;
+    fixed := 0 ;
+    broken := 0 ;
+    nstuck := 0 ;
+    nproved := 0 ;
+    adepth := 0 ;
+    bdepth := 0 ;
+    atime := 0.0 ;
+    btime := 0.0 ;
+    Hashtbl.clear provers ;
+    Hashtbl.clear tactics ;
+  end
+
+let merge_stats a b =
   begin
     node_stats a b ;
     full_stats b ;
@@ -124,38 +141,38 @@ let print_depth fmt =
       if d > 0 then Format.fprintf fmt " (+%d)" d ;
     end
 
-let print_stats allprovers alltactics =
+let print_stats allprovers alltactics fmt =
   begin
     Utils.flush () ;
-    Format.printf "Proofs %t"
-      (Crc.pp_result ~proved:!nproved ~stuck:!nstuck) ;
+    Format.fprintf fmt "Proofs %t"
+      (Crc.pp_checked ~proved:!nproved ~stuck:!nstuck) ;
     if !fixed + !broken + !minimized + !updated = 0 then
       if !nproved >0 then
-        Format.printf " (unchanged)@\n"
+        Format.fprintf fmt " (unchanged)@\n"
       else
-        Format.printf " (none)@\n"
+        Format.fprintf fmt " (none)@\n"
     else
       begin
-        Format.print_newline () ;
+        Format.pp_print_newline fmt () ;
         if !unchanged > 0 then
-          Format.printf " - unchanged: %d@\n" !unchanged ;
+          Format.fprintf fmt " - unchanged: %d@\n" !unchanged ;
         if !fixed > 0 then
-          Format.printf " - fixed: @{<green>%d@}@\n" !fixed ;
+          Format.fprintf fmt " - fixed: @{<green>%d@}@\n" !fixed ;
         if !minimized > 0 then
-          Format.printf " - minimized: @{<green>%d@}@\n" !minimized ;
+          Format.fprintf fmt " - minimized: @{<green>%d@}@\n" !minimized ;
         if !updated > 0 then
-          Format.printf " - updated: @{<orange>%d@}@\n" !updated ;
+          Format.fprintf fmt " - updated: @{<orange>%d@}@\n" !updated ;
         if !broken > 0 then
-          Format.printf " - broken: @{<red>%d@}@\n" !broken ;
+          Format.fprintf fmt " - broken: @{<red>%d@}@\n" !broken ;
       end ;
     if !btime > 0.0 || !bdepth > 0 then
-      Format.printf "Provers %t%t@\n" print_time print_depth ;
+      Format.fprintf fmt "Provers %t%t@\n" print_time print_depth ;
     List.iter
       (fun (prv : Prover.prover) ->
          try
            let id = Prover.fullname prv in
            let s = Hashtbl.find provers id in
-           Format.printf " - %-20s (%4d) (%a - %a - %a)@\n"
+           Format.fprintf fmt " - %-20s (%4d) (%a - %a - %a)@\n"
              id (Stats.count s)
              Utils.pp_rtime (Stats.min s)
              Utils.pp_rtime (Stats.average s)
@@ -167,10 +184,10 @@ let print_stats allprovers alltactics =
          try
            let id = Tactic.name tac in
            let s = Hashtbl.find tactics id in
-           Format.printf " - %-20s (%4d)@\n" id !s
+           Format.fprintf fmt " - %-20s (%4d)@\n" id !s
          with Not_found -> ()
       ) alltactics ;
-    Format.print_flush ()
+    Format.pp_print_flush fmt ()
   end
 
 (* -------------------------------------------------------------------------- *)
@@ -181,17 +198,18 @@ let accept ~gnames thy goal =
   List.mem thy gnames || List.mem (thy ^ "." ^ (Session.goal_name goal)) gnames
 
 let prove_goal ~file ~hammer ~results ~force buffer theory gname goal hint =
-  let+ crc =
-    Crc.merge hint @+
-    Hammer.schedule hammer goal (if force then Crc.stuck () else hint)
-  in
+  let hint = if force then Crc.stuck () else hint in
+  let result = Fibers.var () in
+  let callback = Fibers.set result in
+  let _root = Hammer.thread hammer goal ~callback hint in
+  let+ crc = Crc.update ~hint @+ result in
   Option.iter (Proofs.add theory goal crc) buffer;
-  if Utils.tty then stats hint crc ;
+  if Utils.tty then merge_stats hint crc ;
   if not (Crc.is_complete crc) then
     begin
       Utils.flush () ;
       Option.iter
-        (Format.printf "%a: proof failed@." Why3.Loc.pp_position)
+        (Format.printf "%a: proof failed@." Wutil.pp_position)
         (Session.goal_loc goal) ;
       Format.printf "@[<v2>Goal @{<red>%s.%s@}: %a@]@."
         (Session.name theory) gname Crc.pretty crc ;
@@ -357,7 +375,7 @@ let report ~(results:results) henv ~lib proofs =
       match results with
       | `Modules | `Default ->
         Format.printf "Library %s: %t@."
-          path (Crc.pp_result ~stuck:!stuck ~proved:!proved) ;
+          path (Crc.pp_checked ~stuck:!stuck ~proved:!proved) ;
         List.iter (report_signature henv ~lib) ths
       | `Theories | `Goals | `Proofs | `Tasks | `Context _ ->
         List.iter
@@ -368,7 +386,7 @@ let report ~(results:results) henv ~lib proofs =
                  (fun (s,p) (_,c) -> s + Crc.get_stuck c, p + Crc.get_proved c)
                  (0,0) goals in
              Format.printf "Theory %s.%s: %t@." path tn
-               (Crc.pp_result ~stuck:s ~proved:p) ;
+               (Crc.pp_checked ~stuck:s ~proved:p) ;
              begin
                match results with
                | `Default | `Modules | `Theories | `Tasks | `Context _ -> ()
@@ -399,7 +417,10 @@ let report ~(results:results) henv ~lib proofs =
 
 type mode = [ `Force | `Update | `Minimize | `Replay ]
 
-let process ~env ~level ~mode ~session ~results ~provers ~tactics ~axioms ~unsuccess ~gnames file =
+let process ~env
+    ?(level=4) ?(mode:mode=`Update) ?provers ?tactics
+    ?(results:results=`Default) ?(session=false) ?(axioms=false) ?unsuccess
+    ?(gnames=[]) file =
   Fibers.background @@
   begin
     let save = session in
@@ -418,14 +439,14 @@ let process ~env ~level ~mode ~session ~results ~provers ~tactics ~axioms ~unsuc
     let buffer = (* the proof strategy must be kept to stabilize crc files *)
       if (mode = `Replay)
       then None
-      else Some (Proofs.create file profile strategy) in
+      else Some (Proofs.create ~file profile strategy) in
     let force = (mode = `Force) in
     let hammer =
       Hammer.create
         ~level
         ~replay:(mode = `Replay)
         ~minimize:(mode = `Minimize)
-        ~provers ~tactics ~profile
+        ?provers ?tactics ~profile
         env in
     let* proofs =
       Fibers.all @@ List.map
@@ -440,7 +461,7 @@ let process ~env ~level ~mode ~session ~results ~provers ~tactics ~axioms ~unsuc
       else None in
     Utils.flush () ;
     let failed = report ~results henv ~lib proofs in
-    if failed then unsuccess := file :: !unsuccess ;
+    Option.iter (fun r -> if failed then r := file :: !r) unsuccess ;
     Fibers.return ()
   end
 
@@ -474,8 +495,8 @@ let prove_files ~(env:Project.env)
     Utils.flush () ;
     if Utils.tty || details then
       begin
-        Runner.print_stats () ;
-        print_stats
+        Format.printf "%t" Runner.print_stats ;
+        Format.printf "%t" @@ print_stats
           (if details then provers else [])
           (if details then tactics else []) ;
       end ;

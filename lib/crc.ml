@@ -93,7 +93,7 @@ let nverdict ~stuck:s ~proved:p =
 let verdict crc = nverdict ~stuck:(get_stuck crc) ~proved:(get_proved crc)
 let verdict_all cs = nverdict ~stuck:(get_stuck_all cs) ~proved:(get_proved_all cs)
 
-let pp_result fmt ~stuck:s ~proved:p =
+let pp_checked fmt ~stuck:s ~proved:p =
   if s = 0 then
     if p > 0
     then Format.fprintf fmt "%t (%d)" Utils.pp_ok p
@@ -110,7 +110,77 @@ let pp_status fmt = function
 let pretty fmt crc =
   let s = get_stuck crc in
   let p = get_proved crc in
-  pp_result fmt ~stuck:s ~proved:p
+  pp_checked fmt ~stuck:s ~proved:p
+
+(* -------------------------------------------------------------------------- *)
+(* --- Detailed Printers                                                  --- *)
+(* -------------------------------------------------------------------------- *)
+
+module M = Map.Make(String)
+
+let add k a =
+  M.add k (try succ @@ M.find k a with Not_found -> 1) a
+
+let rec provers m (crc : crc) =
+  match crc.status with
+  | Stuck -> ()
+  | Prover (p, _) ->
+    m := add (Prover.desc_name p) !m
+  | Tactic { id ; children } ->
+    m := add id !m ; List.iter (provers m) children
+
+let pp_verdict fmt = function
+  | `Valid 0 -> Format.pp_print_string fmt "Valid (no goal)"
+  | `Valid _ -> Format.pp_print_string fmt "Valid"
+  | `Failed 1 -> Format.fprintf fmt "Failed"
+  | `Failed n -> Format.fprintf fmt "Failed (%d goals)" n
+  | `Partial (s,n) -> Format.fprintf fmt "Partial (%d/%d)" s n
+
+let pp_time fmt t =
+  if t > 1e-3 then Format.fprintf fmt " (%a)" Utils.pp_time t
+
+let pp_depth fmt d =
+  if d > 0 then Format.fprintf fmt " (depth %d)" d
+
+let pp_solver fmt p n =
+  if n > 1
+  then Format.fprintf fmt " (%s %d)" p n
+  else Format.fprintf fmt " (%s)" p
+
+let pp_provers fmt cs =
+  let m = ref M.empty in
+  List.iter (provers m) cs ;
+  M.iter (pp_solver fmt) !m
+
+let pp_proof fmt (crc : crc) =
+  begin
+    pp_verdict fmt @@ verdict crc ;
+    pp_time fmt @@ get_time crc ;
+    pp_provers fmt [crc] ;
+    pp_depth fmt @@ get_depth crc ;
+  end
+
+let pp_proofs fmt (cs : crc list) =
+  begin
+    pp_verdict fmt @@ verdict_all cs ;
+    pp_time fmt @@ get_time_all cs ;
+    pp_provers fmt cs ;
+    pp_depth fmt @@ get_depth_all cs ;
+  end
+
+let pp_hint fmt (crc : crc) =
+  if is_stuck crc then
+    Format.pp_print_string fmt "No proof"
+  else pp_proof fmt crc
+
+let pp_hints fmt = function
+  | [] -> Format.pp_print_string fmt "No goal"
+  | [c] -> pp_hint fmt c
+  | cs ->
+    if List.for_all is_stuck cs then
+      Format.pp_print_string fmt "No proofs"
+    else
+      pp_proofs fmt cs
 
 (* -------------------------------------------------------------------------- *)
 (* --- JSON                                                               --- *)
@@ -154,15 +224,18 @@ let window t0 t1 =
   let w1 = max t1 0.01 in
   w0 *. 0.5 < w1 && w1 < w0 *. 2.0
 
-let rec merge a b =
-  let goal = match a.goal with None -> b.goal | g -> g in
-  match a.status, b.status with
-  | Prover(p0,t0), Prover(p1,t1) when p0 = p1 && window t0 t1 -> a
-  | Tactic { id = f ; children = xs } ,
-    Tactic { id = g ; children = ys }
-    when f = g && List.length xs = List.length ys ->
-    make goal f (List.map2 merge xs ys)
-  | _ -> b
+let update ?(complete=true) ~hint result =
+  let rec merge h r =
+    let goal = match r.goal with None -> h.goal | g -> g in
+    match h.status, r.status with
+    | Prover(p0,t0), Prover(p1,t1) when p0 = p1 && window t0 t1 -> h
+    | Tactic { id = f ; children = hs } ,
+      Tactic { id = g ; children = rs }
+      when f = g && List.length hs = List.length rs ->
+      make goal f (List.map2 merge hs rs)
+    | _ , Stuck when not complete -> h
+    | _ -> r
+  in merge hint result
 
 (* -------------------------------------------------------------------------- *)
 (* --- iter                                                               --- *)

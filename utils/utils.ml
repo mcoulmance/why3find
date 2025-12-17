@@ -63,11 +63,11 @@ let flush () =
   Format.pp_print_flush Format.err_formatter () ;
   if escape_codes Unix.stdout then Printf.printf "\r\027[K%!"
 
-open Format
-
 let nop _ = ()
 
-let mark_open_stag = function
+let mark_open_stag tag =
+  let open Format in
+  match tag with
   | String_tag "bold" -> "\027[1m"
   | String_tag "magenta" -> "\027[95m"
   | String_tag "bright red" -> "\027[91m"
@@ -77,29 +77,37 @@ let mark_open_stag = function
   | String_tag "red" -> "\027[31m"
   | _ -> ""
 
-let mark_close_stag = function
+let mark_close_stag tag =
+  let open Format in
+  match tag with
   | String_tag "bold" -> "\027[22m"
   | String_tag ("magenta"|"bright red"|"gray"|"green"|"orange"|"red") -> "\027[39m"
   | _ -> ""
 
+let set_ansi_tags fmt =
+  begin
+    Format.pp_set_tags fmt true ;
+    Format.pp_set_formatter_stag_functions fmt {
+      mark_open_stag ;
+      mark_close_stag ;
+      print_open_stag = nop ;
+      print_close_stag = nop ;
+    }
+  end
+
 let set_tty std fmt =
   if escape_codes std then
     begin
-      let { out_newline } as ff = pp_get_formatter_out_functions fmt () in
-      pp_set_formatter_out_functions fmt {
+      let { Format.out_newline } as ff =
+        Format.pp_get_formatter_out_functions fmt () in
+      Format.pp_set_formatter_out_functions fmt {
         ff with out_newline = (fun () -> incr lines ; out_newline ())
       } ;
-      pp_set_tags fmt true ;
-      pp_set_formatter_stag_functions fmt {
-        mark_open_stag ;
-        mark_close_stag ;
-        print_open_stag = nop ;
-        print_close_stag = nop ;
-      }
+      set_ansi_tags fmt ;
     end
 
-let () = set_tty Unix.stdout std_formatter
-let () = set_tty Unix.stderr err_formatter
+let () = set_tty Unix.stdout Format.std_formatter
+let () = set_tty Unix.stderr Format.err_formatter
 
 (* -------------------------------------------------------------------------- *)
 (* --- System Utils                                                       --- *)
@@ -163,6 +171,11 @@ let rec lookup ~dir ~file ~path =
         ~path:(F.concat (F.basename dir) path)
 
 let locate file = lookup ~dir:(Sys.getcwd()) ~path:"" ~file
+let is_local ~root ~file =
+  let rec check f =
+    let d = Filename.dirname f in
+    d = root || (d <> "/" && d <> "." && check d)
+  in check file
 
 let chdir dir =
   let pwd = Sys.getcwd () in
@@ -307,16 +320,19 @@ let pp_s fmt n = if n > 1 then Format.pp_print_char fmt 's'
 let pp_yies fmt n =
   Format.pp_print_string fmt (if n > 1 then "ies" else "y")
 
+let to_string pp v =
+  begin
+    let buffer = Buffer.create 80 in
+    let fmt = Format.formatter_of_buffer buffer in
+    pp fmt v ;
+    Format.pp_print_flush fmt () ;
+    Buffer.contents buffer
+  end
+
 (* -------------------------------------------------------------------------- *)
 (* --- Failures                                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-let failwith msg =
-  let buffer = Buffer.create 80 in
-  Format.kfprintf
-    (fun fmt ->
-       Format.pp_print_flush fmt () ;
-       Stdlib.failwith @@ Buffer.contents buffer
-    ) (Format.formatter_of_buffer buffer) msg
+let failwith msg = Format.kasprintf Stdlib.failwith msg
 
 (* -------------------------------------------------------------------------- *)

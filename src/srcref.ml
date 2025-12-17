@@ -64,15 +64,9 @@ let init env src input =
   }
 
 let lexpos (pos : Lexing.position) : Range.pos =
-  pos.pos_lnum - 1, pos.pos_cnum - pos.pos_bol
+  Range.at ~line:(pos.pos_lnum - 1) ~col:(pos.pos_cnum - pos.pos_bol) ()
 
 let lexrange ((p,q) : Token.position) : Range.range = lexpos p, lexpos q
-
-let lspos (pos : Lexing.position) : Lspserver.position =
-  let line,char = lexpos pos in { line ; char }
-
-let lsrange ((p,q) : Token.position) : Lspserver.range =
-  { start = lspos p ; stop = lspos q }
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Document Symbols Stack                                            --- *)
@@ -82,8 +76,8 @@ let flush env =
   match env.frame with
   | None -> ()
   | Some (Frame { first ; token ; name ; kind }) ->
-    let range = lsrange (fst first,snd env.closing) in
-    let selection = lsrange token in
+    let range = lexrange (fst first,snd env.closing) in
+    let selection = lexrange token in
     let symbol = Lspserver.symbol ~range ~name ~kind ~selection () in
     env.symbols <- symbol :: env.symbols ;
     env.frame <- None
@@ -120,8 +114,8 @@ let pop env =
   | [] -> ()
   | Frame { first ; token ; name ; kind ; stacked } :: frames ->
     let children = List.rev env.symbols in
-    let range = lsrange (fst first,snd env.last) in
-    let selection = lsrange token in
+    let range = lexrange (fst first,snd env.last) in
+    let selection = lexrange token in
     let symbol = Lspserver.symbol ~range ~name ~kind ~selection ~children () in
     begin
       env.stack <- frames ;

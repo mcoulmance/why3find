@@ -40,37 +40,19 @@ let find_decl (source:source) id =
 (* --- Compiler for the LSP Server                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
-let config_for ~filename =
-  let rec lookup = function
-    | "/" | "." -> None
-    | dir ->
-      let config = Filename.concat dir "why3find.json" in
-      if Sys.file_exists config
-      then Some (dir,config)
-      else lookup (Filename.dirname dir)
-  in lookup (Filename.dirname filename)
-
-let of_loc (loc : Why3.Loc.position) : string * Lspserver.range =
+let of_loc (loc : Why3.Loc.position) : string * Range.range =
   let file,l1,c1,l2,c2 = Why3.Loc.get loc in
-  file , {
-    start = { line = l1 - 1 ; char = c1 } ;
-    stop = { line = l2 - 1 ; char = c2 }
-  }
-
-let of_range (rg : Range.range) : Lspserver.range =
-  let ((l1,c1),(l2,c2)) = rg in
-  {
-    start = { line = l1 ; char = c1 } ;
-    stop = { line = l2 ; char = c2 } ;
-  }
+  let start = Range.at ~line:(l1-1) ~col:c1 () in
+  let stop = Range.at ~line:(l2-1)~col:c2 () in
+  file , (start, stop)
 
 type lexpos = Lexing.position * Lexing.position
 
-let range_of_pos ((p,q) : lexpos) : string * Lspserver.range =
-  p.pos_fname , {
-    start = { line = p.pos_lnum - 1 ; char = p.pos_cnum - p.pos_bol } ;
-    stop = { line = q.pos_lnum - 1 ; char = q.pos_cnum - q.pos_bol } ;
-  }
+let range_of_pos ((p,q) : lexpos) : string * Range.range =
+  let file = p.pos_fname in
+  let p = Range.at ~line:(p.pos_lnum - 1) ~col:(p.pos_cnum - p.pos_bol) () in
+  let q = Range.at ~line:(q.pos_lnum - 1) ~col:(q.pos_cnum - q.pos_bol) () in
+  file , (p,q)
 
 let library ~root ~filename =
   if String.starts_with ~prefix:root filename then
@@ -89,7 +71,7 @@ let preprocess filename diagnostics =
         diagnostics := diag :: !diagnostics
       else
         Format.printf "[Warning] File %s, line %d: %s@."
-          file range.start.line message
+          file (1+(fst range).line) message
     in
     Why3.Loc.set_warning_hook
       begin fun ?loc message ->
@@ -102,12 +84,12 @@ let preprocess filename diagnostics =
         warning (range_of_pos @@ Token.position input) message
       end ;
     let root =
-      match config_for ~filename with
+      match Config.root_for filename with
       | None -> Filename.dirname filename
-      | Some(dir,_) -> dir
+      | Some root -> root
     in
     Hashtbl.remove sources filename ;
-    let config = Config.load_config root in
+    let config = Config.load_config ~root in
     let loadplugins = load_plugins () in
     let env = Wenv.init ~root ~loadplugins config in
     let wenv = env.why3.env in
@@ -132,7 +114,7 @@ let preprocess filename diagnostics =
       diagnostics := diag :: !diagnostics
     else
       Format.printf "[Warning]@[ File %a:@ %a@]@."
-        Why3.Loc.pp_position loc Why3.Exn_printer.exn_printer exn
+        Wutil.pp_position loc Why3.Exn_printer.exn_printer exn
   | exn ->
     Format.printf "[Error] %s@." (Printexc.to_string exn)
 
@@ -178,12 +160,12 @@ let rec forward updates pos =
   | upd::updates ->
     Option.bind (Lspserver.forward_position pos upd) (forward updates)
 
-let forward_range updates Lspserver.{ start ; stop } =
+let forward_range updates (start,stop) =
   match forward updates start , forward updates stop with
-  | Some start , Some stop -> Some Lspserver.{ start ; stop }
+  | Some start , Some stop -> Some (start,stop)
   | _ -> None
 
-let locate ~uri (pos : Lspserver.position) =
+let locate ~uri (pos : Range.pos) =
   match Lspserver.to_file ~uri with
   | None -> raise Not_found
   | Some filename ->
@@ -191,7 +173,7 @@ let locate ~uri (pos : Lspserver.position) =
     match backward src.updates pos with
     | None -> raise Not_found
     | Some pos ->
-      let rg,symbol = Rangemap.find (pos.line, pos.char) src.refs in
+      let rg,symbol = Rangemap.find pos src.refs in
       filename, src, rg, symbol
 
 (* -------------------------------------------------------------------------- *)
@@ -205,7 +187,7 @@ let goto = function
     let uri = Lspserver.to_uri ~filename in
     Lspserver.Loc { uri ; range }
 
-let definition _channel ~uri (pos : Lspserver.position) =
+let definition _channel ~uri (pos : Range.pos) =
   let _,_,_,s = locate ~uri pos in
   match s with
   | Def _ | Section _ -> []
@@ -227,7 +209,7 @@ let typeof_decl = function
   | Id.Logic { ls_value = None }
   | Id.Axiom _ | Id.Lemma _ | Id.Goal _ -> raise Not_found
 
-let typedef _channel ~uri (pos : Lspserver.position) =
+let typedef _channel ~uri (pos : Range.pos) =
   let _,src,_,s = locate ~uri pos in
   match s with
   | Section _ -> []
@@ -243,58 +225,6 @@ let () = Lspserver.on_definition ~kind:`Typedef typedef
 (* -------------------------------------------------------------------------- *)
 (* --- Proof Results                                                      --- *)
 (* -------------------------------------------------------------------------- *)
-
-module M = Map.Make(String)
-
-let add k a =
-  M.add k (try succ @@ M.find k a with Not_found -> 1) a
-
-let rec provers m (crc : Crc.crc) =
-  match crc.status with
-  | Stuck -> ()
-  | Prover (p, _) ->
-    m := add (Prover.desc_name p) !m
-  | Tactic { id ; children } ->
-    m := add id !m ; List.iter (provers m) children
-
-let pp_verdict fmt = function
-  | `Valid 0 -> Format.pp_print_string fmt "Valid (no goal)"
-  | `Valid _ -> Format.pp_print_string fmt "Valid"
-  | `Failed 1 -> Format.fprintf fmt "No Proof"
-  | `Failed n -> Format.fprintf fmt "Failed (%d goals)" n
-  | `Partial (s,n) -> Format.fprintf fmt "Partial (%d/%d)" s n
-
-let pp_time fmt t =
-  if t > 1e-3 then Format.fprintf fmt " (%a)" Utils.pp_time t
-
-let pp_depth fmt d =
-  if d > 0 then Format.fprintf fmt " (depth %d)" d
-
-let pp_solver fmt p n =
-  if n > 1
-  then Format.fprintf fmt " (%s %d)" p n
-  else Format.fprintf fmt " (%s)" p
-
-let pp_solvers fmt cs =
-  let m = ref M.empty in
-  List.iter (provers m) cs ;
-  M.iter (pp_solver fmt) !m
-
-let pp_crc fmt (crc : Crc.crc) =
-  begin
-    pp_verdict fmt @@ Crc.verdict crc ;
-    pp_time fmt @@ Crc.get_time crc ;
-    pp_solvers fmt [crc] ;
-    pp_depth fmt @@ Crc.get_depth crc ;
-  end
-
-let pp_crc_all fmt (cs : Crc.crc list) =
-  begin
-    pp_verdict fmt @@ Crc.verdict_all cs ;
-    pp_time fmt @@ Crc.get_time_all cs ;
-    pp_solvers fmt cs ;
-    pp_depth fmt @@ Crc.get_depth_all cs ;
-  end
 
 let get_proof source (id : Id.id) =
   let thy = Docref.Mstr.find_opt id.id_mod source.src.theories in
@@ -503,7 +433,7 @@ let clone source ids =
               List.iter
                 (fun (id,decl) ->
                    Option.iter
-                     (Format.fprintf fmt "@\n  (* %a *)" pp_crc)
+                     (Format.fprintf fmt "@\n  (* %a *)" Crc.pp_hint)
                      (get_proof source id) ;
                    Format.fprintf fmt "@\n  %a" pp_decl decl ;
                 ) ds
@@ -511,14 +441,14 @@ let clone source ids =
         in Some tt
       end
 
-let mk_hover rg ~title ?code ?(infos=[]) () =
+let mk_hover range ~title ?code ?(infos=[]) () =
   let code =
     match code with
     | None -> []
     | Some tt -> Lspserver.code ~lang:"why3" (String.split_on_char '\n' tt) in
-  Lspserver.hover ~range:(of_range rg) ~kind:`Markdown (title :: code @ infos)
+  Lspserver.hover ~range ~kind:`Markdown (title :: code @ infos)
 
-let hover _channel ~uri (pos : Lspserver.position) =
+let hover _channel ~uri (pos : Range.pos) =
   let _,src,rg,s = locate ~uri pos in
   match s with
   | Section _ -> raise Not_found
@@ -543,8 +473,7 @@ let lenses _channel ~uri =
     let pool = ref [] in
     Rangemap.iter
       begin fun rg (s : Srcref.symbol) ->
-        let (line,char) = fst rg in
-        match forward source.updates Lspserver.{ line ; char } with
+        match forward source.updates (fst rg) with
         | None -> ()
         | Some pos ->
           match s with
@@ -552,14 +481,14 @@ let lenses _channel ~uri =
           | Clone(_,ids) ->
             let cs = List.filter_map (get_proof source) ids in
             if cs <> [] then
-              let title = Format.asprintf "%a" pp_crc_all cs in
+              let title = Format.asprintf "%a" Crc.pp_hints cs in
               let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
               pool := Lspserver.resolved pos cmd :: !pool
           | Def id ->
             match get_proof source id with
             | None -> ()
             | Some crc ->
-              let title = Format.asprintf "%a" pp_crc crc in
+              let title = Format.asprintf "%a" Crc.pp_hint crc in
               let cmd = Lspserver.Cmd { title ; command = "" ; args = [] } in
               pool := Lspserver.resolved pos cmd :: !pool
       end source.refs ;
@@ -582,7 +511,7 @@ let folding _channel ~uri =
         match s with
         | Ref _ | Def _ | Clone _ -> ()
         | Section _title ->
-          match forward_range source.updates (of_range rg) with
+          match forward_range source.updates rg with
           | None -> ()
           | Some range ->
             pool := Lspserver.folding ~kind:"region" ~range () :: !pool

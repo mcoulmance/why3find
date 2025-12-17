@@ -59,9 +59,11 @@ val jdefault : 'a -> (t -> 'a) -> t -> 'a
 val jmem : string -> t -> bool
 val jiter : (string -> t -> unit) -> t -> unit
 
+val null : t
 val int : int -> t
+val bool : bool -> t
 val string : string -> t
-val assoc : ?keepnull:bool -> (string * t) list -> t
-val list : ?keepnull:bool -> t list -> t
-val list_map : ?keepnull:bool -> ('a -> t) -> 'a list -> t
+val assoc : ?keepnull:bool -> ?nullempty:bool -> (string * t) list -> t
+val list : ?keepnull:bool -> ?nullempty:bool -> t list -> t
+val list_map : ?keepnull:bool -> ?nullempty:bool -> ('a -> t) -> 'a list -> t
 val option_map : ('a -> t) -> 'a option -> t

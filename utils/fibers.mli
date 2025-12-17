@@ -55,6 +55,12 @@ module Monad :
 sig
 
   (** Monadic operator, same as {!bind}. *)
+  val (>>=) : 'a t -> ('a -> 'b t) -> 'b t
+
+  (** Applicative map operator, same as {!apply}. *)
+  val (|>>) : 'a t -> ('a -> 'b) -> 'b t
+
+  (** Monadic let-binder, same as {!bind}. *)
   val (let*) : 'a t -> ('a -> 'b t) -> 'b t
 
   (** Applicative map operator, same as {!apply}. *)
@@ -86,8 +92,10 @@ sig
   val length : 'a t -> int
   val pop : 'a t -> 'a
   val push : 'a t -> 'a -> unit
-  val iter : 'a t -> ('a -> unit) -> unit
-  val filter : 'a t -> ('a -> bool) -> unit
+  val iter : ('a -> unit) -> 'a t -> unit
+  val flush : ('a -> unit) -> 'a t -> unit
+  val filter : ('a -> bool) -> 'a t -> unit
+  val elements : 'a t -> 'a list
   val clear : 'a t -> unit
 end
 

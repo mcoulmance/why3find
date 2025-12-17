@@ -28,7 +28,11 @@ val default : config
 val conf_file : string
 (** The name of the configuration file *)
 
-val load_raw_config : string -> Json.t
+val root_for : string -> string option
+(** Lookup for a parent directory of the given file that contains a why3find
+    configuration file. *)
+
+val load_raw_config : root:string -> Json.t
 (** Load configuration as a Json object from the given configuration file *)
 
 val config_of_json : Json.t -> config
@@ -37,12 +41,11 @@ val config_of_json : Json.t -> config
 val config_to_json : config -> Json.t
 (** Convert the given config to a raw configuration Json object *)
 
-val load_config : string -> config
-(** Read the configuration from the given configuration file *)
+val load_config : root:string -> config
+(** Read the configuration from the given root directory *)
 
-val save_config : string -> config -> unit
-(** Save the given configuration as a configuration file in the given
-    {e directory} *)
+val save_config : root:string -> config -> unit
+(** Save the given configuration in the given root directory *)
 
 type why3env = private {
   config : Why3.Whyconf.config ;

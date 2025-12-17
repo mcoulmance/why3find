@@ -10,8 +10,8 @@
 (* --- Location & Range utilities                                         --- *)
 (* -------------------------------------------------------------------------- *)
 
-(* position are boundaries *)
-type pos = int * int
+(** Boundaries, line and column internally starts at 0, but pretty-printed to starts at 1 *)
+type pos = private { line : int ; col : int }
 type range = pos * pos
 
 val ( << ) : pos -> pos -> bool
@@ -23,6 +23,9 @@ val next : pos -> pos
 val prev : pos -> pos
 val newline : pos -> pos
 val after : pos -> char -> pos
+
+(** Line and col starts at 0. *)
+val at : ?line:int -> ?col:int -> unit -> pos
 
 val pp_pos : Format.formatter -> pos -> unit
 val pp_range : Format.formatter -> range -> unit

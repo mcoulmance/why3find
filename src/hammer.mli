@@ -16,6 +16,9 @@ open Session
 (** Hammer Strategy *)
 type hammer
 
+val provers : hammer -> Prover.prover list
+val tactics : hammer -> Tactic.tactic list
+
 (** Options:
     - [~level] max hammer strategy level used (0..4, default 4)
     - [~replay] replay mode (default false)
@@ -35,25 +38,89 @@ val create :
   ?profile:Calibration.profile ->
   Project.env -> hammer
 
-(** Enqueue some goal to be processed. *)
-val schedule : hammer -> ?cancel:unit Fibers.signal -> goal -> crc -> crc Fibers.t
+type node
+type parent =
+  | Node of node
+  | Thread of { id : int ; callback : (Crc.crc -> unit) }
+
+type state =
+  | Paused            (* in q_paused *)
+  | Failed            (* in q_failed *)
+  | Scheduled         (* in q_proven or q_broken *)
+  | Closed of Crc.crc (* not in any queue *)
+  | Stacked of Tactic.tactic * node list (* children still queued *)
+
+type result =
+  | Local of Result.t
+  | Profile of Result.t
+
+val proof : node -> Crc.crc
+val goal : node -> Session.goal
+val parent : node -> parent
+val state : node -> state
+val thread_id : node -> int
+val chunks : node -> Vc.context
+val context : node -> Vc.context
+val result : node -> Prover.prover -> result
+val results : node -> (Prover.prover * result) list
+
+val pp_node : Format.formatter -> node -> unit
+val pp_state : Format.formatter -> state -> unit
+val pp_result : Format.formatter -> result -> unit
+
+
+(** Creates a root node for some goal to be proved. *)
+val thread : hammer -> ?id:int -> ?callback:(crc -> unit) -> goal -> crc -> node
 
 (** Current Task Server State *)
-type status = {
+type progress = {
   broken  : int ; (** Number of pending tasks with broken CRC *)
   proven  : int ; (** Number of pending tasks with proven CRC *)
   pending : int ; (** Number of pending prover tasks *)
   running : int ; (** Number of running prover tasks *)
 }
 
-val status : unit -> status
-val running : unit -> bool
+type status =
+  | Proving of progress (** Nodes are pending *)
+  | Paused (** Empty queues with some paused nodes *)
+  | Exited (** All nodes and fibers have been processed *)
 
-(** Empty the current task queue and kill all running provers. *)
+val pp_status : Format.formatter -> status -> unit
+val pp_progress : Format.formatter -> progress -> unit
+
+val iter : (node -> unit) -> unit
+val status : unit -> status
+val progress : unit -> progress
+val running : unit -> bool
+val interrupting : unit -> bool
+
+val on_failed : (node -> unit) -> unit
+val off_failed : (node -> unit) -> unit
+val on_filter : (node -> bool) -> unit
+val off_filter : (node -> bool) -> unit
+
+(** Interrupt all running provers and discard all pending nodes. *)
 val interrupt : unit -> unit
 
-(** Process one pending node, if any.
-    Returns true if some node has been processed. *)
+(** Interrupt all running provers and pauses all nodes. *)
+val pause : unit -> unit
+
+(** Commit this node and all its children to their current status. *)
+val terminate : node -> unit
+
+(** Re-schedule the given nodes, pausing children. *)
+val step_in : node list -> unit
+
+(** Re-schedule the given nodes, auto-scheduling children. *)
+val step_out : node list -> unit
+
+(** Re-schedule all paused nodes and continue. *)
+val resume : unit -> unit
+
+(** Re-schedule all paused nodes and continue, commiting all nodes. *)
+val resume_to_end : unit -> unit
+
+(** Process one node. Returns [true] is some progress has been made. *)
 val process : unit -> bool
 
 (** Loop process and log process on stdout until there is no more activity. *)

@@ -24,7 +24,7 @@ val iter : (Prover.desc -> int -> float -> unit) -> profile -> unit
 val lock : profile -> Prover.desc -> bool
 (** Returns [true] if the profile was not locked before. *)
 
-(** Returns 1.0 when not calibrated *)
+(** @raise Not_found when not available *)
 val observed : profile -> Prover.prover -> float
 
 (** Local Time / Profile Time *)

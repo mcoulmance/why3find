@@ -58,6 +58,8 @@ val running : unit -> int
 val pp_goals : Format.formatter -> unit
 
 val set_logfile : string -> unit
-val print_stats : unit -> unit
+
+val clear_stats : unit -> unit
+val print_stats : Format.formatter -> unit
 
 (* -------------------------------------------------------------------------- *)

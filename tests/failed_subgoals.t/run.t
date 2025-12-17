@@ -1,5 +1,5 @@
   $ why3find prove -P none merge.mlw
-  "merge.mlw", line 12, characters 10-15: proof failed
+  File "merge.mlw", line 12, characters 11-16: proof failed
   Goal Merge.merge: ✘
     merge [VC for merge]
   Theory merge.Merge: ✘

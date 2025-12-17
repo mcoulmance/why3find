@@ -1,14 +1,15 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-         {
-            "name": "Debug Why3find Platform",
-            "type": "extensionHost",
-            "request": "launch",
-            "runtimeExecutable": "${execPath}",
-            "args": [
-                "--extensionDevelopmentPath=${workspaceFolder}/vscode"
-            ],
-            "outFiles": [ "${workspaceFolder}/vscode/out/*.js" ]
-        } ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Why3find Platform",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/vscode"
+      ],
+      "env": { "WHY3FIND_DEBUG": "yes" },
+      "outFiles": [ "${workspaceFolder}/vscode/out/*.js" ]
+    } ]
 }

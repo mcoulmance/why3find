@@ -53,18 +53,20 @@ and new ideas.
 
 ## IDE support
 
-Why3find features a Language Server Protocol (LSP) and a Visual Studio Code
-client for the Why3 language. The LSP is still at early stage and only provides
-syntax highlighting, goto-definition, typing information, proof results, etc.
-Save your files to keep information in sync.
+Why3find features server modes for the Language Server Protocol (LSP) and the
+Debug Adapter Protocol (DAP). The LSP provides goto-definition, typing
+information and proof results feedback. The DAP provides step-by-step execution
+and navigation through the proof tree, proof context highlighting and proof task
+preview.
 
 You must have `why3find` installed and available from your `PATH` to use the
-LSP. See [vscode/README](vscode/README.md) for details about the lsp
-functionality
+LSP and the DAP.
 
 ### VSCode
 
-An easy way to install everything for VSCode from the source distribution is:
+A VSCode extension is provided, featuring syntax highlighting and clients for
+the why3find LSP and DAP servers. An easy way to install everything for VSCode
+from the source distribution is:
 
     $ make install-vscode
 
