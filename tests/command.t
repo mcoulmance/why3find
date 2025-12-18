@@ -157,6 +157,7 @@
   
     --root DIR change to directory
     --why3-warn-off WRN,… disable why3 warnings
+    --no-autodetect-provers  disable prover autodetection
     --package ±PKG,… add package dependency
     --driver ±DRV,… configure drivers
     -p  same as --package
@@ -188,6 +189,7 @@
   
     --root DIR change to directory
     --why3-warn-off WRN,… disable why3 warnings
+    --no-autodetect-provers  disable prover autodetection
     --package ±PKG,… add package dependency
     --fast TIME fast proof time (default 200ms)
     --time TIME median proof time (default 1s)
@@ -239,6 +241,7 @@
   
     --root DIR change to directory
     --why3-warn-off WRN,… disable why3 warnings
+    --no-autodetect-provers  disable prover autodetection
     --package ±PKG,… add package dependency
     --fast TIME fast proof time (default 200ms)
     --time TIME median proof time (default 1s)
@@ -307,6 +310,7 @@
   
     --root DIR change to directory
     --why3-warn-off WRN,… disable why3 warnings
+    --no-autodetect-provers  disable prover autodetection
     --package ±PKG,… add package dependency
     --driver ±DRV,… configure drivers
     -p  same as --package
