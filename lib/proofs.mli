@@ -10,7 +10,6 @@
 (* --- Proof Files                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
-open Calibration
 open Why3.Wstdlib
 
 (** Contains CRCs for theories and tasks of a single mlw file.
@@ -20,7 +19,7 @@ type proofs = Crc.crc Mstr.t Mstr.t
 val filename : string -> string
 (** Returns the proofs file associated with the given mlw file *)
 
-val load : ?local:profile -> string -> profile * proofs
+val load : string -> Json.t * proofs
 (** Load the content of the proofs file associated with the given mlw file. If a
     [~local] profile is provided, the returned profile also inherits from it in
     addition to the one present in the file. *)
@@ -28,7 +27,7 @@ val load : ?local:profile -> string -> profile * proofs
 (** Collection of proofs to be saved *)
 type buffer
 
-val create : file:string -> profile -> proofs -> buffer
+val create : file:string -> Json.t -> proofs -> buffer
 val add : Session.theory -> Session.goal -> Crc.crc -> buffer -> unit
 val init : Session.theory -> Session.goal list -> Crc.crc Mstr.t -> buffer -> unit
 val save : buffer -> unit

@@ -6,10 +6,10 @@
   Transformation         XX.XX (   XX) | XX.XX - XX.XX - XX.XX |
   Digest prover          XX.XX (   XX) | XX.XX - XX.XX - XX.XX |
   Load driver            XX.XX (   XX) | XX.XX - XX.XX - XX.XX |
+  Proofs dump            XX.XX (   XX) | XX.XX - XX.XX - XX.XX |
   Task checksum          XX.XX (   XX) | XX.XX - XX.XX - XX.XX |
   Task preparation       XX.XX (   XX) | XX.XX - XX.XX - XX.XX |
   Task printing          XX.XX (   XX) | XX.XX - XX.XX - XX.XX |
   Launch proof           XX.XX (   XX) | XX.XX - XX.XX - XX.XX |
-  Proofs dump            XX.XX (   XX) | XX.XX - XX.XX - XX.XX |
   CPU time               XX.XX
   Real time              XX.XX

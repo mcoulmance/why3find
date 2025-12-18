@@ -499,11 +499,12 @@ let cc_file adapter env gnames file =
     let dir, lib = Wutil.filepath file in
     let theories, format = Wutil.load_theories env.Project.why3.env file in
     let session = Session.create ~dir ~file ~format theories in
-    let local = Calibration.default env in
-    let profile, strategy = Proofs.load ~local file in
+    let jprofile, strategy = Proofs.load file in
+    let default = Calibration.default env in
+    let profile = Calibration.of_json ~default jprofile in
     Prove.clear_stats () ;
     Runner.clear_stats () ;
-    let buffer = Proofs.create ~file profile strategy in
+    let buffer = Proofs.create ~file jprofile strategy in
     let hammer = Hammer.create ~profile env in
     let callback _ =
       begin

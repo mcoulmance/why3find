@@ -82,6 +82,9 @@ val pmatch : pattern:string -> desc -> bool
 val all : Config.why3env -> prover Mdesc.t
 (** Returns the set of all available provers for the given Why3 environment. *)
 
+val select_from_map : patterns:string list -> prover Mdesc.t
+  -> [ `Ok of prover | `PatternNotFound of string | `InvalidPattern of string ] list
+
 val select : Config.why3env -> patterns:string list -> prover list
 (** Selects the provers that match one of the [patterns].
     For each [pattern] in order, if the pattern is invalid or the prover is not
@@ -94,5 +97,5 @@ val default : Config.why3env -> prover list
 
 val check_and_get_prover : Config.why3env -> patterns:string list -> desc
   -> prover option
-(** Returns the requested prover from the [provers] list. Warn if the
-    prover is not found. *)
+(** Returns the requested prover. Warn if the prover is not found and does
+    not match any [patterns] *)
