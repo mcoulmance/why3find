@@ -47,8 +47,7 @@ let gets name ?(default=[]) json =
 
 let config_of_json json =
   if gets "configs" json <> [] then
-    Log.warning "Support for extra config files was removed in why3find 1.1.0.\
-                 @ If you need this feature, please report this at %%PKG_ISSUES%%.";
+    Log.warning "Support for extra config files was removed in why3find 1.1.0";
   {
     fast = get "fast" ~of_json:Json.jfloat ~default:0.2 json;
     time = get "time" ~of_json:Json.jfloat ~default:1.0 json;
