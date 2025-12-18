@@ -1,15 +1,17 @@
-## Checks
+## Changes
 
+- Look missing changes from git history since last release version/tag.
 - Proofread CHANGES.md, remove unused subsections from the Unreleased section.
 
 ## Bump version
 
 - Replace `## Unreleased` by `## version - YYYY-MM-DD` in `CHANGES.md`.
-- Bump version in `dune-project`, run `dune build`, and then
-  `make -C vscode version`. Check that the change was correctly propagated to
+- Bump version in `dune-project`
+- Run `make` and `make -C vscode version`.
+- Check that the change was correctly propagated to
   `why3find.opam`, `vscode/VERSION` and `vscode/package.json`.
 - Check the output of `dune exec -- why3find --version`.
-- Commit the changes on the `master` branch or a release specific branch.
+- Commit the changes on release branch (or master).
 
 ## Test
 
