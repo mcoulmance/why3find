@@ -53,6 +53,8 @@ variables:
 .opam_template: &opam_template
   image: 'ocaml/opam:ubuntu-22.04-ocaml-$OCAML'
   stage: build
+  variables:
+    FF_DISABLE_UMASK_FOR_DOCKER_EXECUTOR: "true"
   tags:
     - docker
 
@@ -60,6 +62,7 @@ opam:
   <<: *opam_template
   script:
     - sudo apt update
+    - opam update
     - opam lint
     - opam pin . -n -k path
     - opam depext --jobs 2 why3find --with-test
@@ -89,6 +92,18 @@ opam-minimal:
     - export OPAMEXTERNALSOLVER="builtin-0install"
     - opam update --depexts
     - opam reinstall --jobs 2 why3find
+
+why3-master:
+  <<: *opam_template
+  script:
+    - git merge origin/why3-master
+    - sudo apt update
+    - opam update
+    - opam lint
+    - opam pin -n https://gitlab.inria.fr/why3/why3.git#master
+    - opam pin . -n -k path
+    - opam depext --jobs 2 why3find --with-test
+    - opam install --jobs 2 why3find --with-test --with-doc
 
 vscode:
   image: node:lts-buster
