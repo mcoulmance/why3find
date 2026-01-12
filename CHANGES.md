@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 - 2025-12-18
 
 ### Notable New Features
 
@@ -17,8 +17,6 @@
 ### Bug Fixes
 
 - Allow preprocessing tactics to leave the goal unchanged (#141, !187)
-
-### API
 
 ## 1.2.0 - 2025-08-01
 

@@ -4,7 +4,7 @@
   "description": "Support for Why3 platform",
   "repository": "https://git.frama-c.com/pub/why3find",
   "license": "SEE LICENSE IN LICENSE.md",
-  "version": "1.2.0+dev",
+  "version": "1.3.0",
   "icon": "./why3.platform.png",
   "engines": {
     "vscode": "^1.90.0"
@@ -109,12 +109,18 @@
         }
       ]
     },
-    "breakpoints": [ { "language": "why3" } ],
+    "breakpoints": [
+      {
+        "language": "why3"
+      }
+    ],
     "debuggers": [
       {
         "type": "why3",
         "label": "Why3 Debug",
-        "languages": [ "why3" ]
+        "languages": [
+          "why3"
+        ]
       }
     ]
   },
