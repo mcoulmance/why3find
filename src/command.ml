@@ -644,10 +644,16 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
           let pkgs = env.config.packages in
           let why3_warn_off = env.config.warnoff in
           let Prove.{ provers ; time ; mem ; tactics } = result in
+          let whyconf = ".why3find/why3.conf" in
           let cfg = ".why3find/hammer.cfg" in
+          Why3.(Rc.to_file whyconf @@ Whyconf.rc_of_config env.why3.config);
           Hammer.why3_ide_config ~tactics ~provers ~time ~mem cfg ;
           Format.printf "Fixing %s@." file ;
-          exec ~prefix:["ide"] ~pkgs ~why3_warn_off [| "--extra-config" ; cfg ; file |]
+          exec ~prefix:["ide"] ~pkgs ~why3_warn_off [|
+            "-C"; whyconf ;
+            "--extra-config" ; cfg ;
+            file
+          |]
         end
     end
 
