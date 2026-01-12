@@ -4,11 +4,14 @@
 
 ### Notable New Features
 
-- Support for Debugger Adapter Protocol
+- Prover Auto Detection from `PATH` (!195)
+- Support for Debugger Adapter Protocol (!185)
 
 ### Command Line Interface
 
-- New command `why3find dap [OPTIONS]`
+- New option `--no-autodetect-provers` to disable prover auto-detection (!195)
+  Environment variable `WHY3FIND_AUTODECTECT_PROVERS=no` have the same effect
+- New command `why3find dap [OPTIONS]` (!185)
 
 ### IDE Integration
 

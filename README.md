@@ -26,14 +26,14 @@ package and install libraries or setup a distributed solver cloud.
 Let say you have some Why3 source files. Go into their directory and simply
 use the following commands:
 
-    $ why3find config --detect
+    $ why3find config --default
     $ why3find prove
 
-This will configure Why3 with the SMT solvers installed on your computer,
-and prove all your Why3 files in the directory. If any some proof failed,
-you may try `why3find prove -x` to dump a colored proof context
-in your terminal, or `why3find prove -i` to open Why3 IDE to further
-debug your proofs. Re-run `why3find prove` until proofs are complete.
+This will configure your why3find project with all SMT solvers installed on your
+computer, and prove all your Why3 files in the directory. If any some proof
+failed, you may try `why3find prove -x` to dump a colored proof context in your
+terminal, or `why3find prove -i` to open Why3 IDE to further debug your proofs.
+Re-run `why3find prove` until proofs are complete.
 
 At any time, you can generate a complete HTML documentation enhanced with
 proof witnesses and axiom dependencies with the following command:
@@ -212,15 +212,16 @@ Typical examples are:
 
     why3find config               # Show current config
     why3find config […]           # Update packages, provers, etc.
-    why3find config --reset  […]  # Configure from scratch (ignore current config)
-    why3find config --default […] # Use all "default" provers available from why3 configuration
-    why3find config --detect […]  # Run `why3 config detect` before using all "default" provers
+    why3find config --reset   […] # Configure from scratch (ignore current config)
+    why3find config --default […] # Use all available "default" provers
+    why3find config --detect  […] # Run `why3 config detect` before using all "default" provers
     why3find config --check       # Check consistency between proof certificates and configuration
 
 When using `--default` or `--detect` why3find will select the highest available
-versions of provers `alt-ergo`, `z3`, `cvc4` and `cvc5` from why3 configuration.
-`--detect` will first update why3 configuration by running `why3 config detect`.
-Why3find is known to work well with those provers.
+versions of provers `alt-ergo`, `z3`, `cvc4` and `cvc5`, provided they are
+accessible from `PATH` or listed in the global why3 configuration. Additionally,
+`--detect` will update the global why3 configuration by running
+`why3 config detect`.
 
 You can also gets the list of available provers and tactics:
 
