@@ -4,7 +4,7 @@
   "description": "Support for Why3 platform",
   "repository": "https://git.frama-c.com/pub/why3find",
   "license": "SEE LICENSE IN LICENSE.md",
-  "version": "1.3.0",
+  "version": "1.3.0+dev",
   "icon": "./why3.platform.png",
   "engines": {
     "vscode": "^1.90.0"

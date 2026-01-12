@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+### Notable New Features
+### Command Line Interface
+### IDE Integration
+### Bug Fixes
+### API
+
 ## 1.3.0 - 2025-12-18
 
 ### Notable New Features
