@@ -22,4 +22,7 @@
 )))
 
 (env
- (_ (env-vars (WHY3CONFIG ../why3.conf))))
+ (_
+  (env-vars
+   (WHY3CONFIG ../why3.conf)
+   (WHY3FIND_AUTODETECT_PROVERS no))))

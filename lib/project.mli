@@ -18,6 +18,7 @@ type env = private {
   pkgs : Meta.pkg list ;
 }
 
-val create : ?root:string -> ?usecache:bool -> ?config:Config.config -> unit -> env
+val create : ?root:string -> ?usecache:bool -> ?config:Config.config ->
+  ?autodetect_provers:bool -> unit -> env
 (** Create an environment with configuration [config] for the project
     located in [root] (which default to ".") *)
