@@ -10,7 +10,7 @@
 (* --- Proof Certificates                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
-type status =
+type crc =
   | Stuck
   | Prover of Prover.desc * float
   | Tactic of {
@@ -21,49 +21,42 @@ type status =
       depth : int ;
       time : float ;
     }
+let stuck = Stuck
+let prover p f = Prover(p,f)
 
-and crc = {
-  goal : Session.goal option ; (* not saved in JSON *)
-  status : status ;
-}
-
-let none = Stuck
-let stuck ?goal () = { goal ; status = Stuck }
-let prover ?goal p f = { goal ; status = Prover(p,f) }
-
-let get_stuck { status } = match status with
+let get_stuck = function
   | Stuck -> 1
   | Prover _ -> 0
   | Tactic { stuck } -> stuck
 
-let get_proved { status } = match status with
+let get_proved = function
   | Stuck -> 0
   | Prover _ -> 1
   | Tactic { proved } -> proved
 
-let get_time { status } = match status with
+let get_time = function
   | Stuck -> 0.0
   | Prover(_,t) -> t
   | Tactic { time } -> time
 
-let get_depth { status } = match status with
+let get_depth = function
   | Stuck | Prover _ -> 0
   | Tactic { depth } -> succ depth
 
-let size { status } = match status with
+let size = function
   | Stuck | Prover _ -> 1
   | Tactic { stuck ; proved } -> stuck + proved
 
-let is_stuck { status } = match status with
+let is_stuck = function
   | Stuck -> true
   | Prover _ | Tactic _ -> false
 
-let is_complete { status } = match status with
+let is_complete = function
   | Stuck -> false
   | Prover _ -> true
   | Tactic { stuck } -> stuck = 0
 
-let is_unknown { status } = match status with
+let is_unknown = function
   | Stuck -> true
   | Prover _ -> false
   | Tactic { stuck ; proved } -> stuck > 0 && proved = 0
@@ -73,15 +66,15 @@ let get_depth_all = List.fold_left (fun h c -> max h @@ get_depth c) 0
 let get_stuck_all = List.fold_left (fun n c -> n + get_stuck c) 0
 let get_proved_all = List.fold_left (fun n c -> n + get_proved c) 0
 
-let make goal id children =
+let make id children =
   let stuck = get_stuck_all children in
   let proved = get_proved_all children in
   let time = get_time_all children in
   let depth = get_depth_all children in
-  if stuck > 0 && proved = 0 then { goal ; status = Stuck } else
-    { goal; status = Tactic { id ; children ; stuck ; proved ; depth ; time } }
+  if stuck > 0 && proved = 0 then Stuck else
+    Tactic { id ; children ; stuck ; proved ; depth ; time }
 
-let tactic ?goal tac children = make goal (Tactic.name tac) children
+let tactic tac children = make (Tactic.name tac) children
 
 type verdict = [ `Valid of int | `Failed of int | `Partial of int * int ]
 
@@ -121,8 +114,7 @@ module M = Map.Make(String)
 let add k a =
   M.add k (try succ @@ M.find k a with Not_found -> 1) a
 
-let rec provers m (crc : crc) =
-  match crc.status with
+let rec provers m = function
   | Stuck -> ()
   | Prover (p, _) ->
     m := add (Prover.desc_name p) !m
@@ -186,7 +178,8 @@ let pp_hints fmt = function
 (* --- JSON                                                               --- *)
 (* -------------------------------------------------------------------------- *)
 
-let rec to_json (a : crc) : Json.t = match a.status with
+let rec to_json (a : crc) : Json.t =
+  match a with
   | Stuck -> `Null
   | Prover(p,t) ->
     `Assoc [ "prover", `String (Prover.desc_to_string p) ; "time", `Float t]
@@ -206,14 +199,14 @@ let rec of_json (js : Json.t) : crc =
     | `Assoc fds when List.mem_assoc "tactic" fds ->
       let tr = List.assoc "tactic" fds |> Json.jstring in
       let xs = List.assoc "children" fds |> Json.jlist in
-      make None tr (List.map of_json xs)
+      make tr (List.map of_json xs)
     | `Assoc fds when List.mem_assoc "transf" fds ->
       (* Deprecated *)
       let tr = List.assoc "transf" fds |> Json.jstring in
       let xs = List.assoc "children" fds |> Json.jlist in
-      make None tr (List.map of_json xs)
-    | _ -> stuck ()
-  with _ -> stuck ()
+      make tr (List.map of_json xs)
+    | _ -> Stuck
+  with _ -> Stuck
 
 (* -------------------------------------------------------------------------- *)
 (* --- Merging                                                            --- *)
@@ -226,32 +219,21 @@ let window t0 t1 =
 
 let update ?(complete=true) ~hint result =
   let rec merge h r =
-    let goal = match r.goal with None -> h.goal | g -> g in
-    match h.status, r.status with
+    match h, r with
     | Prover(p0,t0), Prover(p1,t1) when p0 = p1 && window t0 t1 -> h
     | Tactic { id = f ; children = hs } ,
       Tactic { id = g ; children = rs }
       when f = g && List.length hs = List.length rs ->
-      make goal f (List.map2 merge hs rs)
+      make f (List.map2 merge hs rs)
     | _ , Stuck when not complete -> h
     | _ -> r
   in merge hint result
 
 (* -------------------------------------------------------------------------- *)
-(* --- iter                                                               --- *)
-(* -------------------------------------------------------------------------- *)
-
-let rec iter (f : Session.goal -> status -> unit) c =
-  Option.iter (fun g -> f g c.status) c.goal ;
-  match c.status with
-  | Stuck | Prover _ -> ()
-  | Tactic { children } -> List.iter (iter f) children
-
-(* -------------------------------------------------------------------------- *)
 (* --- Dump                                                               --- *)
 (* -------------------------------------------------------------------------- *)
 
-let rec dump fmt { status } = match status with
+let rec dump fmt = function
   | Stuck -> Format.fprintf fmt "@{<red>Unknown@}"
   | Prover(p,t) -> Format.fprintf fmt "%s (%a)" (Prover.desc_name p) Utils.pp_time t
   | Tactic { id ; children } ->

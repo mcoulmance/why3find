@@ -41,7 +41,7 @@ val create :
 type node
 type parent =
   | Node of node
-  | Thread of { id : int ; callback : (Crc.crc -> unit) }
+  | Thread of { id : int ; failed : goal -> unit ; callback : Crc.crc -> unit }
 
 type state =
   | Paused            (* in q_paused *)
@@ -70,7 +70,11 @@ val pp_result : Format.formatter -> result -> unit
 
 
 (** Creates a root node for some goal to be proved. *)
-val thread : hammer -> ?id:int -> ?callback:(crc -> unit) -> goal -> crc -> node
+val thread : hammer ->
+  ?id:int ->
+  ?failed:(goal -> unit) ->
+  ?callback:(crc -> unit) ->
+  goal -> crc -> node
 
 (** Current Task Server State *)
 type progress = {

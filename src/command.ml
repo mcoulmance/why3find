@@ -517,9 +517,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       (* --- Check ----- *)
       if !check then
         begin
-          let rec check_crc crc =
-            match crc.Crc.status with
-            | Stuck -> ()
+          let rec check_crc = function
+            | Crc.Stuck -> ()
             | Prover (p, _) ->
               if Prover.check_and_get_prover env.why3 ~patterns p = None then
                 retval := 1;

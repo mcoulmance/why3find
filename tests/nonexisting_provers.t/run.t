@@ -3,26 +3,20 @@
   Warning: prover bar not found (why3)
   File "foo.mlw", line 3, characters 9-12: proof failed
   Goal T.Add.com: ✘
-    Add.com
   File "foo.mlw", line 3, characters 9-12: proof failed
   Goal T.Mul.com: ✘
-    Mul.com
   Library foo: ✘
   Warning: prover non-existing@1.0 not found (why3)
   Warning: prover non-existing@1.0 not configured (project)
   File "bar.mlw", line 3, characters 9-14: proof failed
   Goal T.Add.assoc: ✘
-    Add.assoc
   File "bar.mlw", line 4, characters 9-12: proof failed
   Goal T.Add.com: ✘
-    Add.com
   File "bar.mlw", line 3, characters 9-14: proof failed
   Goal T.Mul.assoc: ✘
-    Mul.assoc
   Warning: prover alt-ergo@2.4.2 not configured (project)
   File "bar.mlw", line 4, characters 9-12: proof failed
   Goal T.Mul.com: ✘
-    Mul.com
   Library bar: ✘
   Error: 2 unproved files
   Summary:

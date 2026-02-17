@@ -48,7 +48,11 @@ and state =
 
 and parent =
   | Node of node
-  | Thread of { id : int ; callback : (Crc.crc -> unit) }
+  | Thread of {
+      id : int ;
+      failed : Session.goal -> unit ;
+      callback : Crc.crc -> unit ;
+    }
 
 let pp_node fmt n = Session.pp_goal fmt n.goal
 
@@ -58,7 +62,7 @@ let parent n = n.parent
 let rec thread_id n =
   match n.parent with Thread { id } -> id | Node n -> thread_id n
 
-let stuck n = Crc.stuck ~goal:n.goal ()
+let stuck _n = Crc.stuck
 
 let rec proof n =
   match n.proof with
@@ -69,7 +73,7 @@ let rec proof n =
       | Closed crc -> crc
       | Paused | Failed | Scheduled -> stuck n
       | Stacked(tactic,children) ->
-        Crc.tactic ~goal:n.goal tactic (List.map proof children)
+        Crc.tactic tactic (List.map proof children)
     in n.proof <- Some crc ; crc
 
 let pp_state fmt = function
@@ -84,17 +88,22 @@ let rec touch n = n.proof <- None ; touchp n.parent
 and touchp = function Thread _ -> () | Node n -> touch n
 
 let rec update result = function
-  | Thread { callback } -> callback result
+  | Thread { callback } ->
+    callback result ;
   | Node n ->
     try match n.state with
       | Stacked(tactic, children) ->
         let cexit = function { state = Closed crc } -> crc | _ -> raise Exit in
-        let result = Crc.tactic ~goal:n.goal tactic (List.map cexit children) in
+        let result = Crc.tactic tactic (List.map cexit children) in
         n.state <- Closed result ;
         n.proof <- Some result ;
         update result n.parent
       | _ -> touch n
     with Exit -> touch n
+
+let rec failure goal = function
+  | Thread { failed } -> failed goal
+  | Node n -> failure goal n.parent
 
 (* -------------------------------------------------------------------------- *)
 (* --- Node Window                                                        --- *)
@@ -135,8 +144,11 @@ let q_pause n =
   n.state <- Paused ; Fibers.Queue.push q_paused n
 let q_fail n =
   n.state <- Failed ; Fibers.emit failed n ; Fibers.Queue.push q_paused n
-let q_close n crc =
-  n.state <- Closed crc ; n.proof <- Some crc ; update crc n.parent
+let q_close n ?(failed=false) crc =
+  n.state <- Closed crc ; n.proof <- Some crc ;
+  update crc n.parent ;
+  if failed then failure n.goal n.parent
+
 let q_schedule n =
   try
     Fibers.Queue.iter (fun fn -> if not (fn n) then raise Exit) filters ;
@@ -168,13 +180,16 @@ let subgoal n =
 let schedule n =
   match n.state with
   | Paused -> q_schedule n
-  | Failed -> q_close n (stuck n)
+  | Failed -> q_close n ~failed:true Crc.stuck
   | Scheduled | Stacked _ | Closed _ -> ()
 
 let terminate n =
   match n.state with
   | Closed _ -> ()
-  | _ -> q_close n (proof n)
+  | _ ->
+    let proof = proof n in
+    let failed = (proof = Crc.stuck) in
+    q_close n ~failed proof
 
 let still_paused n =
   match n.state with
@@ -237,7 +252,7 @@ let interrupt () =
 (* -------------------------------------------------------------------------- *)
 
 let node hammer ~parent ?hint goal =
-  let hint = match hint with Some h -> h | None -> Crc.stuck ~goal () in
+  let hint = match hint with Some h -> h | None -> Crc.stuck in
   let depth = match parent with Thread _ -> 0 | Node n -> succ n.depth in {
     hammer ; goal ;
     parent ; depth ;
@@ -255,7 +270,7 @@ let rec push_all hammer ~parent goals hints =
   match goals, hints with
   | [], _ -> []
   | g::gs, [] ->
-    let s = Crc.stuck () in
+    let s = Crc.stuck in
     push hammer ~parent g s :: push_all hammer ~parent gs []
   | g::gs, h::hs ->
     push hammer ~parent g h :: push_all hammer ~parent gs hs
@@ -263,7 +278,7 @@ let rec push_all hammer ~parent goals hints =
 let decompose node tactic gs hs =
   let children = push_all node.hammer ~parent:(Node node) gs hs in
   if children = [] then
-    q_close node @@ Crc.tactic ~goal:node.goal tactic []
+    q_close node @@ Crc.tactic tactic []
   else
     node.state <- Stacked(tactic,children)
 
@@ -439,8 +454,8 @@ let create
     provers ; tactics ; profile ; preprocess ;
   }
 
-let thread hammer ?(id=(-1)) ?(callback=ignore) goal hint =
-  let parent = Thread { id ; callback } in
+let thread hammer ?(id=(-1)) ?(failed=ignore) ?(callback=ignore) goal hint =
+  let parent = Thread { id ; failed ; callback } in
   match hammer.preprocess with
   | None -> push hammer ~parent goal hint
   | Some tactic ->
@@ -452,7 +467,7 @@ let thread hammer ?(id=(-1)) ?(callback=ignore) goal hint =
         (Session.goal_name goal) Tactic.pretty tactic ;
       push hammer ~parent goal hint
     | Some goals ->
-      let hints = match hint.status with
+      let hints = match hint with
         | Tactic { id; children; _ } when id = Tactic.name tactic -> children
         | _ -> [] in
       let root = node hammer ~parent ~hint goal in
@@ -473,7 +488,7 @@ let hammer0 : strategy = fun n ->
       | Killed -> Interrupted
       | Unknown -> NotFound
       | Valid(p,t) ->
-        let crc = Crc.prover ~goal:n.goal p.desc t in
+        let crc = Crc.prover p.desc t in
         q_close n crc ; Resolved
     in sequence hprove h.provers n
   else notfound ()
@@ -493,7 +508,7 @@ let hammer13 minlevel timefactor n =
     | Unknown -> NotFound
     | Killed -> Interrupted
     | Valid(p,t) ->
-      let crc = Crc.prover ~goal:n.goal p.desc t in
+      let crc = Crc.prover p.desc t in
       q_close n crc ; Resolved
 
 let hammer1 : strategy = hammer13 1 1.0
@@ -533,7 +548,7 @@ let try_prover d t : strategy = fun n ->
     | Unknown -> NotFound
     | Killed -> Interrupted
     | Valid(p,t) ->
-      let crc = Crc.prover ~goal:n.goal p.desc t in
+      let crc = Crc.prover p.desc t in
       q_close n crc ; Resolved
 
 let replay_prover p t = try_prover p t >>> notfound
@@ -567,7 +582,7 @@ let explore : strategy =
 
 let execute n =
   try
-    match n.hint.status with
+    match n.hint with
     | Stuck -> explore n
     | Prover(p,t) ->
       if n.hammer.replay then
@@ -663,9 +678,11 @@ let process () =
         match r with
         | Resolved -> ()
         | NotFound ->
-          if debugging node then q_fail node else q_close node (stuck node)
+          if debugging node then q_fail node else
+            q_close node ~failed:true Crc.stuck
         | Interrupted ->
-          if debugging node then q_pause node else q_close node (Crc.stuck ())
+          if debugging node then q_pause node else
+            q_close node Crc.stuck
       in incr pr ; Fibers.background (execute node) ~callback ; true
     | None -> false
   end

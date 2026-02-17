@@ -252,7 +252,7 @@ let iter_theory cenv ~scope thy =
 let get_proofs thy proofs =
   Mstr.find_def Mstr.empty (Session.thy_name thy) proofs
 
-let get_proof a proofs = Mstr.find_def (Crc.stuck ()) a proofs
+let get_proof a proofs = Mstr.find_def Crc.stuck a proofs
 
 let zip_goals thy proofs =
   let proofs = get_proofs thy proofs in

@@ -487,7 +487,7 @@ let rec decorate cursor head tail =
 let highlight ~file ~context thy task =
   let w = chunks ~file thy task in
   match w.chunks with [] -> () | head::tail ->
-    Format.printf "@{<orange>[%s:%a%s]@}@\n"
+    Format.printf "@{<orange>[%s:%a %s]@}@\n"
       file pp_range (w.g1,w.g2) (Session.task_name task) ;
     let text = Utils.readfile ~file in
     let cursor = {

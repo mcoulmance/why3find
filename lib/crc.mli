@@ -10,7 +10,7 @@
 (* --- Proof Certificates                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
-type status = private
+type crc = private
   | Stuck
   | Prover of Prover.desc * float
   | Tactic of {
@@ -22,19 +22,9 @@ type status = private
       time : float ;
     }
 
-and crc = private {
-  goal : Session.goal option ;
-  status : status ;
-}
-
-val none : status
-val stuck : ?goal:Session.goal -> unit -> crc
-val prover : ?goal:Session.goal -> Prover.desc -> float -> crc
-val tactic : ?goal:Session.goal -> Tactic.tactic -> crc list -> crc
-
-(** Iterates over all goals in the CRC.
-    Tactic nodes are visite first, followed by their children. *)
-val iter : (Session.goal -> status -> unit) -> crc -> unit
+val stuck : crc
+val prover : Prover.desc -> float -> crc
+val tactic : Tactic.tactic -> crc list -> crc
 
 type verdict = [ `Valid of int | `Failed of int | `Partial of int * int ]
 val verdict : crc -> verdict
@@ -58,7 +48,7 @@ val is_unknown : crc -> bool
 val is_complete : crc -> bool
 
 val pretty : Format.formatter -> crc -> unit
-val pp_status : Format.formatter -> status -> unit
+val pp_status : Format.formatter -> crc -> unit
 val pp_checked : Format.formatter -> stuck:int -> proved:int -> unit
 
 val pp_time : Format.formatter -> float -> unit
