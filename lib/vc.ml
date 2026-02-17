@@ -209,18 +209,21 @@ let pp_range fmt (p,q) =
   else
     Format.pp_print_int fmt (p+1)
 
-let pp_expl fmt t =
-  let expl = Session.task_expl t in
-  if expl <> "" then Format.fprintf fmt ":%s" expl
+let pp_expl fmt e =
+  if e <> "" then Format.fprintf fmt " [%s]" e
 
 let dump ~file task =
-  let p,q = split ~file shape_of_chunks task |> range in
-  if p <= q then
-    Format.printf "@{<orange>[%s:%a%a]@}@\n"
-      file pp_range (p,q) pp_expl task ;
+  let pp_where =
+    let p,q = split ~file shape_of_chunks task |> range in
+    if p <= q then
+      let name = Session.task_name task in
+      let expl = Session.task_expl task in
+      fun () -> Format.printf "@{<orange>[%s:%a] %s%a@}@\n"
+          file pp_range (p,q) name pp_expl expl
+    else ignore in
+  pp_where () ;
   Why3.Pretty.print_sequent Format.std_formatter task ;
-  Format.printf "@{<orange>[%s:%a%a]@}@\n"
-    file pp_range (p,q) pp_expl task ;
+  pp_where () ;
   Format.printf "%s@." (String.make 69 '-')
 
 (* -------------------------------------------------------------------------- *)
@@ -484,8 +487,8 @@ let rec decorate cursor head tail =
 let highlight ~file ~context thy task =
   let w = chunks ~file thy task in
   match w.chunks with [] -> () | head::tail ->
-    Format.printf "@{<orange>[%s:%a%a]@}@\n"
-      file pp_range (w.g1,w.g2) pp_expl task ;
+    Format.printf "@{<orange>[%s:%a%s]@}@\n"
+      file pp_range (w.g1,w.g2) (Session.task_name task) ;
     let text = Utils.readfile ~file in
     let cursor = {
       text ; context ; offset = 0 ; pos = Range.start ;

@@ -32,17 +32,18 @@ val theories : session -> theory list
 type goal
 
 val split : theory -> goal list
+val pr_name : Ident.ident -> string
 val goal_name : goal -> string
+val goal_idename : goal -> string
+val goal_fullname : goal -> string
 val goal_file : goal -> string
 val goal_loc : goal -> Loc.position option
 val goal_task : goal -> Task.task
-val goal_expl : goal -> string
-val goal_idename : goal -> string
 val goal_theory : goal -> Theory.theory
+
 val pp_goal : Format.formatter -> goal -> unit
 
 val thy_name : Theory.theory -> string
-val proof_name : Ident.ident -> string
 val task_name : Task.task -> string
 val task_expl : Task.task -> string
 

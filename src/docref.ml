@@ -99,7 +99,7 @@ type href =
 
 let find_proof id = function
   | None -> None
-  | Some { proofs } -> Mstr.find_opt (Session.proof_name id) proofs
+  | Some { proofs } -> Mstr.find_opt (Session.pr_name id) proofs
 
 let strip_lemma id = function
   | None -> id

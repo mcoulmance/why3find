@@ -39,6 +39,7 @@ val lemma : t -> bool
 val standard : t -> bool
 val resolve : lib:string list -> ?root:string -> t -> id
 
+val is_infix : string -> bool
 val of_infix : string -> string
 val to_infix : string -> string
 

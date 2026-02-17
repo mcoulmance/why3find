@@ -120,8 +120,10 @@ let rec unwrap_any s = function
       Printf.sprintf "(%s)" @@ String.sub s p (n-p)
     else unwrap_any s others
 
-let of_infix s =
-  unwrap_any s ["prefix ";"infix ";"mixfix "]
+let prefixes = ["prefix ";"infix ";"mixfix "]
+let of_infix s = unwrap_any s prefixes
+let is_infix s =
+  List.exists (fun prefix -> String.starts_with ~prefix s) prefixes
 
 let pp_infix fmt a = Format.pp_print_string fmt (of_infix a)
 
