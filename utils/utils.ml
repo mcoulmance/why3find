@@ -320,6 +320,32 @@ let pp_s fmt n = if n > 1 then Format.pp_print_char fmt 's'
 let pp_yies fmt n =
   Format.pp_print_string fmt (if n > 1 then "ies" else "y")
 
+let pp_left width fmt txt =
+  let n = String.length txt in
+  if n <= width then
+    begin
+      Format.pp_print_string fmt txt ;
+      Format.pp_print_string fmt @@ String.make (width - n) ' ' ;
+    end
+  else
+    begin
+      Format.pp_print_string fmt (String.sub txt 0 (width-1)) ;
+      Format.pp_print_string fmt "…" ;
+    end
+
+let pp_right width fmt txt =
+  let n = String.length txt in
+  if n <= width then
+    begin
+      Format.pp_print_string fmt @@ String.make (width - n) ' ' ;
+      Format.pp_print_string fmt txt ;
+    end
+  else
+    begin
+      Format.pp_print_string fmt "…" ;
+      Format.pp_print_string fmt (String.sub txt (n - width + 1) (width-1)) ;
+    end
+
 let to_string pp v =
   begin
     let buffer = Buffer.create 80 in

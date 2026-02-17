@@ -172,8 +172,8 @@ let print_stats allprovers alltactics fmt =
          try
            let id = Prover.fullname prv in
            let s = Hashtbl.find provers id in
-           Format.fprintf fmt " - %-20s (%4d) (%a - %a - %a)@\n"
-             id (Stats.count s)
+           Format.fprintf fmt " - %a (%4d) (%a - %a - %a)@\n"
+             (Utils.pp_left 20) id (Stats.count s)
              Utils.pp_rtime (Stats.min s)
              Utils.pp_rtime (Stats.average s)
              Utils.pp_rtime (Stats.max s)
