@@ -69,6 +69,7 @@ module Mdesc = Why3.Extmap.Make (struct
 
 type prover = {
   desc : desc ;
+  relaxed : bool ;
   config : Whyconf.config_prover ;
   driver : Driver.driver ;
   digest : string ;
@@ -147,7 +148,7 @@ let load_driver_for_prover =
 let load (wenv : Config.why3env) (pconfig : Whyconf.config_prover) =
   let main = Whyconf.get_main wenv.config in
   {
-    desc = desc_of_config pconfig ;
+    desc = desc_of_config pconfig ; relaxed = false ;
     config = pconfig ;
     driver = load_driver_for_prover main wenv.env pconfig ;
     digest = digest_config main pconfig;
@@ -163,6 +164,8 @@ let all wenv =
 
 let all = Config.Whtbl.memoize 5 all
 
+let relaxed p = { p with relaxed = true }
+
 let filter_prover ~name ?version p =
   p.desc.name = name
   && (version = None || p.desc.version = Option.get version)
@@ -170,7 +173,8 @@ let filter_prover ~name ?version p =
 let find_exn wenv ~pattern =
   let (name, version) = split_pattern pattern in
   let filter _ p = filter_prover ~name ?version p in
-  snd @@ Mdesc.min_binding @@ Mdesc.filter filter @@ all wenv
+  let prv = snd @@ Mdesc.min_binding @@ Mdesc.filter filter @@ all wenv in
+  if version = None then relaxed prv else prv
 
 let find_default (wenv : Config.why3env) name =
   try [ find_exn wenv ~pattern:name ] with Not_found -> []
@@ -196,7 +200,7 @@ let select_from_map ~patterns all =
       | name, Some version -> `Ok (Mdesc.find { name ; version } all)
       | name, None ->
         let filter { name = s ; _ } _ = String.equal name s in
-        `Ok (snd @@ Mdesc.min_binding @@ Mdesc.filter filter all)
+        `Ok (relaxed @@ snd @@ Mdesc.min_binding @@ Mdesc.filter filter all)
     with
     | InvalidPattern s -> `InvalidPattern s
     | Not_found -> `PatternNotFound pattern in
@@ -218,9 +222,7 @@ let check_and_get_prover env ~patterns pr =
   then prover (* either the prover is available or we already complained *)
   else
     begin
-      let s = Format.asprintf "%a@?" pp_desc pr in
-      if prover = None then
-        warn_prover_not_found s;
-      warn_prover_not_configured s;
-      None
+      let desc = Format.asprintf "%a@?" pp_desc pr in
+      if prover = None then warn_prover_not_found desc ;
+      warn_prover_not_configured desc ; None
     end

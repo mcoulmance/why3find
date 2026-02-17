@@ -41,6 +41,7 @@ module Mdesc : Why3.Extmap.S with type key = desc
 
 type prover = private {
   desc : desc ;
+  relaxed : bool ;
   config : Why3.Whyconf.config_prover ;
   driver : Why3.Driver.driver ;
   digest : string ;
@@ -58,6 +59,7 @@ val name : prover -> string
 val version : prover -> string
 val fullname : prover -> string
 val infoname : prover -> string
+val relaxed : prover -> prover
 
 val pp_prover : Format.formatter -> prover -> unit
 (** Prints prover fullname. *)
