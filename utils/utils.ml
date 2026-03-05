@@ -249,6 +249,16 @@ let output ~file fn =
 (* --- Time Utilities                                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
+let scale ?(t0=1.0) t =
+  let t = t *. 1.2 in
+  let m = t0 *. 0.2 in
+  if t < m then m else
+    let m = t0 *. 0.5 in
+    if t < m then m else
+      let m = t0 *. 0.75 in
+      if t < m then m else
+        t0 *. floor ((t +. t0) /. t0)
+
 let round t =
   if t < 1e-3 then Float.round (t *. 1e4) *. 1e-4 else
   if t < 1.0 then Float.round (t *. 1e3) *. 1e-3 else

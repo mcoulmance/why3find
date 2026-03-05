@@ -12,7 +12,7 @@
 
 type crc =
   | Stuck
-  | Prover of Prover.desc * float
+  | Prover of string * string option * float
   | Tactic of {
       id : string ;
       children : crc list ;
@@ -22,7 +22,11 @@ type crc =
       time : float ;
     }
 let stuck = Stuck
-let prover p f = Prover(p,f)
+
+let prover (p : Prover.prover) time =
+  let name = Prover.desc_name p.desc in
+  let vers = if p.relaxed then None else Some (Prover.desc_version p.desc) in
+  Prover(name,vers,time)
 
 let get_stuck = function
   | Stuck -> 1
@@ -36,7 +40,7 @@ let get_proved = function
 
 let get_time = function
   | Stuck -> 0.0
-  | Prover(_,t) -> t
+  | Prover(_,_,t) -> t
   | Tactic { time } -> time
 
 let get_depth = function
@@ -97,7 +101,8 @@ let pp_checked fmt ~stuck:s ~proved:p =
 
 let pp_status fmt = function
   | Tactic { id } -> Format.pp_print_string fmt id
-  | Prover(p,_) -> Format.pp_print_string fmt @@ Prover.desc_name p
+  | Prover(p,None,_) -> Format.pp_print_string fmt p
+  | Prover(p,Some v,_) -> Format.fprintf fmt "%s@%s" p v
   | Stuck -> Format.pp_print_string fmt "stuck"
 
 let pretty fmt crc =
@@ -116,8 +121,8 @@ let add k a =
 
 let rec provers m = function
   | Stuck -> ()
-  | Prover (p, _) ->
-    m := add (Prover.desc_name p) !m
+  | Prover (p, _, _) ->
+    m := add p !m
   | Tactic { id ; children } ->
     m := add id !m ; List.iter (provers m) children
 
@@ -181,8 +186,11 @@ let pp_hints fmt = function
 let rec to_json (a : crc) : Json.t =
   match a with
   | Stuck -> `Null
-  | Prover(p,t) ->
-    `Assoc [ "prover", `String (Prover.desc_to_string p) ; "time", `Float t]
+  | Prover(p,None,t) ->
+    `Assoc [ "prover", `String p ; "time", `Float t]
+  | Prover(p,Some v,t) ->
+    let pv = Printf.sprintf "%s@%s" p v in
+    `Assoc [ "prover", `String pv ; "time", `Float t]
   | Tactic { id ; children } ->
     `Assoc [
       "tactic", `String id;
@@ -195,7 +203,8 @@ let rec of_json (js : Json.t) : crc =
     | `Assoc fds when List.mem_assoc "prover" fds ->
       let p = List.assoc "prover" fds |> Json.jstring in
       let t = List.assoc "time" fds |> Json.jfloat in
-      prover (Prover.desc_of_string p) t
+      let p,v = Prover.pattern_of_string p in
+      Prover(p,v,t)
     | `Assoc fds when List.mem_assoc "tactic" fds ->
       let tr = List.assoc "tactic" fds |> Json.jstring in
       let xs = List.assoc "children" fds |> Json.jlist in
@@ -220,7 +229,8 @@ let window t0 t1 =
 let update ?(complete=true) ~hint result =
   let rec merge h r =
     match h, r with
-    | Prover(p0,t0), Prover(p1,t1) when p0 = p1 && window t0 t1 -> h
+    | Prover(p0,v0,t0), Prover(p1,v1,t1)
+      when p0 = p1 && v0 = v1 && window t0 t1 -> h
     | Tactic { id = f ; children = hs } ,
       Tactic { id = g ; children = rs }
       when f = g && List.length hs = List.length rs ->
@@ -235,7 +245,7 @@ let update ?(complete=true) ~hint result =
 
 let rec dump fmt = function
   | Stuck -> Format.fprintf fmt "@{<red>Unknown@}"
-  | Prover(p,t) -> Format.fprintf fmt "%s (%a)" (Prover.desc_name p) Utils.pp_time t
+  | Prover(p,_,t) -> Format.fprintf fmt "%s (%a)" p Utils.pp_time t
   | Tactic { id ; children } ->
     Format.fprintf fmt "@[<hv 2>%s" id ;
     List.iter (dumpchild fmt) children ;

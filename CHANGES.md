@@ -11,6 +11,9 @@
 
 ### IDE Integration
 ### Bug Fixes
+
+ - Fixed relaxed prover constraints in CRC files (!198)
+
 ### API
 
 ## 1.3.0 - 2025-12-18

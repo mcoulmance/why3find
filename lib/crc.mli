@@ -12,7 +12,7 @@
 
 type crc = private
   | Stuck
-  | Prover of Prover.desc * float
+  | Prover of string * string option * float
   | Tactic of {
       id : string ;
       children : crc list ;
@@ -23,7 +23,7 @@ type crc = private
     }
 
 val stuck : crc
-val prover : Prover.desc -> float -> crc
+val prover : Prover.prover -> float -> crc
 val tactic : Tactic.tactic -> crc list -> crc
 
 type verdict = [ `Valid of int | `Failed of int | `Partial of int * int ]

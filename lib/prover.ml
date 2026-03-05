@@ -39,6 +39,9 @@ let desc_of_string s =
   | Invalid_argument _ | InvalidPattern _ ->
     raise (InvalidProverDescription s)
 
+let desc ~name ?version () =
+  match version with None -> name | Some v -> Printf.sprintf "%s@%s" name v
+
 let desc_name p = p.name
 let desc_version p = p.version
 
@@ -121,10 +124,6 @@ let digest_config main Whyconf.{
   Digest.(to_hex (string (Buffer.contents buf)))
 [@@ocaml.warning "+9"]
 
-let pmatch ~pattern d =
-  let (name, version) = split_pattern pattern in
-  name = d.name && (version = None || Option.get version = d.version)
-
 let pattern_name s =
   try
     let (name, _) = split_pattern s in
@@ -132,8 +131,12 @@ let pattern_name s =
   with InvalidPattern _ -> s
 
 let pattern_version s =
-  let (_, version) = split_pattern s in
-  version
+  try
+    let (_, version) = split_pattern s in
+    version
+  with InvalidPattern _ -> None
+
+let pattern_of_string = split_pattern
 
 let desc_of_config config = {
   name = String.lowercase_ascii config.Whyconf.prover.prover_name ;
@@ -187,11 +190,7 @@ let default wenv =
 
 let warn_prover_not_found =
   Why3.Wstdlib.Hstr.memo 5
-    (fun s -> Log.warning "prover %s not found (why3)" s)
-
-let warn_prover_not_configured =
-  Why3.Wstdlib.Hstr.memo 5
-    (fun s -> Log.warning "prover %s not configured (project)" s)
+    (fun s -> Log.warning "prover %s not found" s)
 
 let select_from_map ~patterns all =
   let find pattern =
@@ -213,16 +212,14 @@ let select wenv ~patterns =
     | `PatternNotFound s -> warn_prover_not_found s; None in
   List.filter_map filter @@ select_from_map ~patterns @@ all wenv
 
-let check_and_get_prover env ~patterns pr =
-  let prmatch pattern =
-    try pmatch ~pattern pr with
-    | InvalidPattern _ -> false in
-  let prover = Mdesc.find_opt pr @@ all env in
-  if List.exists prmatch patterns
-  then prover (* either the prover is available or we already complained *)
-  else
-    begin
-      let desc = Format.asprintf "%a@?" pp_desc pr in
-      if prover = None then warn_prover_not_found desc ;
-      warn_prover_not_configured desc ; None
-    end
+let fit prover ~name ~version =
+  prover.desc.name = name &&
+  match version with
+  | None -> true
+  | Some v ->  v = prover.desc.version
+
+let find provers ~name ?version () =
+  let result = List.find_opt (fit ~name ~version) provers in
+  begin
+    if result = None then warn_prover_not_found @@ desc ~name ?version () ;
+  end ; result

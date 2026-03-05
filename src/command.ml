@@ -355,18 +355,18 @@ let pp_list =
     ~pp_sep:(fun fmt () -> Format.fprintf fmt ",@ ")
     Format.pp_print_string
 
-let rec configuration configs provers =
+let rec pp_prover_config configs provers =
   match configs , provers with
   | [] , ps -> List.map Prover.infoname ps
   | cs , [] -> List.map (Printf.sprintf "(?%s)") cs
   | c::cs , p::ps ->
     let cn = Prover.pattern_name c in
     let pn = Prover.name p in
-    if cn <> pn then Printf.sprintf "(?%s)" c :: configuration cs provers
+    if cn <> pn then Printf.sprintf "(?%s)" c :: pp_prover_config cs provers
     else
       let q = Prover.fullname p in
-      if c = q then q :: configuration cs ps else
-        Prover.infoname p :: configuration cs ps
+      if c = q then q :: pp_prover_config cs ps else
+        Prover.infoname p :: pp_prover_config cs ps
 
 let check_custom_drivers main p =
   let check_driver (extra_dir, n) =
@@ -480,23 +480,21 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
       let patterns, provers =
         if !default || !detect then
           let provers = Prover.default env.why3 in
-          let patterns =
-            if !relax then List.map Prover.name provers else
-              List.map Prover.fullname provers
-          in
-          patterns, provers
+          if !relax
+          then List.map Prover.name provers, List.map Prover.relaxed provers
+          else List.map Prover.fullname provers, provers
         else
-          let config = config.provers in
+          let pconfig = config.provers in
           let patterns =
-            if !relax then List.map Prover.pattern_name config else config in
+            if !relax then
+              List.map Prover.pattern_name pconfig else pconfig in
           let provers = Prover.select env.why3 ~patterns in
           let patterns =
             if !strict then List.map Prover.fullname provers else
-            if !relax then List.map Prover.name provers else
-              config in
-          patterns, provers
+            if !relax then List.map Prover.name provers else pconfig
+          in patterns, provers
       in
-      let pnames = configuration patterns provers in
+      let pp_provers = pp_prover_config patterns provers in
       let profile =
         if !calibrate then
           Fibers.await @@ begin
@@ -519,10 +517,10 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
         begin
           let rec check_crc = function
             | Crc.Stuck -> ()
-            | Prover (p, _) ->
-              if Prover.check_and_get_prover env.why3 ~patterns p = None then
-                retval := 1;
-            | Tactic { children; _ } -> List.iter check_crc children in
+            | Tactic { children; _ } -> List.iter check_crc children
+            | Prover(name,version,_) ->
+              if Prover.find provers ~name ?version () = None then retval := 1 ;
+          in
           let check f =
             let iter = Why3.Wstdlib.Mstr.iter in
             iter (fun _ -> iter (fun _ -> check_crc)) @@ snd @@ Proofs.load f
@@ -552,8 +550,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           Format.printf " - runner: %d jobs" jobs ;
           if fast <> 0.2 then Format.printf ", %a" Utils.pp_time fast ;
           Format.printf ", %a@." Utils.pp_time time ;
-          if pnames <> [] then
-            Format.printf " - @[<hov 2>provers: %a@]@." pp_list pnames ;
+          if pp_provers <> [] then
+            Format.printf " - @[<hov 2>provers: %a@]@." pp_list pp_provers ;
         end ;
       if !list && tactics <> [] then
         Format.printf " - @[<hov 2>tactics: %a@ (depth %d)@]@."

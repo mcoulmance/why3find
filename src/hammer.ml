@@ -488,7 +488,7 @@ let hammer0 : strategy = fun n ->
       | Killed -> Interrupted
       | Unknown -> NotFound
       | Valid(p,t) ->
-        let crc = Crc.prover p.desc t in
+        let crc = Crc.prover p t in
         q_close n crc ; Resolved
     in sequence hprove h.provers n
   else notfound ()
@@ -508,7 +508,7 @@ let hammer13 minlevel timefactor n =
     | Unknown -> NotFound
     | Killed -> Interrupted
     | Valid(p,t) ->
-      let crc = Crc.prover p.desc t in
+      let crc = Crc.prover p t in
       q_close n crc ; Resolved
 
 let hammer1 : strategy = hammer13 1 1.0
@@ -535,12 +535,11 @@ let hammer =
 (* --- Node Processing                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
-let try_prover d t : strategy = fun n ->
-  let env = n.hammer.env in
-  match Prover.check_and_get_prover env.why3 ~patterns:env.config.provers d with
+let try_prover p v t : strategy = fun n ->
+  match Prover.find n.hammer.provers ~name:p ?version:v () with
   | None -> notfound ()
   | Some p ->
-    let base = env.config.time in
+    let base = n.hammer.env.config.time in
     (* Takes into account the current strategy and possible fluctuations *)
     let time = min (max base (t +. 0.5)) (2.0 *. base) in
     let+ verdict = prove time p n in
@@ -548,11 +547,11 @@ let try_prover d t : strategy = fun n ->
     | Unknown -> NotFound
     | Killed -> Interrupted
     | Valid(p,t) ->
-      let crc = Crc.prover p.desc t in
+      let crc = Crc.prover p t in
       q_close n crc ; Resolved
 
-let replay_prover p t = try_prover p t >>> notfound
-let update_prover p t = try_prover p t >>> hammer
+let replay_prover p v t = try_prover p v t >>> notfound
+let update_prover p v t = try_prover p v t >>> hammer
 
 let try_tactic ~hint n =
   Fibers.return @@
@@ -584,11 +583,11 @@ let execute n =
   try
     match n.hint with
     | Stuck -> explore n
-    | Prover(p,t) ->
+    | Prover(p,v,t) ->
       if n.hammer.replay then
-        replay_prover p t n
+        replay_prover p v t n
       else
-        update_prover p t n
+        update_prover p v t n
     | Tactic { id ; children } ->
       match Tactic.lookup n.hammer.env.why3.env id with
       | Some tac ->
