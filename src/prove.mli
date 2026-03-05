@@ -11,7 +11,7 @@
 (* -------------------------------------------------------------------------- *)
 
 type mode = [ `Force | `Update | `Minimize | `Replay ]
-type results = [ `Default | `Modules | `Theories | `Goals | `Proofs | `Tasks | `Context of int ]
+type results = [ `Default | `Summary | `Modules | `Theories | `Goals | `Proofs | `Tasks | `Context of int ]
 
 val stdlib : bool ref
 val externals : bool ref

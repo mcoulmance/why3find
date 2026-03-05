@@ -3,6 +3,12 @@
 ## Unreleased
 ### Notable New Features
 ### Command Line Interface
+
+ - New option `--summary` to only print the final summary.
+   Default behavior is now `--summary` when proving more than 10 files,
+   `--modules` when proving more than 1 file and `--theories` when proving 1 file
+   (#143, !199).
+
 ### IDE Integration
 ### Bug Fixes
 ### API
