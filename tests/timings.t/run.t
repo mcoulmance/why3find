@@ -2,6 +2,7 @@
   >   | sed 's/[0-9][0-9]*/XX/g'
   Theory foo.S: ✔ (-)
   Theory foo.T: ✔ (XX)
+  Proved (foo.mlw) ✔
   Split theories         XX.XX (   XX) | XX.XX - XX.XX - XX.XX |
   Transformation         XX.XX (   XX) | XX.XX - XX.XX - XX.XX |
   Digest prover          XX.XX (   XX) | XX.XX - XX.XX - XX.XX |

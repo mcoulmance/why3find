@@ -8,6 +8,7 @@
 
   $ why3find prove test.mlw
   Theory test.T: ✔ (-)
+  Proved (test.mlw) ✔
 
   $ cat test/proof.json
   {
@@ -18,6 +19,7 @@
   $ echo "" > test.mlw
 
   $ why3find prove test.mlw
+  Proved (test.mlw) ✔
 
   $ cat test/proof.json
   { "profile": [], "proofs": {} }

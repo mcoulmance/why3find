@@ -498,7 +498,7 @@ let prove_files ~(env:Project.env)
       files ;
     Hammer.run () ;
     Utils.flush () ;
-    if Utils.tty || details then
+    if details then
       begin
         Format.printf "%t" Runner.print_stats ;
         Format.printf "%t" @@ print_stats

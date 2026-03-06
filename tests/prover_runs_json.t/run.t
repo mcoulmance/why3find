@@ -1,6 +1,7 @@
   $ why3find prove -P alt-ergo -r --log-prover-results results.json
   Theory foo.S: ✔ (-)
   Theory foo.T: ✔ (1)
+  Proved (foo.mlw) ✔
 
   $ cat foo/proof.json
   {

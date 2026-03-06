@@ -656,6 +656,11 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
             file
           |]
         end
+      else
+        match List.length files with
+        | 0 -> Log.warning "No files to prove"
+        | 1 -> Log.message "Proved (%s) %t" (List.hd files) Utils.pp_ok
+        | n -> Log.message "Proved (%d files) %t" n Utils.pp_ok
     end
 
 (* -------------------------------------------------------------------------- *)
