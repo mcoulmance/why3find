@@ -12,12 +12,12 @@ all: build
 .PHONY: version
 
 YARN=yarn --ignore-engines
-VERSION=$(shell cat VERSION)
+VERSION=$(shell cat ../VERSION)
 
 # the local VERSION file is updated by dune
 
 version: .version
-.version: VERSION
+.version: ../VERSION
 	@$(YARN) version --no-git-tag-version --new-version $(VERSION)
 	@touch .version
 
