@@ -29,7 +29,10 @@
      (yojson (>= 1.7.0))
      (terminal_size (>= 0.2.0))
      (zmq :with-test)
-     (alt-ergo (and :with-test (= 2.4.2))))
+     (alt-ergo (and :with-test (= 2.4.2)))
+     (ocp-indent (and :with-test (= 1.9.0)))
+     (headache (and :with-test (= 1.08))))
+
   (depopts
      (zmq (>= 5.0.0)))
   (sites
