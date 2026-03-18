@@ -77,7 +77,7 @@
   
     <span class="keyword">let</span> <span class="keyword">rec</span> <span class="keyword">function</span> (<a id="mixfix%20%5B%5D">[]</a><a href="certif.proof.html#S.mixfix%20%5B%5D" title="Partial proof (3/5 goals)" class="icon warning icofont-error"></a>) (u : <a title="certif.S.seq" href="#seq">seq</a> &#39;a) (k : int) : &#39;a
       <span class="keyword">requires</span> { 0 <a title="int.Int.(<=)" href="https://www.why3.org/stdlib/int.html#infix%20%3C=_25">&lt;=</a> k <a title="int.Int.(<)" href="https://www.why3.org/stdlib/int.html#infix%20%3C_21">&lt;</a> L.<a title="list.Length.length" href="https://www.why3.org/stdlib/list.html#length_24">length</a> u }
-      <span class="keyword">ensures</span> { L.<a title="list.Nth.nth" href="https://www.why3.org/stdlib/list.html#nth_104">nth</a> k u = <a title="option.Option.Some" href="https://www.why3.org/stdlib/option.html#Some_5">Some</a> result }
+      <span class="keyword">ensures</span> { L.<a title="list.Nth.nth" href="https://www.why3.org/stdlib/list.html#nth_106">nth</a> k u = <a title="option.Option.Some" href="https://www.why3.org/stdlib/option.html#Some_5">Some</a> result }
       <span class="keyword">variant</span> { u }
       = <span class="keyword">match</span> u <span class="keyword">with</span> L.<a title="list.List.Cons" href="https://www.why3.org/stdlib/list.html#Cons_8">Cons</a> x w -&gt;
           <span class="keyword">if</span> k <a title="int.Int.(=)" href="https://www.why3.org/stdlib/int.html#infix%20=_16">=</a> 1 <span class="comment">(*incorrect*)</span> <span class="keyword">then</span> x <span class="keyword">else</span> w[k<a title="int.Int.(-)" href="https://www.why3.org/stdlib/int.html#infix%20-_23">-</a>1]
