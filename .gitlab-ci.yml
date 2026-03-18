@@ -56,8 +56,9 @@ why3-master:
   stage: distrib
   script:
     - git merge origin/why3-master
-    - opam update
     - opam pin -n https://gitlab.inria.fr/why3/why3.git#master
+    - opam update
+    - opam reinstall why3
     - opam install . --jobs 2 --with-test --with-doc
 
 opam-distrib:
@@ -75,6 +76,7 @@ opam-distrib:
     - sudo ln -f /usr/bin/opam-2.1 /usr/bin/opam
     - opam --version
     - opam init --reinit -ni
+    - sudo apk update
     - export OPAMCRITERIA="-removed,-count[avoid-version,changed],-count[version-lag,request],-count[version-lag,changed],-count[missing-depexts,changed],-changed"
     - export OPAMFIXUPCRITERIA="-removed,-count[avoid-version,changed],-count[version-lag,request],-count[version-lag,changed],-count[missing-depexts,changed],-changed"
     - export OPAMUPGRADECRITERIA="-removed,-count[avoid-version,changed],-count[version-lag,request],-count[version-lag,changed],-count[missing-depexts,changed],-changed"
