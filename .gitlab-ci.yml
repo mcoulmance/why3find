@@ -37,7 +37,7 @@ workflow:
     - docker
 
 # ---------------------------------------------------------------------------
-# --- Building Why3find
+# --- Why3find
 # ---------------------------------------------------------------------------
 
 build:
@@ -62,11 +62,9 @@ why3-master:
     - opam install . --jobs 2 --with-test --with-doc
 
 opam-distrib:
-  <<: *allow_failure_why3_master
   stage: distrib
-  image: ocaml/opam:alpine-ocaml-4.14
-  tags:
-    - docker
+  when: manual
+  image: ocaml/opam:ubuntu-lts-ocaml-4.14
   variables:
     OPAMDOWNLOADJOBS: "1"
     OPAMERRLOGLEN: "0"
@@ -76,19 +74,23 @@ opam-distrib:
     - sudo ln -f /usr/bin/opam-2.1 /usr/bin/opam
     - opam --version
     - opam init --reinit -ni
-    - sudo apk update
+    - sudo apt update
     - export OPAMCRITERIA="-removed,-count[avoid-version,changed],-count[version-lag,request],-count[version-lag,changed],-count[missing-depexts,changed],-changed"
     - export OPAMFIXUPCRITERIA="-removed,-count[avoid-version,changed],-count[version-lag,request],-count[version-lag,changed],-count[missing-depexts,changed],-changed"
     - export OPAMUPGRADECRITERIA="-removed,-count[avoid-version,changed],-count[version-lag,request],-count[version-lag,changed],-count[missing-depexts,changed],-changed"
     - opam pin . -n -k path
     - opam update --depexts
-    - opam depext --jobs 2 why3find
+    - opam depext --jobs 2 frama-c
     - export OPAMCRITERIA="+removed,+count[version-lag,solution]"
     - export OPAMFIXUPCRITERIA="+removed,+count[version-lag,solution]"
     - export OPAMUPGRADECRITERIA="+removed,+count[version-lag,solution]"
     - export OPAMEXTERNALSOLVER="builtin-0install"
     - opam update --depexts
-    - opam reinstall --jobs 2 why3find
+    - opam reinstall --jobs 2 frama-c
+    - frama-c --plugins
+  timeout: 2h
+  tags:
+    - docker
 
 # ---------------------------------------------------------------------------
 # --- VSCode Extension
