@@ -100,7 +100,7 @@ let rec target (t : Task.task) =
     match task_decl.td_node with
     | Decl { d_node = Dprop(Pgoal,pr,p) } ->
       begin
-        match p.t_loc with
+        match Term.t_loc p with
         | Some _ as pos -> pos
         | None -> pr.pr_name.id_loc
       end
