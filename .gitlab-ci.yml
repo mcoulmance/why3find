@@ -23,6 +23,11 @@ workflow:
       allow_failure: true
     - when: on_success
 
+.opam: &opam
+  image: registry.frama-c.com/pub/why3find
+  tags:
+    - docker
+
 .node: &node
   image: node:lts-buster
   cache:
@@ -36,10 +41,8 @@ workflow:
 # ---------------------------------------------------------------------------
 
 build:
+  <<: *opam
   stage: build
-  image: registry.frama-c.com/pub/why3find
-  tags:
-    - docker
   script:
     - opam update
     - opam install . --deps-only --jobs 2 --with-test --with-doc
@@ -48,67 +51,65 @@ build:
     - make test
     - make doc
 
-# why3-compatibility:
-#   <<: *ocaml
-#   stage: distrib
-#   script:
-#     - git merge origin/why3-master
-#     - sudo apt update
-#     - opam update
-#     - opam pin -n https://gitlab.inria.fr/why3/why3.git#master
-#     - opam pin . -n -k path
-#     - opam depext  why3find --jobs 2 --with-test
-#     - opam install why3find --jobs 2 --with-test
+why3-master:
+  <<: *opam
+  stage: distrib
+  script:
+    - git merge origin/why3-master
+    - opam update
+    - opam pin -n https://gitlab.inria.fr/why3/why3.git#master
+    - opam install . --jobs 2 --with-test --with-doc
 
-# opam-distrib:
-#   <<: *ocaml
-#   <<: *allow_failure_why3_master
-#   stage: distrib
-#   variables:
-#     OPAMDOWNLOADJOBS: "1"
-#     OPAMERRLOGLEN: "0"
-#     OPAMSOLVERTIMEOUT: "500"
-#     OPAMPRECISETRACKING: "1"
-#   script:
-#     - sudo ln -f /usr/bin/opam-2.1 /usr/bin/opam
-#     - opam --version
-#     - opam init --reinit -ni
-#     - sudo apt update
-#     - export OPAMCRITERIA="-removed,-count[avoid-version,changed],-count[version-lag,request],-count[version-lag,changed],-count[missing-depexts,changed],-changed"
-#     - export OPAMFIXUPCRITERIA="-removed,-count[avoid-version,changed],-count[version-lag,request],-count[version-lag,changed],-count[missing-depexts,changed],-changed"
-#     - export OPAMUPGRADECRITERIA="-removed,-count[avoid-version,changed],-count[version-lag,request],-count[version-lag,changed],-count[missing-depexts,changed],-changed"
-#     - opam pin . -n -k path
-#     - opam update --depexts
-#     - opam depext --jobs 2 why3find
-#     - export OPAMCRITERIA="+removed,+count[version-lag,solution]"
-#     - export OPAMFIXUPCRITERIA="+removed,+count[version-lag,solution]"
-#     - export OPAMUPGRADECRITERIA="+removed,+count[version-lag,solution]"
-#     - export OPAMEXTERNALSOLVER="builtin-0install"
-#     - opam update --depexts
-#     - opam reinstall --jobs 2 why3find
+opam-distrib:
+  <<: *allow_failure_why3_master
+  stage: distrib
+  image: ocaml/opam:alpine-ocaml-4.14
+  tags:
+    - docker
+  variables:
+    OPAMDOWNLOADJOBS: "1"
+    OPAMERRLOGLEN: "0"
+    OPAMSOLVERTIMEOUT: "500"
+    OPAMPRECISETRACKING: "1"
+  script:
+    - sudo ln -f /usr/bin/opam-2.1 /usr/bin/opam
+    - opam --version
+    - opam init --reinit -ni
+    - export OPAMCRITERIA="-removed,-count[avoid-version,changed],-count[version-lag,request],-count[version-lag,changed],-count[missing-depexts,changed],-changed"
+    - export OPAMFIXUPCRITERIA="-removed,-count[avoid-version,changed],-count[version-lag,request],-count[version-lag,changed],-count[missing-depexts,changed],-changed"
+    - export OPAMUPGRADECRITERIA="-removed,-count[avoid-version,changed],-count[version-lag,request],-count[version-lag,changed],-count[missing-depexts,changed],-changed"
+    - opam pin . -n -k path
+    - opam update --depexts
+    - opam depext --jobs 2 why3find
+    - export OPAMCRITERIA="+removed,+count[version-lag,solution]"
+    - export OPAMFIXUPCRITERIA="+removed,+count[version-lag,solution]"
+    - export OPAMUPGRADECRITERIA="+removed,+count[version-lag,solution]"
+    - export OPAMEXTERNALSOLVER="builtin-0install"
+    - opam update --depexts
+    - opam reinstall --jobs 2 why3find
 
 # ---------------------------------------------------------------------------
 # --- VSCode Extension
 # ---------------------------------------------------------------------------
 
-# vscode:
-#   <<: *node
-#   stage: build
-#   script:
-#     - node --version
-#     - npm --version
-#     - yarn --version
-#     - make --version
-#     - make -C vscode
+vscode:
+  <<: *node
+  stage: build
+  script:
+    - node --version
+    - npm --version
+    - yarn --version
+    - make --version
+    - make -C vscode
 
-# vscode-extension:
-#   <<: *node
-#   stage: distrib
-#   when: manual
-#   script:
-#     - make -C vscode package
-#   artifacts:
-#     paths:
-#       - vscode/why3-platform-*.vsix
+vscode-extension:
+  <<: *node
+  stage: distrib
+  when: manual
+  script:
+    - make -C vscode package
+  artifacts:
+    paths:
+      - vscode/why3-platform-*.vsix
 
 # ---------------------------------------------------------------------------
