@@ -11,7 +11,7 @@
 - Bump version in `dune-project`.
 - Run `make` and `make -C vscode version`.
 - Check that the change was correctly propagated to
-  `why3find.opam`, `vscode/VERSION` and `vscode/package.json`.
+  `why3find.opam`, `VERSION` and `vscode/package.json`.
 - Check the output of `dune exec -- why3find --version`.
 - Commit the changes on release branch (or master).
 

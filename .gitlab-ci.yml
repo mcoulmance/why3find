@@ -1,7 +1,10 @@
+# ---------------------------------------------------------------------------
+# --- Why3find GitLab - CI
+# ---------------------------------------------------------------------------
+
 stages:
-  - lint
   - build
-  - test
+  - distrib
 
 workflow:
   rules:
@@ -10,19 +13,9 @@ workflow:
     - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_BRANCH
 
-lint:
-  script:
-    - nix/git-check.sh
-    - nix-shell nix/lint-shell.nix --run "make lint headers"
-    - out="$(git status --ignored --porcelain)"
-    - if ! test -z "$out"; then
-        echo "The following files are not indented correctly or do not have the correct header:";
-        echo "$out";
-        exit 1;
-      fi
-  stage: lint
-  tags:
-    - pub-nix
+# ---------------------------------------------------------------------------
+# --- Templates
+# ---------------------------------------------------------------------------
 
 .allow_failure_why3_master: &allow_failure_why3_master
   rules:
@@ -30,56 +23,48 @@ lint:
       allow_failure: true
     - when: on_success
 
-build:
-  <<: *allow_failure_why3_master
-  script:
-    - nix-build nix/pkgs.nix -A ocamlPackages.why3find-build
-  stage: build
-  tags:
-    - pub-nix
-
-test:
-  <<: *allow_failure_why3_master
-  script:
-    - nix-build nix/pkgs.nix -A ocamlPackages.why3find-test
-    - cat result/coverage.txt
-  coverage: '/Coverage: \d+\.\d+\%/'
-  artifacts:
-    reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: result/report.xml
-  stage: test
-  needs:
-    - build
-  tags:
-    - pub-nix
-
-variables:
-  OCAML: "4.13"
-
-.opam_template: &opam_template
-  image: 'ocaml/opam:ubuntu-22.04-ocaml-$OCAML'
-  stage: build
-  variables:
-    FF_DISABLE_UMASK_FOR_DOCKER_EXECUTOR: "true"
+.opam: &opam
+  image: registry.frama-c.com/pub/why3find
   tags:
     - docker
 
-opam:
-  <<: *opam_template
-  <<: *allow_failure_why3_master
-  script:
-    - sudo apt update
-    - opam update
-    - opam lint
-    - opam pin . -n -k path
-    - opam depext --jobs 2 why3find --with-test
-    - opam install --jobs 2 why3find --with-test --with-doc
+.node: &node
+  image: node:lts-buster
+  cache:
+    paths:
+      - vscode/node_modules/
+  tags:
+    - docker
 
-opam-minimal:
-  <<: *opam_template
-  <<: *allow_failure_why3_master
+# ---------------------------------------------------------------------------
+# --- Why3find
+# ---------------------------------------------------------------------------
+
+build:
+  <<: *opam
+  stage: build
+  script:
+    - opam update
+    - opam install . --deps-only --jobs 2 --with-test --with-doc
+    - make lint
+    - make build
+    - make test
+    - make doc
+
+why3-master:
+  <<: *opam
+  stage: distrib
+  script:
+    - git merge origin/why3-master
+    - opam pin -n https://gitlab.inria.fr/why3/why3.git#master
+    - opam update
+    - opam reinstall why3
+    - opam install . --jobs 2 --with-test --with-doc
+
+opam-distrib:
+  stage: distrib
+  when: manual
+  image: ocaml/opam:ubuntu-lts-ocaml-4.14
   variables:
     OPAMDOWNLOADJOBS: "1"
     OPAMERRLOGLEN: "0"
@@ -95,51 +80,40 @@ opam-minimal:
     - export OPAMUPGRADECRITERIA="-removed,-count[avoid-version,changed],-count[version-lag,request],-count[version-lag,changed],-count[missing-depexts,changed],-changed"
     - opam pin . -n -k path
     - opam update --depexts
-    - opam depext --jobs 2 why3find
+    - opam depext --jobs 2 frama-c
     - export OPAMCRITERIA="+removed,+count[version-lag,solution]"
     - export OPAMFIXUPCRITERIA="+removed,+count[version-lag,solution]"
     - export OPAMUPGRADECRITERIA="+removed,+count[version-lag,solution]"
     - export OPAMEXTERNALSOLVER="builtin-0install"
     - opam update --depexts
-    - opam reinstall --jobs 2 why3find
+    - opam reinstall --jobs 2 frama-c
+    - frama-c --plugins
+  timeout: 2h
+  tags:
+    - docker
 
-why3-master:
-  <<: *opam_template
-  script:
-    - git merge origin/why3-master
-    - sudo apt update
-    - opam update
-    - opam lint
-    - opam pin -n https://gitlab.inria.fr/why3/why3.git#master
-    - opam pin . -n -k path
-    - opam depext --jobs 2 why3find --with-test
-    - opam install --jobs 2 why3find --with-test --with-doc
+# ---------------------------------------------------------------------------
+# --- VSCode Extension
+# ---------------------------------------------------------------------------
 
 vscode:
-  image: node:lts-buster
+  <<: *node
   stage: build
-  cache:
-    paths:
-      - vscode/node_modules/
   script:
     - node --version
     - npm --version
     - yarn --version
     - make --version
     - make -C vscode
-  tags:
-    - docker
 
 vscode-extension:
-  image: node:lts-buster
+  <<: *node
+  stage: distrib
   when: manual
-  cache:
-    paths:
-      - vscode/node_modules/
   script:
     - make -C vscode package
   artifacts:
     paths:
       - vscode/why3-platform-*.vsix
-  tags:
-    - docker
+
+# ---------------------------------------------------------------------------
