@@ -249,14 +249,15 @@ let process_proofs_summary env ~crc id = function
 
 let rec child n fmt crc =
   Format.fprintf fmt "@\n%a" Pdoc.pp_spaces n ;
-  match crc.Crc.status with
+  match crc with
   | Crc.Stuck ->
     Format.fprintf fmt "stuck<span class=\"%s\"></span>" icon_failed
-  | Crc.Prover(p,t) ->
+  | Crc.Prover(p,None,t) ->
     Format.fprintf fmt "<span class=\"prover\" title=\"%s\">%s</span> %a"
-      (Prover.desc_to_string p)
-      (Prover.desc_name p)
-      Utils.pp_time t
+      p p Utils.pp_time t
+  | Crc.Prover(p,Some v,t) ->
+    Format.fprintf fmt "<span class=\"prover\" title=\"%s@%s\">%s</span> %a"
+      p v p Utils.pp_time t
   | Crc.Tactic { id ; children ; stuck ; proved } ->
     Format.fprintf fmt "%s%a" id pp_verdict (Crc.nverdict ~stuck ~proved) ;
     List.iter (child (n+2) fmt) children
@@ -269,7 +270,8 @@ let process_certif env id crc =
     (Id.pp_ahref ~current:None ~package_url:env.package_url) id
     Id.pp_local id
     pp_verdict (Crc.verdict crc)
-    begin fun fmt -> match crc.Crc.status with
+    begin fun fmt ->
+      match crc with
       | Crc.Stuck -> ()
       | Crc.Prover _ -> child 4 fmt crc
       | Crc.Tactic _ -> child 4 fmt crc

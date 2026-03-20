@@ -1,7 +1,6 @@
   $ why3find prove -T split_vc,inline_goal a.mlw -s
   File "a.mlw", line 5, characters 10-11: proof failed
   Goal T.g: ✘
-    g
   Theory a.T: ✘
   Error: 1 unproved file
   [1]

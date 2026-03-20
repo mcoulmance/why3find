@@ -481,7 +481,7 @@ let cc_theory adapter hammer buffer strategy gnames theory =
     (fun goal ->
        if not @@ accept goal then Fibers.return () else
          let gname = Session.goal_name goal in
-         let hint = try M.find gname hints with Not_found -> Crc.stuck () in
+         let hint = M.find_def Crc.stuck gname hints in
          Fibers.map
            begin fun crc ->
              let complete = not @@ Hammer.interrupting () in

@@ -54,9 +54,12 @@ val pp_delta : Format.formatter -> float -> unit
 val pa_time : string -> float (* seconds *)
 val pp_s : Format.formatter -> int -> unit
 val pp_yies : Format.formatter -> int -> unit
+val pp_left : int -> Format.formatter -> string -> unit
+val pp_right : int -> Format.formatter -> string -> unit
 
 val to_string : (Format.formatter -> 'a -> unit) -> 'a -> string
 
+val scale : ?t0:float -> float -> float
 val round : float -> float
 
 val show_progress_opt : string * Arg.spec * string

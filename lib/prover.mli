@@ -26,6 +26,7 @@ val desc_of_string : string -> desc
 
 val desc_name : desc -> string
 val desc_version : desc -> string
+val desc : name:string -> ?version:string -> unit -> string
 
 val pp_desc : Format.formatter -> desc -> unit
 
@@ -41,6 +42,7 @@ module Mdesc : Why3.Extmap.S with type key = desc
 
 type prover = private {
   desc : desc ;
+  relaxed : bool ;
   config : Why3.Whyconf.config_prover ;
   driver : Why3.Driver.driver ;
   digest : string ;
@@ -58,6 +60,7 @@ val name : prover -> string
 val version : prover -> string
 val fullname : prover -> string
 val infoname : prover -> string
+val relaxed : prover -> prover
 
 val pp_prover : Format.formatter -> prover -> unit
 (** Prints prover fullname. *)
@@ -72,18 +75,13 @@ val pp_prover : Format.formatter -> prover -> unit
 
 val pattern_name : string -> string
 val pattern_version : string -> string option
-
-val pmatch : pattern:string -> desc -> bool
-(** Whether the given pattern match the prover description.
-    @raise InvalidPattern when the pattern is invalid. *)
+val pattern_of_string : string -> string * string option
+(** @raise InvalidPattern when the pattern is invalid *)
 
 (** {1 Retrieving available provers} *)
 
 val all : Config.why3env -> prover Mdesc.t
 (** Returns the set of all available provers for the given Why3 environment. *)
-
-val select_from_map : patterns:string list -> prover Mdesc.t
-  -> [ `Ok of prover | `PatternNotFound of string | `InvalidPattern of string ] list
 
 val select : Config.why3env -> patterns:string list -> prover list
 (** Selects the provers that match one of the [patterns].
@@ -95,7 +93,9 @@ val select : Config.why3env -> patterns:string list -> prover list
 val default : Config.why3env -> prover list
 (** Returns the set of available "default" provers. *)
 
-val check_and_get_prover : Config.why3env -> patterns:string list -> desc
-  -> prover option
-(** Returns the requested prover. Warn if the prover is not found and does
-    not match any [patterns] *)
+val find :
+  prover list ->
+  name:string -> ?version:string ->
+  unit -> prover option
+(** Find some corresponding prover in the list.
+    Emits a warning if not found. *)

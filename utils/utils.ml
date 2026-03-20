@@ -249,6 +249,16 @@ let output ~file fn =
 (* --- Time Utilities                                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
+let scale ?(t0=1.0) t =
+  let t = t *. 1.2 in
+  let m = t0 *. 0.2 in
+  if t < m then m else
+    let m = t0 *. 0.5 in
+    if t < m then m else
+      let m = t0 *. 0.75 in
+      if t < m then m else
+        t0 *. floor ((t +. t0) /. t0)
+
 let round t =
   if t < 1e-3 then Float.round (t *. 1e4) *. 1e-4 else
   if t < 1.0 then Float.round (t *. 1e3) *. 1e-3 else
@@ -319,6 +329,32 @@ let pp_mark fmt b = if b then pp_ok fmt else pp_ko fmt
 let pp_s fmt n = if n > 1 then Format.pp_print_char fmt 's'
 let pp_yies fmt n =
   Format.pp_print_string fmt (if n > 1 then "ies" else "y")
+
+let pp_left width fmt txt =
+  let n = String.length txt in
+  if n <= width then
+    begin
+      Format.pp_print_string fmt txt ;
+      Format.pp_print_string fmt @@ String.make (width - n) ' ' ;
+    end
+  else
+    begin
+      Format.pp_print_string fmt (String.sub txt 0 (width-1)) ;
+      Format.pp_print_string fmt "…" ;
+    end
+
+let pp_right width fmt txt =
+  let n = String.length txt in
+  if n <= width then
+    begin
+      Format.pp_print_string fmt @@ String.make (width - n) ' ' ;
+      Format.pp_print_string fmt txt ;
+    end
+  else
+    begin
+      Format.pp_print_string fmt "…" ;
+      Format.pp_print_string fmt (String.sub txt (n - width + 1) (width-1)) ;
+    end
 
 let to_string pp v =
   begin
