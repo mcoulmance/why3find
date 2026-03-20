@@ -607,6 +607,7 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
             "-H", Arg.Set_int hammer, "[0-4] hammer strategy level (default 4)";
           ] @
           Client.options @ [
+            "--summary",  Arg.Unit (set results `Summary), "make a summary of results";
             "--modules",  Arg.Unit (set results `Modules), "list results by module";
             "--theories", Arg.Unit (set results `Theories), "list results by theory";
             "--goals", Arg.Unit (set results `Goals), "list results by goals";
@@ -655,6 +656,11 @@ let () = register ~name:"prove" ~args:"[OPTIONS] PATH..."
             file
           |]
         end
+      else
+        match List.length files with
+        | 0 -> Log.warning "No files to prove"
+        | 1 -> Log.message "Proved (%s) %t" (List.hd files) Utils.pp_ok
+        | n -> Log.message "Proved (%d files) %t" n Utils.pp_ok
     end
 
 (* -------------------------------------------------------------------------- *)

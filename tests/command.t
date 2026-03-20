@@ -276,6 +276,7 @@
     --server URL Proof Server address (default: "tcp://HOST:PORT")
     --polling TIME server polling interval (default 1.0s)
     --trace Trace server protocol
+    --summary make a summary of results
     --modules list results by module
     --theories list results by theory
     --goals list results by goals

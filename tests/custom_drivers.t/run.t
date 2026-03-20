@@ -10,3 +10,7 @@
   Emitted 1 warning
 
   $ WHY3CONFIG=why3.conf why3find prove
+  Warning: No files to prove
+  Summary:
+  Warning: No files to prove
+  Emitted 1 warning

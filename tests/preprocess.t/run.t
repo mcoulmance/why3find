@@ -1,6 +1,7 @@
   $ why3find prove -r foo.mlw
   Theory foo.S: ✔ (-)
   Theory foo.T: ✔ (2)
+  Proved (foo.mlw) ✔
 
   $ cat foo/proof.json
   {

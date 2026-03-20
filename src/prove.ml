@@ -353,7 +353,7 @@ let report_hypotheses henv ~lib (ths : Th.theory list) =
 (* --- Proof Logger                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
-type results = [ `Default | `Modules | `Theories | `Goals | `Proofs | `Tasks | `Context of int ]
+type results = [ `Default | `Summary | `Modules | `Theories | `Goals | `Proofs | `Tasks | `Context of int ]
 
 let report ~(results:results) henv ~lib proofs =
   begin
@@ -373,6 +373,7 @@ let report ~(results:results) henv ~lib proofs =
     begin
       let path = String.concat "." lib in
       match results with
+      | `Summary -> ()
       | `Modules | `Default ->
         Format.printf "Library %s: %t@."
           path (Crc.pp_checked ~stuck:!stuck ~proved:!proved) ;
@@ -389,7 +390,7 @@ let report ~(results:results) henv ~lib proofs =
                (Crc.pp_checked ~stuck:s ~proved:p) ;
              begin
                match results with
-               | `Default | `Modules | `Theories | `Tasks | `Context _ -> ()
+               | `Default | `Summary | `Modules | `Theories | `Tasks | `Context _ -> ()
                | `Goals ->
                  List.iter
                    (fun (g,c) ->
@@ -483,8 +484,11 @@ let prove_files ~(env:Project.env)
     ~files ~gnames =
   begin
     let unsuccess = ref [] in
-    let results : results = match results with
-      | `Default -> if List.length files > 1 then `Modules else `Theories
+    let results : results =
+      match results with
+      | `Default ->
+        if List.length files > 10 then `Summary else
+        if List.length files > 1 then `Modules else `Theories
       | _ -> results in
     let provers = Prover.select env.why3 ~patterns:env.config.provers in
     let tactics = Tactic.select env.why3.env env.config.tactics in
@@ -494,7 +498,7 @@ let prove_files ~(env:Project.env)
       files ;
     Hammer.run () ;
     Utils.flush () ;
-    if Utils.tty || details then
+    if details then
       begin
         Format.printf "%t" Runner.print_stats ;
         Format.printf "%t" @@ print_stats
