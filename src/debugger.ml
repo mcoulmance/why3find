@@ -51,7 +51,6 @@ let dloc_of_node n =
 let rec is_stuck n =
   match Hammer.state n with
   | Paused | Scheduled -> false
-  | Failed -> true
   | Closed crc -> Crc.is_stuck crc
   | Stacked(_,children) -> List.for_all is_stuck children
 
@@ -67,7 +66,6 @@ let add_vc buffer ~name ~file (chunk : Vc.chunk) =
 
 let node_status n =
   match Hammer.state n with
-  | Failed -> "Failed"
   | Paused | Scheduled -> "Paused"
   | Closed crc -> Format.asprintf "%a" Crc.pp_proof crc
   | Stacked(tactic,children) ->
@@ -77,7 +75,7 @@ let node_status n =
 
 let node_index n =
   match Hammer.state n with
-  | Paused | Scheduled | Failed | Closed _ -> None
+  | Paused | Scheduled | Closed _ -> None
   | Stacked(_,children) ->
     if List.for_all is_stuck children then None else Some children
 
@@ -133,7 +131,7 @@ let vc_scope ~goal n =
 let rec reach stack n =
   match Hammer.state n with
   | Closed _ -> None
-  | Paused | Scheduled | Failed -> Some (n::stack)
+  | Paused | Scheduled -> Some (n::stack)
   | Stacked(_, children) ->
     if List.for_all is_stuck children then Some (n::stack) else
       List.find_map (reach (n::stack)) children
@@ -165,33 +163,6 @@ let frames thread =
   | Some n -> callstack n
 
 (* -------------------------------------------------------------------------- *)
-(* ---  Current Node                                                      --- *)
-(* -------------------------------------------------------------------------- *)
-
-
-let current root =
-  let exception Failed of Hammer.node in
-  let rec waiting last n =
-    match Hammer.state n with
-    | Closed _ -> last
-    | Failed -> raise (Failed n)
-    | Paused | Scheduled -> if last = None then Some n else last
-    | Stacked(_,children) -> List.fold_left waiting last children
-  in
-  try waiting None root with Failed n -> Some n
-
-let context root =
-  Option.bind (current root)
-    begin fun n ->
-      match Hammer.parent n with
-      | Hammer.Thread _ -> None
-      | Hammer.Node p ->
-        match Hammer.state p with
-        | Stacked(_,children) -> Some children
-        | _ -> None
-    end
-
-(* -------------------------------------------------------------------------- *)
 (* ---  BreakPoints                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -220,8 +191,8 @@ let has_breakpoint ~line thread =
 let hit_breakpoints thread =
   match Dap.get anchor thread with
   | None -> []
-  | Some n ->
-    match current n with
+  | Some _n ->
+    match None with
     | None -> []
     | Some n ->
       let vc = Hammer.context n in
@@ -251,16 +222,12 @@ let jchunk ~file (ch : Vc.chunk) =
   ("kind", `String jkind) ::
   (Dap.js_rangefields @@ dloc_of_range ~file ch.range)
 
-let frame_node ~threadId ~frameId =
-  match Dap.get_by_frameId anchor frameId with
-  | Some _ as result -> result
-  | None -> Option.bind (Dap.get_by_threadId anchor threadId) current
-
 let () = Dap.register "why3/context"
     begin fun _adapter args ->
-      let threadId = Json.jfield "threadId" args |> Json.jint in
-      let frameId = Json.jfield "frameId" args |> Json.jint in
-      match frame_node ~threadId ~frameId  with
+      let _threadId = Json.jfield "threadId" args |> Json.jint in
+      let _frameId = Json.jfield "frameId" args |> Json.jint in
+      (* FIXME *)
+      match assert false with
       | None -> `Null
       | Some node ->
         let context = Hammer.chunks node in
@@ -273,17 +240,18 @@ let () = Dap.register "why3/context"
 
 let () = Dap.register "why3/task"
     begin fun _adapter args ->
-      let threadId = Json.jfield "threadId" args |> Json.jint in
-      let frameId = Json.jfield "frameId" args |> Json.jint in
-      match frame_node ~threadId ~frameId  with
+      let _threadId = Json.jfield "threadId" args |> Json.jint in
+      let _frameId = Json.jfield "frameId" args |> Json.jint in
+      (* FIXME *)
+      match assert false with
       | None -> `Null
       | Some node ->
         let task = Session.goal_task @@ Hammer.goal node in
         let state = Hammer.state node in
         let line = String.make 30 '-' in
         let rec pp_stack fmt = function
-          | Hammer.Thread _ -> ()
-          | Hammer.Node n ->
+          | Hammer.Root _ -> ()
+          | Hammer.Parent n ->
             Format.fprintf fmt
               "@\n    from %a" Hammer.pp_state (Hammer.state n) ;
             pp_stack fmt (Hammer.parent n)
@@ -383,38 +351,39 @@ let on_continue thread =
 let on_next thread =
   match Dap.get anchor thread with
   | None -> on_continue thread
-  | Some n ->
-    match current n with
+  | Some _n ->
+    match None with
     | None-> on_continue thread
-    | Some n ->
+    | Some _n ->
       stopping := Some(thread,`step) ;
       started (Dap.on thread) ;
-      Hammer.step_out [n]
+      (* FIXME: Hammer.step_out [n] *) ()
 
 let on_step_in thread =
   match Dap.get anchor thread with
   | None -> on_continue thread
-  | Some n ->
-    match current n with
+  | Some _n ->
+    match None with
     | None -> on_continue thread
-    | Some n ->
+    | Some _n ->
       stopping := Some(thread,`step) ;
       started (Dap.on thread) ;
-      Hammer.step_in [n]
+      (* FIXME Hammer.step_in [n] *) ()
 
 let on_step_out thread =
   match Dap.get anchor thread with
   | None -> on_continue thread
-  | Some n ->
-    match context n with
+  | Some _n ->
+    match None with
     | None -> on_step_in thread
-    | Some children ->
+    | Some _children ->
       stopping := Some(thread,`step) ;
       started (Dap.on thread) ;
-      Hammer.step_out children
+      (* FIXME: Hammer.step_out children *) ()
 
 let on_filter node =
-  let th = Hammer.thread_id node in
+  (* FIXME: let th = Hammer.thread_id node in *)
+  let th = assert false in
   let line =
     List.fold_left
       (fun l (Brk b) -> if b.active then min l b.line else l)
@@ -425,7 +394,8 @@ let on_failed node =
   begin
     let goal = Hammer.goal node in
     try
-      let id = Hammer.thread_id node in
+      (* FIXME: let id = Hammer.thread_id node in *)
+      let id = assert false in
       let gname = Session.goal_idename goal in
       let thread = Dap.find id in
       let name = Dap.name thread in
@@ -464,7 +434,8 @@ let cc_proof adapter hammer theory goal hint =
       Prove.merge_stats hint crc ;
       Fibers.set result crc ;
     end in
-  let node = Hammer.thread hammer ~id:(Dap.id thread) ~callback goal hint in
+  (*FIXME*)
+  let node = Hammer.thread hammer ~callback goal hint in
   Dap.set anchor thread node ; result
 
 let cc_theory adapter hammer buffer strategy gnames theory =
@@ -484,7 +455,7 @@ let cc_theory adapter hammer buffer strategy gnames theory =
          let hint = M.find_def Crc.stuck gname hints in
          Fibers.map
            begin fun crc ->
-             let complete = not @@ Hammer.interrupting () in
+             let complete = not @@ Hammer.debugging () in
              let hint = Crc.update ~complete ~hint crc in
              Proofs.add theory goal hint buffer
            end @@
@@ -581,7 +552,7 @@ let () = Dap.on_terminate
     begin fun adapter ~restart ->
       ignore adapter ;
       ignore restart ;
-      Hammer.interrupt () ;
+      Hammer.kill () ;
     end
 
 (* -------------------------------------------------------------------------- *)

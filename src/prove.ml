@@ -196,13 +196,31 @@ let print_stats allprovers alltactics fmt =
 let accept ~gnames thy goal =
   List.mem thy gnames || List.mem (thy ^ "." ^ (Session.goal_name goal)) gnames
 
-let prove_goal ~file ~hammer ~results ~force buffer theory gname goal hint =
+let failed_context ~context node =
+  let goal = Hammer.goal node in
+  let file = Session.goal_file goal in
+  let theory = Session.goal_theory goal in
+  let task = Session.goal_task goal in
+  Vc.highlight ~file ~context theory task
+
+let failed_task node =
+  let goal = Hammer.goal node in
+  let file = Session.goal_file goal in
+  let task = Session.goal_task goal in
+  Vc.dump ~file task
+
+let on_failed = function
+  | `Context context when Utils.tty && context >= 0 ->
+    Hammer.on_failed (failed_context ~context)
+  | `Tasks ->
+    Hammer.on_failed failed_task
+  | _ -> ()
+
+let prove_goal ~hammer ~force buffer theory gname goal hint =
   let hint = if force then Crc.stuck else hint in
   let result = Fibers.var () in
   let callback = Fibers.set result in
-  let failures = ref [] in
-  let failed g = failures := g :: !failures in
-  let _root = Hammer.thread hammer goal ~failed ~callback hint in
+  let _root = Hammer.thread hammer ~callback goal hint in
   let+ crc = Crc.update ~hint @+ result in
   Option.iter (Proofs.add theory goal crc) buffer;
   if Utils.tty then merge_stats hint crc ;
@@ -214,20 +232,10 @@ let prove_goal ~file ~hammer ~results ~force buffer theory gname goal hint =
         (Session.goal_loc goal) ;
       Format.printf "@[<v2>Goal @{<red>%s.%s@}: %a@]@."
         (Session.name theory) gname Crc.pretty crc ;
-      List.iter
-        (fun g ->
-           match results with
-           | `Context context when Utils.tty && context >= 0 ->
-             Vc.highlight ~file ~context
-               (Session.theory theory)
-               (Session.goal_task g)
-           | `Tasks -> Vc.dump ~file (Session.goal_task g)
-           | _ -> ()
-        ) @@ List.rev !failures ;
     end ;
   goal, crc
 
-let prove_theory ~file ~hammer ~results ~force ~gnames buffer strategy theory =
+let prove_theory ~hammer ~force ~gnames buffer strategy theory =
   let thy = Session.name theory in
   let goals = Session.split theory in
   let hints = M.find_def M.empty thy strategy in
@@ -239,7 +247,7 @@ let prove_theory ~file ~hammer ~results ~force ~gnames buffer strategy theory =
       (fun goal ->
          let gname = Session.goal_name goal in
          let hint = M.find_def Crc.stuck gname hints in
-         prove_goal ~file ~hammer ~results ~force buffer theory gname goal hint
+         prove_goal ~hammer ~force buffer theory gname goal hint
       ) goals
   in theory, proofs
 
@@ -450,7 +458,7 @@ let process ~env
         env in
     let* proofs =
       Fibers.all @@ List.map
-        (prove_theory ~file ~hammer ~results ~force ~gnames buffer strategy)
+        (prove_theory ~hammer ~force ~gnames buffer strategy)
         (Session.theories session)
     in
     if save then Session.save session ;
@@ -490,6 +498,7 @@ let prove_files ~(env:Project.env)
       | _ -> results in
     let provers = Prover.select env.why3 ~patterns:env.config.provers in
     let tactics = Tactic.select env.why3.env env.config.tactics in
+    on_failed results ;
     List.iter
       (process ~env ~level ~mode ~session ~results
          ~provers ~tactics ~axioms ~unsuccess ~gnames)

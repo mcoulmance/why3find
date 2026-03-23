@@ -31,79 +31,57 @@ type node = {
   goal : Session.goal ;
   hint : Crc.crc ;
   depth : int ;
-  parent : parent ;
   hammer : hammer ;
+  parent : parent ;
   mutable state : state ;
-  mutable proof : Crc.crc option ;
   mutable chunks : Vc.context option ;
   mutable context : Vc.context option ;
 }
 
+and parent =
+  | Root of (Crc.crc -> unit)
+  | Parent of node
+
 and state =
   | Paused            (* in q_paused *)
-  | Failed            (* in q_paused *)
-  | Scheduled         (* in q_proven or q_broken *)
+  | Scheduled         (* in q_broken or q_proven *)
   | Closed of Crc.crc (* not in any queue *)
   | Stacked of Tactic.tactic * node list (* children still queued *)
-
-and parent =
-  | Node of node
-  | Thread of {
-      id : int ;
-      failed : Session.goal -> unit ;
-      callback : Crc.crc -> unit ;
-    }
 
 let pp_node fmt n = Session.pp_goal fmt n.goal
 
 let goal n = n.goal
 let state n = n.state
 let parent n = n.parent
-let rec thread_id n =
-  match n.parent with Thread { id } -> id | Node n -> thread_id n
 
 let stuck _n = Crc.stuck
 
 let rec proof n =
-  match n.proof with
-  | Some crc -> crc
-  | None ->
-    let crc =
-      match n.state with
-      | Closed crc -> crc
-      | Paused | Failed | Scheduled -> stuck n
-      | Stacked(tactic,children) ->
-        Crc.tactic tactic (List.map proof children)
-    in n.proof <- Some crc ; crc
+  match n.state with
+  | Closed crc -> crc
+  | Paused | Scheduled -> stuck n
+  | Stacked(tactic,children) ->
+    Crc.tactic tactic (List.map proof children)
 
 let pp_state fmt = function
   | Paused | Scheduled -> Format.fprintf fmt "Paused"
-  | Failed -> Format.fprintf fmt "Failed"
   | Closed crc -> Crc.pp_proof fmt crc
   | Stacked(tactic,nodes) ->
     let proofs = List.map proof nodes in
     Format.fprintf fmt "[%a] %a" Tactic.pretty tactic Crc.pp_proofs proofs
 
-let rec touch n = n.proof <- None ; touchp n.parent
-and touchp = function Thread _ -> () | Node n -> touch n
-
 let rec update result = function
-  | Thread { callback } ->
+  | Root callback ->
     callback result ;
-  | Node n ->
+  | Parent n ->
     try match n.state with
       | Stacked(tactic, children) ->
         let cexit = function { state = Closed crc } -> crc | _ -> raise Exit in
         let result = Crc.tactic tactic (List.map cexit children) in
         n.state <- Closed result ;
-        n.proof <- Some result ;
         update result n.parent
-      | _ -> touch n
-    with Exit -> touch n
-
-let rec failure goal = function
-  | Thread { failed } -> failed goal
-  | Node n -> failure goal n.parent
+      | _ -> ()
+    with Exit -> ()
 
 (* -------------------------------------------------------------------------- *)
 (* --- Node Window                                                        --- *)
@@ -137,17 +115,17 @@ let on_filter fn = Fibers.Queue.push filters fn
 let off_filter fn = Fibers.Queue.filter (fun f -> f != fn) filters
 let p_proven = ref 0
 let p_broken = ref 0
-let q_paused = Fibers.Queue.create () (* Failed & Paused nodes *)
+let q_paused = Fibers.Queue.create () (* Paused nodes *)
 let q_broken = Queue.create () (* Stuck hints, scheduled first *)
 let q_proven = Queue.create () (* Complete hints, scheduled last *)
 let q_pause n =
   n.state <- Paused ; Fibers.Queue.push q_paused n
-let q_fail n =
-  n.state <- Failed ; Fibers.emit failed n ; Fibers.Queue.push q_paused n
-let q_close n ?(failed=false) crc =
-  n.state <- Closed crc ; n.proof <- Some crc ;
-  update crc n.parent ;
-  if failed then failure n.goal n.parent
+let q_close n crc =
+  begin
+    n.state <- Closed crc ;
+    update crc n.parent ;
+    if Crc.is_stuck crc then Fibers.emit failed n ;
+  end
 
 let q_schedule n =
   try
@@ -168,54 +146,26 @@ let iter f =
 (* --- Stepping                                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-type runmode = Running | Interrupting | Pausing | StepIn | StepOut
+type runmode = Running | Pausing | Killing
 let runmode = ref Running
 
 let subgoal n =
   match !runmode with
-  | Interrupting -> q_close n (proof n)
-  | Running | StepOut -> q_schedule n
-  | Pausing | StepIn -> q_pause n
+  | Killing -> q_close n (proof n)
+  | Running -> q_schedule n
+  | Pausing -> q_pause n
 
 let schedule n =
   match n.state with
   | Paused -> q_schedule n
-  | Failed -> q_close n ~failed:true Crc.stuck
   | Scheduled | Stacked _ | Closed _ -> ()
 
 let terminate n =
   match n.state with
   | Closed _ -> ()
-  | _ ->
-    let proof = proof n in
-    let failed = (proof = Crc.stuck) in
-    q_close n ~failed proof
-
-let still_paused n =
-  match n.state with
-  | Paused | Failed -> true | Scheduled | Stacked _ | Closed _ -> false
-
-let still_pending n =
-  match n.state with
-  | Scheduled -> true
-  | Stacked _ | Closed _ | Paused | Failed -> false
-
-let step ns =
-  begin
-    List.iter schedule ns ;
-    Fibers.Queue.filter still_paused q_paused ;
-  end
-
-let step_in ns = runmode := StepIn ; step ns
-let step_out ns = runmode := StepOut ; step ns
+  | _ -> q_close n @@ proof n
 
 let resume () =
-  begin
-    runmode := StepOut ;
-    Fibers.Queue.flush schedule q_paused ;
-  end
-
-let resume_to_end () =
   begin
     runmode := Running ;
     Fibers.Queue.flush schedule q_paused ;
@@ -237,9 +187,9 @@ let pause () =
     Fibers.emit killall () ;
   end
 
-let interrupt () =
+let kill () =
   begin
-    runmode := Interrupting ;
+    runmode := Killing ;
     iter terminate ;
     Queue.clear q_proven ;
     Queue.clear q_broken ;
@@ -253,10 +203,11 @@ let interrupt () =
 
 let node hammer ~parent ?hint goal =
   let hint = match hint with Some h -> h | None -> Crc.stuck in
-  let depth = match parent with Thread _ -> 0 | Node n -> succ n.depth in {
+  let depth = match parent with Root _ -> 0 | Parent n -> succ n.depth in
+  {
     hammer ; goal ;
     parent ; depth ;
-    hint ; proof = None ;
+    hint ;
     state = Paused ;
     chunks = None ;
     context = None ;
@@ -276,7 +227,7 @@ let rec push_all hammer ~parent goals hints =
     push hammer ~parent g h :: push_all hammer ~parent gs hs
 
 let decompose node tactic gs hs =
-  let children = push_all node.hammer ~parent:(Node node) gs hs in
+  let children = push_all node.hammer ~parent:(Parent node) gs hs in
   if children = [] then
     q_close node @@ Crc.tactic tactic []
   else
@@ -298,8 +249,8 @@ let pp_resolution fmt = function
 
 let (@>) (h : strategy) : strategy = fun n ->
   match !runmode with
-  | Interrupting | Pausing -> Fibers.return Interrupted
-  | Running | StepIn | StepOut ->
+  | Killing | Pausing -> Fibers.return Interrupted
+  | Running ->
     try h n with Not_found -> Fibers.return NotFound
 
 let (>>>) (h1 : strategy) (h2 : strategy) : strategy = fun n ->
@@ -454,8 +405,8 @@ let create
     provers ; tactics ; profile ; preprocess ;
   }
 
-let thread hammer ?(id=(-1)) ?(failed=ignore) ?(callback=ignore) goal hint =
-  let parent = Thread { id ; failed ; callback } in
+let thread hammer ?(callback=ignore) goal hint =
+  let parent = Root callback in
   match hammer.preprocess with
   | None -> push hammer ~parent goal hint
   | Some tactic ->
@@ -652,18 +603,13 @@ let status () =
   else if Fibers.Queue.length q_paused > 0 then Paused
   else Exited
 
-let interrupting () = !runmode = Interrupting
-
 let running () = proving () || Fibers.pending () > 0
+let terminating () = !runmode = Killing
+let debugging () = !runmode = Pausing
 
 (* -------------------------------------------------------------------------- *)
 (* --- Task Processing                                                    --- *)
 (* -------------------------------------------------------------------------- *)
-
-let debugging node =
-  match !runmode with
-  | Interrupting | Running -> false
-  | Pausing | StepIn | StepOut -> still_pending node
 
 let process () =
   begin
@@ -677,11 +623,10 @@ let process () =
         match r with
         | Resolved -> ()
         | NotFound ->
-          if debugging node then q_fail node else
-            q_close node ~failed:true Crc.stuck
+          q_close node Crc.stuck ;
+          Fibers.emit failed node ;
         | Interrupted ->
-          if debugging node then q_pause node else
-            q_close node Crc.stuck
+          if debugging () then q_pause node else q_close node Crc.stuck
       in incr pr ; Fibers.background (execute node) ~callback ; true
     | None -> false
   end

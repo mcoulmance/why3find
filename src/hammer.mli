@@ -40,12 +40,11 @@ val create :
 
 type node
 type parent =
-  | Node of node
-  | Thread of { id : int ; failed : goal -> unit ; callback : Crc.crc -> unit }
+  | Root of (Crc.crc -> unit)
+  | Parent of node
 
 type state =
   | Paused            (* in q_paused *)
-  | Failed            (* in q_failed *)
   | Scheduled         (* in q_proven or q_broken *)
   | Closed of Crc.crc (* not in any queue *)
   | Stacked of Tactic.tactic * node list (* children still queued *)
@@ -58,7 +57,6 @@ val proof : node -> Crc.crc
 val goal : node -> Session.goal
 val parent : node -> parent
 val state : node -> state
-val thread_id : node -> int
 val chunks : node -> Vc.context
 val context : node -> Vc.context
 val result : node -> Prover.prover -> result
@@ -71,8 +69,6 @@ val pp_result : Format.formatter -> result -> unit
 
 (** Creates a root node for some goal to be proved. *)
 val thread : hammer ->
-  ?id:int ->
-  ?failed:(goal -> unit) ->
   ?callback:(crc -> unit) ->
   goal -> crc -> node
 
@@ -95,8 +91,10 @@ val pp_progress : Format.formatter -> progress -> unit
 val iter : (node -> unit) -> unit
 val status : unit -> status
 val progress : unit -> progress
+
 val running : unit -> bool
-val interrupting : unit -> bool
+val debugging : unit -> bool (* Pausing all pending nodes *)
+val terminating : unit -> bool (* Killing all pending nodes *)
 
 val on_failed : (node -> unit) -> unit
 val off_failed : (node -> unit) -> unit
@@ -104,25 +102,16 @@ val on_filter : (node -> bool) -> unit
 val off_filter : (node -> bool) -> unit
 
 (** Interrupt all running provers and discard all pending nodes. *)
-val interrupt : unit -> unit
+val kill : unit -> unit
 
 (** Interrupt all running provers and pauses all nodes. *)
 val pause : unit -> unit
 
-(** Commit this node and all its children to their current status. *)
-val terminate : node -> unit
-
-(** Re-schedule the given nodes, pausing children. *)
-val step_in : node list -> unit
-
-(** Re-schedule the given nodes, auto-scheduling children. *)
-val step_out : node list -> unit
-
 (** Re-schedule all paused nodes and continue. *)
 val resume : unit -> unit
 
-(** Re-schedule all paused nodes and continue, commiting all nodes. *)
-val resume_to_end : unit -> unit
+(** Commit this node and all its children to their current status. *)
+val terminate : node -> unit
 
 (** Process one node. Returns [true] is some progress has been made. *)
 val process : unit -> bool
