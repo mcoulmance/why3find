@@ -133,6 +133,8 @@ type goal = Goal of {
     session : S.session ;
     node : S.proofNodeID ;
     task : T.task ;
+    parent : goal option ;
+    mutable children : ( Tactic.tactic * goal list ) option ;
     mutable idename : string ;
     mutable fullname : string ;
   }
@@ -141,7 +143,11 @@ let split (Thy { file ; session ; theory }) : goal list =
   List.map
     (fun node ->
        let task = S.get_task session node in
-       Goal { file ; session ; theory ; node ; task ; idename = "" ; fullname = "" }
+       Goal {
+         file ; session ; theory ; node ; task ;
+         parent = None ; children = None ;
+         idename = "" ; fullname = "" ;
+       }
     ) @@ S.theory_goals theory
 
 let split = Timer.timed ~name:"Split theories" split
@@ -198,21 +204,30 @@ let result (Goal { session ; node }) prv limits result =
   end ;
   S.update_goal_node silent session node
 
-let apply env tactic ?(allow_no_effect=false)
-    (Goal { file ; session ; theory ; node }) =
+let apply env tactic ?(allow_no_effect=false) goal =
   try
+    let Goal { file ; theory ; session ; node } = goal in
     let tr = Tactic.name tactic in
     let ts = S.apply_trans_to_goal session env ~allow_no_effect tr [] node in
     List.iter
       (S.remove_transformation session)
       (S.get_transformations session node) ;
     let tid = S.graft_transf session node tr [] ts in
-    let nodes = S.get_sub_tasks session tid in
     if ts = [] then S.update_trans_node silent session tid ;
-    let child node =
-      let task = S.get_task session node in
-      Goal { file ; session ; theory ; node ; task ; fullname = "" ; idename = "" }
-    in Some (List.map child nodes)
+    let nodes = S.get_sub_tasks session tid in
+    let parent = Some goal in
+    let children =
+      List.map
+        (fun node ->
+           let task = S.get_task session node in
+           Goal {
+             file ; session ; theory ; node ; task ; parent ;
+             children = None ; fullname = "" ; idename = ""
+           }
+        ) nodes in
+    let Goal g = goal in
+    g.children <- Some (tactic, children) ;
+    Some children
   with S.NoProgress | Why3.Trans.TransFailure _ -> None
 
 let apply =
@@ -221,5 +236,37 @@ let apply =
     Timer.start timer;
     Fun.protect ~finally:(fun () -> Timer.stop timer)
       (fun () -> apply env tactic ?allow_no_effect goal)
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Navigation                                                        --- *)
+(* -------------------------------------------------------------------------- *)
+
+let rec prev (Goal g as goal) =
+  match g.parent with
+  | None -> None
+  | Some p ->
+    let rec before = function
+      | [] -> prev p
+      | g::g'::_ when g' == goal -> Some g
+      | _::gs -> before gs
+    in Option.bind g.children (fun (_,gs) -> before gs)
+
+let rec next (Goal g as goal) =
+  match g.parent with
+  | None -> None
+  | Some p ->
+    let rec after = function
+      | [] -> next p
+      | g::g'::_ when g == goal -> Some g'
+      | _::gs -> after gs
+    in Option.bind g.children (fun (_,gs) -> after gs)
+
+let step_in (Goal g as goal) =
+  match g.children with
+  | Some (_,g::_) -> Some g
+  | _ -> next goal
+
+let step_out (Goal g) =
+  Option.bind g.parent next
 
 (* -------------------------------------------------------------------------- *)
