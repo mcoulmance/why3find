@@ -285,11 +285,11 @@ let merge u v =
   | Killed , w | w , Killed -> w
   | Valid(_,t) , Valid(_,t') -> if t <= t' then u else v
 
-let prove ?cancel timeout prover = fun n ->
+let prover ?cancel timeout prv = fun n ->
   let h = n.hammer in
   let wmain = Why3.Whyconf.get_main h.env.why3.config in
   let name = Session.goal_name n.goal in
-  let* alpha = Calibration.velocity wmain h.env.cache h.profile prover in
+  let* alpha = Calibration.velocity wmain h.env.cache h.profile prv in
   let to_local = Result.map (fun t -> t *. alpha) in
   let to_profile = Result.map (fun t -> t /. alpha) in
   let runner_time = timeout *. alpha in
@@ -297,40 +297,40 @@ let prove ?cancel timeout prover = fun n ->
   let callback = Session.result n.goal in
   let killed = ref false in
   let+ verdict =
-    match Runner.prove_cached h.env.cache prover task runner_time with
+    match Runner.prove_cached h.env.cache prv task runner_time with
     | Some result ->
-      Runner.notify wmain prover result callback ;
+      Runner.notify wmain prv result callback ;
       Fibers.return (to_profile result)
     | None ->
-      let ptask = Runner.prepare prover task in
+      let ptask = Runner.prepare prv task in
       let kill = Fibers.signal () in
       let handler () = killed := true ; Fibers.emit kill () in
       let runner =
         Fibers.monitor ?signal:cancel ~handler @@
         Fibers.monitor ~signal:killall ~handler @@
         Fibers.map to_profile @@
-        Fibers.finally ~callback:(Cache.set h.env.cache task prover) @@
+        Fibers.finally ~callback:(Cache.set h.env.cache task prv) @@
         Runner.prove_prepared wmain ~name ~cancel:kill ~callback
-          prover ptask runner_time ~idename:(Session.goal_idename n.goal)
+          prv ptask runner_time ~idename:(Session.goal_idename n.goal)
       in match h.client with
       | None -> runner
       | Some cl ->
         (* Don't ask server for too low timeouts *)
         if timeout < 0.2 *. h.env.config.time then runner else
-          let signal = Client.request cl h.profile prover ptask timeout in
+          let signal = Client.request cl h.profile prv ptask timeout in
           let handler result =
             match Result.crop ~timeout result with
             | Some result ->
               let local = to_local result in
               (* TODO: cache this not here but in the prooftree cache *)
               (* Cache.set h.cache task prover local ; *)
-              Runner.notify wmain prover local callback ;
+              Runner.notify wmain prv local callback ;
               Fibers.set runner result ;
               Fibers.emit kill ()
             | None -> ()
           in Fibers.monitor ~signal ~handler runner
   in match verdict with
-  | Valid t when t <= timeout -> Valid(prover,Utils.round t)
+  | Valid t when t <= timeout -> Valid(prv,Utils.round t)
   | _ -> if !killed then Killed else Unknown
 
 type result = Local of Result.t | Profile of Result.t
@@ -405,7 +405,7 @@ let create
     provers ; tactics ; profile ; preprocess ;
   }
 
-let thread hammer ?(callback=ignore) goal hint =
+let prove hammer ?(callback=ignore) goal hint =
   let parent = Root callback in
   match hammer.preprocess with
   | None -> push hammer ~parent goal hint
@@ -434,7 +434,7 @@ let hammer0 : strategy = fun n ->
   if h.level > 0 && t > 0.0 && List.length h.provers > 1
   then
     let hprove p n =
-      let+ verdict = prove t p n in
+      let+ verdict = prover t p n in
       match verdict with
       | Killed -> Interrupted
       | Unknown -> NotFound
@@ -453,7 +453,7 @@ let hammer13 minlevel timefactor n =
     let+ verdicts =
       Fibers.all @@
       List.map
-        (fun prv -> Fibers.finally ~callback @@ prove ~cancel time prv n)
+        (fun prv -> Fibers.finally ~callback @@ prover ~cancel time prv n)
         n.hammer.provers in
     match List.fold_left merge Unknown verdicts with
     | Unknown -> NotFound
@@ -493,7 +493,7 @@ let try_prover p v t : strategy = fun n ->
     let base = n.hammer.env.config.time in
     (* Takes into account the current strategy and possible fluctuations *)
     let time = min (max base (t +. 0.5)) (2.0 *. base) in
-    let+ verdict = prove time p n in
+    let+ verdict = prover time p n in
     match verdict with
     | Unknown -> NotFound
     | Killed -> Interrupted

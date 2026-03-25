@@ -6,11 +6,11 @@
 (*                                                                        *)
 (**************************************************************************)
 
+[@@@ warning "-32"]
+
 (* -------------------------------------------------------------------------- *)
 (* ---  Observing Nodes                                                   --- *)
 (* -------------------------------------------------------------------------- *)
-
-let anchor = Dap.attribute ()
 
 let pp_goal_location fmt goal =
   match Session.goal_loc goal with
@@ -136,79 +136,43 @@ let rec reach stack n =
     if List.for_all is_stuck children then Some (n::stack) else
       List.find_map (reach (n::stack)) children
 
-let frame n =
-  let range = dloc_of_node n in
-  let name =
-    match Hammer.state n with
-    | Stacked(tactic,_) -> Tactic.name tactic
-    | _ -> Session.goal_idename @@ Hammer.goal n in
-  Dap.frame ~name ?range ~scopes:[
-    vc_scope ~goal:false n ;
-    vc_scope ~goal:true n ;
-  ] ~values:[Dap.value anchor n] ()
-
-let callstack n =
-  match reach [] n with
-  | None -> [frame n]
-  | Some stk -> List.map frame stk
-
-(* -------------------------------------------------------------------------- *)
-(* ---  Observing Thread                                                  --- *)
-(* -------------------------------------------------------------------------- *)
-
-let frames thread =
-  Darray.list @@
-  match Dap.get anchor thread with
-  | None -> []
-  | Some n -> callstack n
-
 (* -------------------------------------------------------------------------- *)
 (* ---  BreakPoints                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
 type breakpoint = Brk of {
-    id : int ; line : int ;
+    id : int ;
+    file : string ;
+    line : int ;
     mutable active : bool ;
   }
 
 let breakpointk = ref 0
-let breakpoints = Hashtbl.create 0
+let breakpoints : (string,breakpoint) Hashtbl.t = Hashtbl.create 0
 let clear_breakpoints () = breakpointk := 0 ; Hashtbl.clear breakpoints
 
-let add_breakpoint ~thread ~line =
-  let th = Dap.id thread in
+let add_breakpoint ~file ~line =
   let id = incr breakpointk ; !breakpointk in
-  let brk = Brk { id ; line ; active = true } in
-  Hashtbl.add breakpoints th brk ; id
+  let brk = Brk { id ; file ; line ; active = true } in
+  Hashtbl.add breakpoints file brk ; id
 
-let has_breakpoint ~line thread =
-  match Dap.get anchor thread with
-  | None -> false
-  | Some node ->
-    let vc = Hammer.chunks node in
-    vc.h1 <= line && line <= vc.h2
+let has_breakpoint ~line node =
+  let vc = Hammer.chunks node in
+  vc.h1 <= line && line <= vc.h2
 
-let hit_breakpoints thread =
-  match Dap.get anchor thread with
-  | None -> []
-  | Some _n ->
-    match None with
-    | None -> []
-    | Some n ->
-      let vc = Hammer.context n in
-      List.filter_map
-        (function Brk b ->
-           if b.active && b.line <= vc.h2 then
-             (b.active <- false ; Some b.id)
-           else None)
-        (Hashtbl.find_all breakpoints (Dap.id thread))
+let hit_breakpoints node =
+  let vc = Hammer.context node in
+  List.filter_map
+    (function Brk b ->
+       if b.active && b.line <= vc.h2 then
+         (b.active <- false ; Some b.id)
+       else None)
+    (Hashtbl.find_all breakpoints vc.file)
 
 let () = Dap.on_breakpoint ~clear:clear_breakpoints
-    begin function Dap.SourceBreakpoint { line } ->
-      let threads = Dap.threads () in
-      match List.find_opt (has_breakpoint ~line) threads with
-      | Some thread -> Dap.verified ~id:(add_breakpoint ~thread ~line) ()
-      | None -> Dap.failed ~message:"Out of range" ()
+    begin function Dap.SourceBreakpoint { file ; line } ->
+      Format.eprintf "Breakpoint %s:%d@." file line ;
+      Dap.failed ~message:"Breakpoint not found (yet)" ()
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -279,16 +243,19 @@ let () = Dap.register "why3/task"
 (* -------------------------------------------------------------------------- *)
 
 type state =
-  | Paused
-  | Running of { adapter : Dap.adapter ; progress : Dap.progress }
+  | Terminated
+  | Running of {
+      adapter : Dap.adapter ;
+      progress : Dap.progress ;
+      thread : Dap.thread ;
+    }
 
-let state = ref Paused
-let stopping = ref None
+let state = ref Terminated
 
 let update = Timer.throttle
     begin fun h ->
       match !state with
-      | Paused -> ()
+      | Terminated -> ()
       | Running { progress } ->
         let message =
           Format.asprintf "%a%t" Hammer.pp_progress h Runner.pp_goals in
@@ -297,41 +264,23 @@ let update = Timer.throttle
 
 let started adapter =
   let progress = Dap.progress adapter ~title:"Why3" ~message:"Started" () in
-  state := Running { adapter ; progress }
+  let thread = Dap.thread adapter ~name:"Why3find" () in
+  state := Running { adapter ; progress ; thread }
 
 let terminated () =
   match !state with
-  | Paused -> ()
+  | Terminated -> ()
   | Running { progress } ->
-    state := Paused ;
+    state := Terminated ;
+    Hammer.kill () ;
     Dap.finished progress ~message:"Terminated" ()
-
-let breaked thread =
-  match hit_breakpoints thread with
-  | [] -> None
-  | bks -> Some (thread,bks)
 
 let paused () =
   match !state with
-  | Paused -> ()
+  | Terminated -> ()
   | Running { progress } ->
-    state := Paused ;
-    Dap.finished progress ~message:"paused" () ;
-    let stop = !stopping in
-    stopping := None ;
-    match stop with
-    | Some(thread,reason) when Dap.living thread ->
-      let breakpoints = hit_breakpoints thread in
-      Dap.stopped ~reason ~breakpoints thread
-    | _ ->
-      let threads = Dap.threads () in
-      match List.find_map breaked threads with
-      | Some (thread,breakpoints) ->
-        Dap.stopped ~reason:`breakpoint ~breakpoints thread
-      | None ->
-        match Dap.threads () with
-        | thread::_ -> Dap.stopped ~reason:`pause thread
-        | _ -> terminated ()
+    state := Terminated ;
+    Dap.finished progress ~message:"paused" ()
 
 let observe () =
   match Hammer.status () with
@@ -339,74 +288,45 @@ let observe () =
   | Paused -> paused ()
   | Exited -> terminated ()
 
-let on_pause thread =
-  stopping := Some(thread,`pause) ;
+let on_pause _thread =
   Hammer.pause ()
 
-let on_continue thread =
-  stopping := Some(thread,`pause) ;
-  started (Dap.on thread) ;
+let on_continue _thread =
   Hammer.resume ()
 
-let on_next thread =
-  match Dap.get anchor thread with
-  | None -> on_continue thread
-  | Some _n ->
-    match None with
-    | None-> on_continue thread
-    | Some _n ->
-      stopping := Some(thread,`step) ;
-      started (Dap.on thread) ;
-      (* FIXME: Hammer.step_out [n] *) ()
+let on_next _thread =
+  Hammer.resume ()
 
-let on_step_in thread =
-  match Dap.get anchor thread with
-  | None -> on_continue thread
-  | Some _n ->
-    match None with
-    | None -> on_continue thread
-    | Some _n ->
-      stopping := Some(thread,`step) ;
-      started (Dap.on thread) ;
-      (* FIXME Hammer.step_in [n] *) ()
+let on_step_in _thread =
+  Hammer.resume ()
 
-let on_step_out thread =
-  match Dap.get anchor thread with
-  | None -> on_continue thread
-  | Some _n ->
-    match None with
-    | None -> on_step_in thread
-    | Some _children ->
-      stopping := Some(thread,`step) ;
-      started (Dap.on thread) ;
-      (* FIXME: Hammer.step_out children *) ()
+let on_step_out _thread =
+  Hammer.resume ()
 
 let on_filter node =
-  (* FIXME: let th = Hammer.thread_id node in *)
-  let th = assert false in
+  let goal = Hammer.goal node in
+  let file = Session.goal_file goal in
   let line =
     List.fold_left
       (fun l (Brk b) -> if b.active then min l b.line else l)
-      max_int (Hashtbl.find_all breakpoints th) in
+      max_int (Hashtbl.find_all breakpoints file) in
   line = max_int || let vc = Hammer.context node in vc.g2 <= line
 
 let on_failed node =
   begin
     let goal = Hammer.goal node in
     try
-      (* FIXME: let id = Hammer.thread_id node in *)
-      let id = assert false in
       let gname = Session.goal_idename goal in
-      let thread = Dap.find id in
-      let name = Dap.name thread in
-      stopping := Some (thread,`error) ;
       Hammer.pause () ;
-      Log.error "%a%s @{<red>failed@}" pp_goal_location goal name ;
-      Option.iter
-        begin fun loc ->
-          Dap.emit (Dap.on thread) "why3/failed" @@
-          Json.assoc (("goal", `String gname) :: Dap.js_sourcefields loc)
-        end @@ dloc_of_node node
+      Log.error "%a%s @{<red>failed@}" pp_goal_location goal gname ;
+      match !state with
+      | Terminated -> ()
+      | Running { adapter } ->
+        Option.iter
+          begin fun loc ->
+            Dap.emit adapter "why3/failed" @@
+            Json.assoc (("goal", `String gname) :: Dap.js_sourcefields loc)
+          end @@ dloc_of_node node
     with Not_found ->
       Log.error "%aGoal @{<red>failed@}" pp_goal_location goal
   end
@@ -415,30 +335,22 @@ let on_failed node =
 (* ---  Compilation                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
-let cc_proof adapter hammer theory goal hint =
+let cc_proof hammer theory goal hint =
   let thy = Session.theory theory in
   let tname = Session.thy_name thy in
   let gname = Session.goal_name goal in
   let name = Printf.sprintf "Goal %s.%s" tname gname in
-  let frames = Darray.delayed frames in
-  let thread = Dap.thread adapter
-      ~name ~frames
-      ~on_continue ~on_pause
-      ~on_next ~on_step_in ~on_step_out
-      () in
   let result = Fibers.var () in
   let callback crc =
     begin
-      Dap.terminate thread ;
       Log.message "%s %a" name Crc.pretty crc ;
       Prove.merge_stats hint crc ;
       Fibers.set result crc ;
     end in
-  (*FIXME*)
-  let node = Hammer.thread hammer ~callback goal hint in
-  Dap.set anchor thread node ; result
+  let _node = Hammer.prove hammer ~callback goal hint in
+  result
 
-let cc_theory adapter hammer buffer strategy gnames theory =
+let cc_theory hammer buffer strategy gnames theory =
   let module M = Why3.Wstdlib.Mstr in
   let thy = Session.name theory in
   let goals = Session.split theory in
@@ -459,7 +371,7 @@ let cc_theory adapter hammer buffer strategy gnames theory =
              let hint = Crc.update ~complete ~hint crc in
              Proofs.add theory goal hint buffer
            end @@
-         cc_proof adapter hammer theory goal hint
+         cc_proof hammer theory goal hint
     ) goals
 
 let hline = "--------------------------------------------------------"
@@ -488,7 +400,7 @@ let cc_file adapter env gnames file =
       end in
     Fibers.map callback @@ Fibers.all @@
     List.map
-      (cc_theory adapter hammer buffer strategy gnames)
+      (cc_theory hammer buffer strategy gnames)
       (Session.theories session)
   with Why3.Loc.Located(loc,exn) ->
     let file,line,_,_,_ = Why3.Loc.get loc in

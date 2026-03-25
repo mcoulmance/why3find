@@ -68,7 +68,7 @@ val pp_result : Format.formatter -> result -> unit
 
 
 (** Creates a root node for some goal to be proved. *)
-val thread : hammer ->
+val prove : hammer ->
   ?callback:(crc -> unit) ->
   goal -> crc -> node
 

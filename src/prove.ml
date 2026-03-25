@@ -220,7 +220,7 @@ let prove_goal ~hammer ~force buffer theory gname goal hint =
   let hint = if force then Crc.stuck else hint in
   let result = Fibers.var () in
   let callback = Fibers.set result in
-  let _root = Hammer.thread hammer ~callback goal hint in
+  let _root = Hammer.prove hammer ~callback goal hint in
   let+ crc = Crc.update ~hint @+ result in
   Option.iter (Proofs.add theory goal crc) buffer;
   if Utils.tty then merge_stats hint crc ;
