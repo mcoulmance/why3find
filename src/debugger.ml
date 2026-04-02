@@ -244,10 +244,11 @@ let () = Dap.register "why3/task"
 
 type state =
   | Terminated
-  | Running of {
+  | Debugging of {
       adapter : Dap.adapter ;
       progress : Dap.progress ;
       thread : Dap.thread ;
+      mutable running : bool ;
     }
 
 let state = ref Terminated
@@ -256,7 +257,7 @@ let update = Timer.throttle
     begin fun h ->
       match !state with
       | Terminated -> ()
-      | Running { progress } ->
+      | Debugging { progress } ->
         let message =
           Format.asprintf "%a%t" Hammer.pp_progress h Runner.pp_goals in
         Dap.update progress ~message ()
@@ -264,44 +265,33 @@ let update = Timer.throttle
 
 let started adapter =
   let progress = Dap.progress adapter ~title:"Why3" ~message:"Started" () in
-  let thread = Dap.thread adapter ~name:"Why3find" () in
-  state := Running { adapter ; progress ; thread }
+  let on_pause _thread = Hammer.pause () in
+  let thread = Dap.thread adapter ~name:"Why3find" ~on_pause () in
+  state := Debugging { adapter ; progress ; thread ; running = true }
 
 let terminated () =
   match !state with
   | Terminated -> ()
-  | Running { progress } ->
+  | Debugging { progress } ->
     state := Terminated ;
     Hammer.kill () ;
     Dap.finished progress ~message:"Terminated" ()
 
 let paused () =
   match !state with
-  | Terminated -> ()
-  | Running { progress } ->
-    state := Terminated ;
-    Dap.finished progress ~message:"paused" ()
+  | Terminated | Debugging { running = false } -> ()
+  | Debugging ({ progress ; thread } as db) ->
+    begin
+      Dap.update progress ~message:"Paused" () ;
+      Dap.stopped ~reason:`error thread ;
+      db.running <- false ;
+    end
 
 let observe () =
   match Hammer.status () with
   | Proving h -> update h
   | Paused -> paused ()
   | Exited -> terminated ()
-
-let on_pause _thread =
-  Hammer.pause ()
-
-let on_continue _thread =
-  Hammer.resume ()
-
-let on_next _thread =
-  Hammer.resume ()
-
-let on_step_in _thread =
-  Hammer.resume ()
-
-let on_step_out _thread =
-  Hammer.resume ()
 
 let on_filter node =
   let goal = Hammer.goal node in
@@ -316,12 +306,12 @@ let on_failed node =
   begin
     let goal = Hammer.goal node in
     try
-      let gname = Session.goal_idename goal in
       Hammer.pause () ;
+      let gname = Session.goal_idename goal in
       Log.error "%a%s @{<red>failed@}" pp_goal_location goal gname ;
       match !state with
       | Terminated -> ()
-      | Running { adapter } ->
+      | Debugging { adapter } ->
         Option.iter
           begin fun loc ->
             Dap.emit adapter "why3/failed" @@
@@ -367,7 +357,7 @@ let cc_theory hammer buffer strategy gnames theory =
          let hint = M.find_def Crc.stuck gname hints in
          Fibers.map
            begin fun crc ->
-             let complete = not @@ Hammer.debugging () in
+             let complete = not @@ Hammer.pausing () in
              let hint = Crc.update ~complete ~hint crc in
              Proofs.add theory goal hint buffer
            end @@

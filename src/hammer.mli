@@ -93,7 +93,7 @@ val status : unit -> status
 val progress : unit -> progress
 
 val running : unit -> bool
-val debugging : unit -> bool (* Pausing all pending nodes *)
+val pausing : unit -> bool (* Pausing all pending nodes *)
 val terminating : unit -> bool (* Killing all pending nodes *)
 
 val on_failed : (node -> unit) -> unit

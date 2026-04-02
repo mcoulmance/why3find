@@ -124,7 +124,6 @@ let q_close n crc =
   begin
     n.state <- Closed crc ;
     update crc n.parent ;
-    if Crc.is_stuck crc then Fibers.emit failed n ;
   end
 
 let q_schedule n =
@@ -247,19 +246,20 @@ let pp_resolution fmt = function
   | Interrupted -> Format.pp_print_string fmt "Interrupted"
 [@@warning "-32"]
 
+let notfound _ =
+  Fibers.return @@
+  match !runmode with Killing | Pausing -> Interrupted | Running -> NotFound
+
 let (@>) (h : strategy) : strategy = fun n ->
   match !runmode with
   | Killing | Pausing -> Fibers.return Interrupted
-  | Running ->
-    try h n with Not_found -> Fibers.return NotFound
+  | Running -> try h n with Not_found -> notfound ()
 
 let (>>>) (h1 : strategy) (h2 : strategy) : strategy = fun n ->
   let* r = h1 @> n in
   match r with
   | Resolved | Interrupted -> Fibers.return r
   | NotFound -> h2 @> n
-
-let notfound _ = Fibers.return NotFound
 
 let rec sequence (f : 'a -> strategy) (xs : 'a list) : strategy =
   match xs with
@@ -605,7 +605,7 @@ let status () =
 
 let running () = proving () || Fibers.pending () > 0
 let terminating () = !runmode = Killing
-let debugging () = !runmode = Pausing
+let pausing () = !runmode = Pausing
 
 (* -------------------------------------------------------------------------- *)
 (* --- Task Processing                                                    --- *)
@@ -626,7 +626,7 @@ let process () =
           q_close node Crc.stuck ;
           Fibers.emit failed node ;
         | Interrupted ->
-          if debugging () then q_pause node else q_close node Crc.stuck
+          if pausing () then q_pause node else q_close node Crc.stuck
       in incr pr ; Fibers.background (execute node) ~callback ; true
     | None -> false
   end

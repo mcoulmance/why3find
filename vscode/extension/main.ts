@@ -146,7 +146,7 @@ export function activate(context: ExtensionContext): void {
     if (evt.session.type === 'why3' && evt.event === 'why3/failed') {
       const uri = Uri.file(evt.body.source.path);
       const failed = evt.body as Failed;
-      const message = `Proof Failed (${failed.goal})`;
+      const message = `${failed.goal}: Proof Failed`;
       failedproofs.push(new Diagnostic(jRange(failed), message));
       diagnostic.set(uri, failedproofs);
     }
