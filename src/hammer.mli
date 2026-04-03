@@ -80,21 +80,24 @@ type progress = {
   running : int ; (** Number of running prover tasks *)
 }
 
-type status =
-  | Proving of progress (** Nodes are pending *)
-  | Paused (** Empty queues with some paused nodes *)
-  | Exited (** All nodes and fibers have been processed *)
-
-val pp_status : Format.formatter -> status -> unit
 val pp_progress : Format.formatter -> progress -> unit
 
 val iter : (node -> unit) -> unit
-val status : unit -> status
 val progress : unit -> progress
 
-val running : unit -> bool
-val pausing : unit -> bool (* Pausing all pending nodes *)
-val terminating : unit -> bool (* Killing all pending nodes *)
+type status =
+  | Proving  (** Running provers normally *)
+  | Pausing  (** Pausing pending nodes and interrupting provers *)
+  | Paused   (** Finally paused *)
+  | Stopping  (** Terminating pending nodes and running provers *)
+  | Stopped   (** Finally stopped *)
+  | Complete (** All proof tasks completely finished *)
+
+val status : unit -> status
+
+val pending : unit -> bool
+val completing : unit -> bool
+(** Emitted CRCs are complete: not stopping nor pausing *)
 
 val on_failed : (node -> unit) -> unit
 val off_failed : (node -> unit) -> unit
@@ -102,16 +105,13 @@ val on_filter : (node -> bool) -> unit
 val off_filter : (node -> bool) -> unit
 
 (** Interrupt all running provers and discard all pending nodes. *)
-val kill : unit -> unit
+val stop : unit -> unit
 
 (** Interrupt all running provers and pauses all nodes. *)
 val pause : unit -> unit
 
 (** Re-schedule all paused nodes and continue. *)
 val resume : unit -> unit
-
-(** Commit this node and all its children to their current status. *)
-val terminate : node -> unit
 
 (** Process one node. Returns [true] is some progress has been made. *)
 val process : unit -> bool

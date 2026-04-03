@@ -145,14 +145,14 @@ let iter f =
 (* --- Stepping                                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-type runmode = Running | Pausing | Killing
-let runmode = ref Running
+type runmode = RUNNING | PAUSING | STOPPING
+let runmode = ref RUNNING
 
 let subgoal n =
   match !runmode with
-  | Killing -> q_close n (proof n)
-  | Running -> q_schedule n
-  | Pausing -> q_pause n
+  | STOPPING -> q_close n (proof n)
+  | RUNNING -> q_schedule n
+  | PAUSING -> q_pause n
 
 let schedule n =
   match n.state with
@@ -166,7 +166,7 @@ let terminate n =
 
 let resume () =
   begin
-    runmode := Running ;
+    runmode := RUNNING ;
     Fibers.Queue.flush schedule q_paused ;
   end
 
@@ -178,7 +178,7 @@ let killall = Fibers.signal ()
 
 let pause () =
   begin
-    runmode := Pausing ;
+    runmode := PAUSING ;
     Queue.iter q_pause q_proven ;
     Queue.iter q_pause q_broken ;
     Queue.clear q_proven ;
@@ -186,9 +186,9 @@ let pause () =
     Fibers.emit killall () ;
   end
 
-let kill () =
+let stop () =
   begin
-    runmode := Killing ;
+    runmode := STOPPING ;
     iter terminate ;
     Queue.clear q_proven ;
     Queue.clear q_broken ;
@@ -248,12 +248,12 @@ let pp_resolution fmt = function
 
 let notfound _ =
   Fibers.return @@
-  match !runmode with Killing | Pausing -> Interrupted | Running -> NotFound
+  match !runmode with STOPPING | PAUSING -> Interrupted | RUNNING -> NotFound
 
 let (@>) (h : strategy) : strategy = fun n ->
   match !runmode with
-  | Killing | Pausing -> Fibers.return Interrupted
-  | Running -> try h n with Not_found -> notfound ()
+  | STOPPING | PAUSING -> Fibers.return Interrupted
+  | RUNNING -> try h n with Not_found -> notfound ()
 
 let (>>>) (h1 : strategy) (h2 : strategy) : strategy = fun n ->
   let* r = h1 @> n in
@@ -566,11 +566,6 @@ type progress = {
   running : int ;
 }
 
-type status =
-  | Proving of progress
-  | Paused
-  | Exited
-
 let progress () = {
   proven = Queue.length q_proven + !p_proven ;
   broken = Queue.length q_broken + !p_broken ;
@@ -584,11 +579,6 @@ let pp_progress fmt s =
   if s.pending > 0 then Format.fprintf fmt "%d/" s.pending ;
   Format.pp_print_int fmt s.running
 
-let pp_status fmt = function
-  | Proving s -> pp_progress fmt s
-  | Paused -> Format.pp_print_string fmt "paused"
-  | Exited -> Format.pp_print_string fmt "exited"
-
 let proving () =
   begin
     !p_proven > 0  || !p_broken > 0
@@ -598,14 +588,23 @@ let proving () =
     || Runner.running () > 0
   end
 
-let status () =
-  if proving () then Proving (progress ())
-  else if Fibers.Queue.length q_paused > 0 then Paused
-  else Exited
+let pending () = proving () || Fibers.pending () > 0
+let pausing () = !runmode = PAUSING
+let completing () = !runmode = RUNNING
 
-let running () = proving () || Fibers.pending () > 0
-let terminating () = !runmode = Killing
-let pausing () = !runmode = Pausing
+type status =
+  | Proving
+  | Pausing
+  | Paused
+  | Stopping
+  | Stopped
+  | Complete
+
+let status () =
+  match !runmode with
+  | PAUSING -> if proving () then Pausing else Paused
+  | STOPPING -> if pending () then Stopping else Stopped
+  | RUNNING -> if pending () then Proving else Complete
 
 (* -------------------------------------------------------------------------- *)
 (* --- Task Processing                                                    --- *)
@@ -632,8 +631,8 @@ let process () =
   end
 
 let run () =
-  runmode := Running ;
-  while running () do
+  runmode := RUNNING ;
+  while pending () do
     let s = progress () in
     Utils.progress "%a%t" pp_progress s Runner.pp_goals ;
     if not @@ process () then Unix.sleepf 0.01 ;

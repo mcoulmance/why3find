@@ -242,56 +242,50 @@ let () = Dap.register "why3/task"
 (* ---  Running State                                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
-type state =
+type session =
   | Terminated
-  | Debugging of {
-      adapter : Dap.adapter ;
-      progress : Dap.progress ;
-      thread : Dap.thread ;
-      mutable running : bool ;
-    }
+  | Session of {
+    adapter : Dap.adapter ;
+    progress : Dap.progress ;
+    thread : Dap.thread ;
+  }
 
-let state = ref Terminated
+let session = ref Terminated
 
 let update = Timer.throttle
-    begin fun h ->
-      match !state with
+    begin fun () ->
+      match !session with
       | Terminated -> ()
-      | Debugging { progress } ->
-        let message =
-          Format.asprintf "%a%t" Hammer.pp_progress h Runner.pp_goals in
+      | Session { progress } ->
+        let h = Hammer.progress () in
+        let message = Format.asprintf "%a%t" Hammer.pp_progress h Runner.pp_goals in
         Dap.update progress ~message ()
     end
 
 let started adapter =
-  let progress = Dap.progress adapter ~title:"Why3" ~message:"Started" () in
-  let on_pause _thread = Hammer.pause () in
-  let thread = Dap.thread adapter ~name:"Why3find" ~on_pause () in
-  state := Debugging { adapter ; progress ; thread ; running = true }
-
-let terminated () =
-  match !state with
-  | Terminated -> ()
-  | Debugging { progress } ->
-    state := Terminated ;
-    Hammer.kill () ;
-    Dap.finished progress ~message:"Terminated" ()
+  begin
+    let progress = Dap.progress adapter ~title:"Why3" ~message:"Started" () in
+    let on_pause _thread = Hammer.pause () in
+    let on_continue _thread = Hammer.resume () in
+    let thread = Dap.thread adapter ~name:"Why3find" ~on_continue ~on_pause () in
+    session := Session { adapter ; progress ; thread } ;
+  end
 
 let paused () =
-  match !state with
-  | Terminated | Debugging { running = false } -> ()
-  | Debugging ({ progress ; thread } as db) ->
+  match !session with
+  | Terminated -> ()
+  | Session { progress ; thread } ->
     begin
       Dap.update progress ~message:"Paused" () ;
       Dap.stopped ~reason:`error thread ;
-      db.running <- false ;
     end
 
-let observe () =
-  match Hammer.status () with
-  | Proving h -> update h
-  | Paused -> paused ()
-  | Exited -> terminated ()
+let terminated () =
+  match !session with
+  | Terminated -> ()
+  | Session { progress } ->
+    session := Terminated ;
+    Dap.finished progress ~message:"Terminated" ()
 
 let on_filter node =
   let goal = Hammer.goal node in
@@ -309,9 +303,9 @@ let on_failed node =
       Hammer.pause () ;
       let gname = Session.goal_idename goal in
       Log.error "%a%s @{<red>failed@}" pp_goal_location goal gname ;
-      match !state with
+      match !session with
       | Terminated -> ()
-      | Debugging { adapter } ->
+      | Session { adapter } ->
         Option.iter
           begin fun loc ->
             Dap.emit adapter "why3/failed" @@
@@ -357,7 +351,7 @@ let cc_theory hammer buffer strategy gnames theory =
          let hint = M.find_def Crc.stuck gname hints in
          Fibers.map
            begin fun crc ->
-             let complete = not @@ Hammer.pausing () in
+             let complete = Hammer.completing () in
              let hint = Crc.update ~complete ~hint crc in
              Proofs.add theory goal hint buffer
            end @@
@@ -454,7 +448,7 @@ let () = Dap.on_terminate
     begin fun adapter ~restart ->
       ignore adapter ;
       ignore restart ;
-      Hammer.kill () ;
+      Hammer.stop () ;
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -462,7 +456,7 @@ let () = Dap.on_terminate
 (* -------------------------------------------------------------------------- *)
 
 let running adapter =
-  Dap.running adapter || Hammer.running ()
+  Dap.running adapter || Hammer.pending ()
 
 let process adapter =
   let h = Hammer.process () in
@@ -470,9 +464,18 @@ let process adapter =
   h || d
 
 let run adapter =
+  let last = ref @@ Hammer.status () in
   while running adapter do
     let busy = process adapter in
-    observe () ;
+    let status = Hammer.status () in
+    if status <> !last then
+      begin
+        last := status ;
+        match status with
+        | Paused -> paused ()
+        | Stopped | Complete -> terminated ()
+        | Proving | Pausing | Stopping -> update ()
+      end ;
     if not busy then Unix.sleepf 0.01 ;
   done ;
   Client.terminate ()
