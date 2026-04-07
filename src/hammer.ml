@@ -35,7 +35,6 @@ type node = {
   parent : parent ;
   mutable state : state ;
   mutable chunks : Vc.context option ;
-  mutable context : Vc.context option ;
 }
 
 and parent =
@@ -94,14 +93,6 @@ let chunks n =
     let task = Session.goal_task n.goal in
     let chunks = Vc.chunks ~file thy task in
     n.chunks <- Some chunks ; chunks
-
-let context n =
-  match n.context with Some w -> w | None ->
-    let file = Session.goal_file n.goal in
-    let thy = Session.goal_theory n.goal in
-    let task = Session.goal_task n.goal in
-    let context = Vc.context ~file thy task in
-    n.context <- Some context ; context
 
 (* -------------------------------------------------------------------------- *)
 (* --- Queue Management                                                   --- *)
@@ -209,7 +200,6 @@ let node hammer ~parent ?hint goal =
     hint ;
     state = Paused ;
     chunks = None ;
-    context = None ;
   }
 
 let push hammer ~parent goal hint =

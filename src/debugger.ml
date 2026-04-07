@@ -29,7 +29,7 @@ let dloc_of_goal g = Option.map dloc_of_position @@ Session.goal_loc g
 let dloc_of_node n =
   let goal = Hammer.goal n in
   let file = Session.goal_file goal in
-  let context = Hammer.context n in
+  let context = Hammer.chunks n in
   let loc =
     List.find_map
       (function Vc.{ kind = Goal ; range } -> Some range | _ -> None)
@@ -132,6 +132,21 @@ let () = Dap.register "why3/task"
     end
 
 (* -------------------------------------------------------------------------- *)
+(* --- Stack                                                              --- *)
+(* -------------------------------------------------------------------------- *)
+
+
+
+
+
+
+
+
+
+
+
+
+(* -------------------------------------------------------------------------- *)
 (* ---  Running State                                                     --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -179,15 +194,6 @@ let terminated () =
   | Session { progress } ->
     session := Terminated ;
     Dap.finished progress ~message:"Terminated" ()
-
-let on_filter node =
-  let goal = Hammer.goal node in
-  let file = Session.goal_file goal in
-  let line =
-    List.fold_left
-      (fun l (Brk b) -> if b.active then min l b.line else l)
-      max_int (Hashtbl.find_all breakpoints file) in
-  line = max_int || let vc = Hammer.context node in vc.g2 <= line
 
 let on_failed node =
   begin
@@ -326,7 +332,6 @@ let () = Dap.on_init
       Hashtbl.clear breakpoints ;
       Hammer.pause () ;
       Hammer.on_failed on_failed ;
-      Hammer.on_filter on_filter ;
       Dap.initialized adapter ;
     end
 

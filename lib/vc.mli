@@ -24,5 +24,4 @@ val by_context : context -> context -> int
 
 val dump : file:string -> Why3.Task.task -> unit
 val chunks : file:string -> Why3.Theory.theory -> Why3.Task.task -> context
-val context : file:string -> Why3.Theory.theory -> Why3.Task.task -> context
 val highlight : file:string -> context:int -> Why3.Theory.theory -> Why3.Task.task -> unit

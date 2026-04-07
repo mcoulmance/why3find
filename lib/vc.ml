@@ -78,26 +78,6 @@ let shape_of_chunks (d: Decl.decl) : shape =
   | _ -> Empty
 
 (* -------------------------------------------------------------------------- *)
-(* ---  Context Extraction                                                --- *)
-(* -------------------------------------------------------------------------- *)
-
-exception Loc of Why3.Loc.position
-
-let rec find_loc (t : Why3.Term.term) =
-  match t.t_loc with
-  | Some l -> raise (Loc l)
-  | None -> Term.t_iter find_loc t
-
-let prop kind (t : Why3.Term.term) =
-  try find_loc t ; Empty with Loc pos -> Range(kind,pos,t)
-
-let shape_of_context (d : Decl.decl) : shape =
-  match d.d_node with
-  | Dprop(Pgoal,pr,p) -> default_shape Goal pr.pr_name.id_loc p @@ prop Goal p
-  | Dprop(Paxiom,pr,p) -> default_shape When pr.pr_name.id_loc p @@ prop When p
-  | _ -> Empty
-
-(* -------------------------------------------------------------------------- *)
 (* --- Splitting Tasks                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -289,7 +269,6 @@ let by_context u v =
 (* -------------------------------------------------------------------------- *)
 
 let chunks ~file thy task = window ~file thy @@ split shape_of_chunks ~file task
-let context ~file thy task = window ~file thy @@ split shape_of_context ~file task
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Printing Automaton                                                --- *)
