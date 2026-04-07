@@ -6,8 +6,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-[@@@ warning "-32"]
-
 (* -------------------------------------------------------------------------- *)
 (* ---  Observing Nodes                                                   --- *)
 (* -------------------------------------------------------------------------- *)
@@ -45,98 +43,6 @@ let dloc_of_node n =
       dloc_of_goal goal
 
 (* -------------------------------------------------------------------------- *)
-(* ---  Proof Tree Scope                                                  --- *)
-(* -------------------------------------------------------------------------- *)
-
-let rec is_stuck n =
-  match Hammer.state n with
-  | Paused | Scheduled -> false
-  | Closed crc -> Crc.is_stuck crc
-  | Stacked(_,children) -> List.for_all is_stuck children
-
-let add buffer ~name ~value ?vdecl ?index () =
-  Darray.add buffer @@
-  Dap.variable ~name ~value ?vdecl ?index ()
-
-let add_vc buffer ~name ~file (chunk : Vc.chunk) =
-  let value = Format.asprintf "@[<hov 2>%a@]"
-      Why3.Pretty.print_term chunk.term in
-  let vdecl = dloc_of_range ~file chunk.Vc.range in
-  add buffer ~name ~value ~vdecl ()
-
-let node_status n =
-  match Hammer.state n with
-  | Paused | Scheduled -> "Paused"
-  | Closed crc -> Format.asprintf "%a" Crc.pp_proof crc
-  | Stacked(tactic,children) ->
-    Format.asprintf "[%a] %a"
-      Tactic.pretty tactic
-      Crc.pp_proofs (List.map Hammer.proof children)
-
-let node_index n =
-  match Hammer.state n with
-  | Paused | Scheduled | Closed _ -> None
-  | Stacked(_,children) ->
-    if List.for_all is_stuck children then None else Some children
-
-let rec vc_vars ~goal ?(status=goal) n =
-  let buffer = Darray.create () in
-  let vc = Hammer.context n in
-  let file = vc.file in
-  List.iter
-    (fun chunk ->
-       match chunk.Vc.kind with
-       | Goal when goal -> add_vc buffer ~file ~name:"Goal" chunk
-       | When when not goal -> add_vc buffer ~file ~name:"Hyp" chunk
-       | WhenNot when not goal -> add_vc buffer ~file ~name:"Not" chunk
-       | _ -> ()
-    ) vc.chunks ;
-  begin
-    if status then
-      let value = node_status n in
-      let index = Option.map (Darray.delayed index_vars) (node_index n) in
-      List.iter
-        (fun (p,r) ->
-           add buffer
-             ~name:(Prover.desc_to_string p.Prover.desc)
-             ~value:(Format.asprintf "%a" Hammer.pp_result r) ()
-        ) (Hammer.results n) ;
-      add buffer ~name:"Status" ~value ?index () ;
-  end ;
-  Darray.contents buffer
-
-and index_vars children =
-  Darray.list @@
-  List.mapi
-    (fun i n ->
-       let name = Session.goal_idename @@ Hammer.goal n in
-       let status = node_status n in
-       let value = Printf.sprintf "%s %s" name status in
-       Dap.variable
-         ~name:(string_of_int i) ~value
-         ~named:(Darray.delayed (vc_vars ~status:false ~goal:true) n)
-         ()
-    ) children
-
-let vc_scope ~goal n =
-  Dap.scope
-    ~name:(if goal then "Proof" else "Context")
-    ~expensive:true
-    ~named:(Darray.delayed (vc_vars ~goal) n) ()
-
-(* -------------------------------------------------------------------------- *)
-(* ---  Callstack                                                         --- *)
-(* -------------------------------------------------------------------------- *)
-
-let rec reach stack n =
-  match Hammer.state n with
-  | Closed _ -> None
-  | Paused | Scheduled -> Some (n::stack)
-  | Stacked(_, children) ->
-    if List.for_all is_stuck children then Some (n::stack) else
-      List.find_map (reach (n::stack)) children
-
-(* -------------------------------------------------------------------------- *)
 (* ---  BreakPoints                                                       --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -156,23 +62,10 @@ let add_breakpoint ~file ~line =
   let brk = Brk { id ; file ; line ; active = true } in
   Hashtbl.add breakpoints file brk ; id
 
-let has_breakpoint ~line node =
-  let vc = Hammer.chunks node in
-  vc.h1 <= line && line <= vc.h2
-
-let hit_breakpoints node =
-  let vc = Hammer.context node in
-  List.filter_map
-    (function Brk b ->
-       if b.active && b.line <= vc.h2 then
-         (b.active <- false ; Some b.id)
-       else None)
-    (Hashtbl.find_all breakpoints vc.file)
-
 let () = Dap.on_breakpoint ~clear:clear_breakpoints
     begin function Dap.SourceBreakpoint { file ; line } ->
-      Format.eprintf "Breakpoint %s:%d@." file line ;
-      Dap.failed ~message:"Breakpoint not found (yet)" ()
+      let id = add_breakpoint ~file ~line in
+      Dap.pending ~id ~message:"Registered breakpoint" ()
     end
 
 (* -------------------------------------------------------------------------- *)
