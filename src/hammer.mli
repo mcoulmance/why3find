@@ -57,7 +57,6 @@ val proof : node -> Crc.crc
 val goal : node -> Session.goal
 val parent : node -> parent
 val state : node -> state
-val chunks : node -> Vc.context
 val result : node -> Prover.prover -> result
 val results : node -> (Prover.prover * result) list
 

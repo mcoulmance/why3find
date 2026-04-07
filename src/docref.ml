@@ -99,7 +99,7 @@ type href =
 
 let find_proof id = function
   | None -> None
-  | Some { proofs } -> Mstr.find_opt (Session.pr_name id) proofs
+  | Some { proofs } -> Mstr.find_opt (Vc.id_name id) proofs
 
 let strip_lemma id = function
   | None -> id
@@ -250,7 +250,7 @@ let iter_theory cenv ~scope thy =
 (* -------------------------------------------------------------------------- *)
 
 let get_proofs thy proofs =
-  Mstr.find_def Mstr.empty (Session.thy_name thy) proofs
+  Mstr.find_def Mstr.empty thy.Thy.th_name.id_string proofs
 
 let get_proof a proofs = Mstr.find_def Crc.stuck a proofs
 
@@ -258,7 +258,7 @@ let zip_goals thy proofs =
   let proofs = get_proofs thy proofs in
   List.fold_left
     (fun cmap task ->
-       let a = Session.task_name task in
+       let a = Vc.task_name task in
        Mstr.add a (get_proof a proofs) cmap)
     Mstr.empty
     (Why3.Task.split_theory thy None None)

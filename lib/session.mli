@@ -10,15 +10,13 @@
 (* --- Session Management                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
-open Why3
-
 type session
 
 val create :
   dir:string ->
   file:string ->
   format:string ->
-  Theory.theory list ->
+  Why3.Theory.theory list ->
   session
 
 val save : session -> unit
@@ -26,34 +24,31 @@ val save : session -> unit
 type theory
 
 val name : theory -> string
-val theory : theory -> Theory.theory
+val theory : theory -> Why3.Theory.theory
 val theories : session -> theory list
 
 type goal
 
 val split : theory -> goal list
-val pr_name : Ident.ident -> string
+
 val goal_name : goal -> string
 val goal_idename : goal -> string
 val goal_fullname : goal -> string
 val goal_file : goal -> string
-val goal_loc : goal -> Loc.position option
-val goal_task : goal -> Task.task
-val goal_theory : goal -> Theory.theory
+val goal_loc : goal -> Why3.Loc.position option
+val goal_task : goal -> Why3.Task.task
+val goal_theory : goal -> Why3.Theory.theory
+val goal_context : goal -> Vc.context
 
 val pp_goal : Format.formatter -> goal -> unit
 
-val thy_name : Theory.theory -> string
-val task_name : Task.task -> string
-val task_expl : Task.task -> string
-
 val result : goal ->
-  Whyconf.prover ->
-  Call_provers.resource_limits ->
-  Call_provers.prover_result ->
+  Why3.Whyconf.prover ->
+  Why3.Call_provers.resource_limits ->
+  Why3.Call_provers.prover_result ->
   unit
 
-val apply : Env.env -> Tactic.tactic -> ?allow_no_effect:bool -> goal
+val apply : Why3.Env.env -> Tactic.tactic -> ?allow_no_effect:bool -> goal
   -> goal list option
 (** Apply a tactic to a goal. When allow_no_effect is [false] (the default),
     the function treat the tactic returning the goal unchanged as an "error"

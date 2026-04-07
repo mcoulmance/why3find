@@ -29,7 +29,7 @@ let dloc_of_goal g = Option.map dloc_of_position @@ Session.goal_loc g
 let dloc_of_node n =
   let goal = Hammer.goal n in
   let file = Session.goal_file goal in
-  let context = Hammer.chunks n in
+  let context = Session.goal_context goal in
   let loc =
     List.find_map
       (function Vc.{ kind = Goal ; range } -> Some range | _ -> None)
@@ -37,8 +37,9 @@ let dloc_of_node n =
   match loc with
   | Some range -> Some (dloc_of_range ~file range)
   | None ->
-    if 0 <= context.g1 && context.g1 <= context.g2 && context.g2 < max_int then
-      Some (Dap.loc ~file ~line:context.g1 ~end_line:context.g2 ())
+    let Vc.{ line ; end_line } = context in
+    if 0 <= line && line <= end_line && end_line < max_int then
+      Some (Dap.loc ~file ~line ~end_line ())
     else
       dloc_of_goal goal
 
@@ -86,8 +87,8 @@ let () = Dap.register "why3/context"
       (* FIXME *)
       match assert false with
       | None -> `Null
-      | Some node ->
-        let context = Hammer.chunks node in
+      | Some goal ->
+        let context = Session.goal_context goal in
         let file = context.file in
         Json.assoc [
           "source" , `String file ;
@@ -130,21 +131,6 @@ let () = Dap.register "why3/task"
             line line
         in `String text
     end
-
-(* -------------------------------------------------------------------------- *)
-(* --- Stack                                                              --- *)
-(* -------------------------------------------------------------------------- *)
-
-
-
-
-
-
-
-
-
-
-
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Running State                                                     --- *)
@@ -219,8 +205,7 @@ let on_failed node =
 (* -------------------------------------------------------------------------- *)
 
 let cc_proof hammer theory goal hint =
-  let thy = Session.theory theory in
-  let tname = Session.thy_name thy in
+  let tname = Session.name theory in
   let gname = Session.goal_name goal in
   let name = Printf.sprintf "Goal %s.%s" tname gname in
   let result = Fibers.var () in

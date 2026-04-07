@@ -13,29 +13,6 @@
 module Th = Why3.Theory
 module T = Why3.Task
 module S = Why3.Session_itp
-module Wid = Why3.Ident
-module Mid = Why3.Ident.Mid
-
-(* -------------------------------------------------------------------------- *)
-(* ---   Utility Functions                                                --- *)
-(* -------------------------------------------------------------------------- *)
-
-(* exported in the API *)
-let pr_name : Why3.Ident.ident -> string =
-  let names = ref Mid.empty in
-  fun id ->
-    try Mid.find id !names with Not_found ->
-      let _,_,qid = Id.path id in
-      let path = Id.cat qid in
-      let name =
-        if String.ends_with ~suffix:"'vc" path
-        then String.sub path 0 (String.length path - 3) else path
-      in names := Mid.add id name !names ; name
-
-let thy_name th = th.Th.th_name.id_string
-let task_name t = pr_name (T.task_goal t).pr_name
-let task_expl t =
-  let (_, expl, _) = Why3.Termcode.goal_expl_task ~root:false t in expl
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Sessions (File)                                                   --- *)
@@ -67,63 +44,6 @@ let theories (Session { file ; session }) : theory list =
   List.map (fun theory -> Thy { file ; theory ; session }) (S.file_theories file)
 
 (* -------------------------------------------------------------------------- *)
-(* ---  Goal Naming                                                       --- *)
-(* -------------------------------------------------------------------------- *)
-
-(* 0: hyp-name, 1: expl *)
-let set_attr_label lbl (a : Wid.attribute) ~prefix k =
-  if lbl.(k) = "" && String.starts_with ~prefix a.attr_string then
-    let p = String.length prefix in
-    let n = String.length a.attr_string in
-    lbl.(k) <- String.sub a.attr_string p (n-p)
-
-let set_attr_labels lbl a =
-  begin
-    set_attr_label lbl a ~prefix:"hyp_name:" 0 ;
-    set_attr_label lbl a ~prefix:"expl:" 1 ;
-  end
-
-let set_attributes lbl attrs =
-  if lbl.(0) = "" || lbl.(1) = "" then
-    Wid.Sattr.iter (set_attr_labels lbl) attrs
-
-let (^^) u v =
-  if u = "" then v else if v = "" then u else Printf.sprintf "%s.%s" u v
-
-let rec term_head lbl flag (t : Why3.Term.term) =
-  let flag = flag && not (Wid.Sattr.mem Why3.Term.stop_split t.t_attrs) in
-  (if flag then set_attributes lbl t.t_attrs) ;
-  match t.t_node with
-  | Tvar _ | Tconst _ | Ttrue -> ""
-  | Tfalse -> "absurd"
-  | Tapp (f, ts) ->
-    if Id.is_infix f.ls_name.id_string then
-      List.fold_right (fun t w -> term_head lbl false t ^ w) ts ""
-    else f.ls_name.id_string
-  | Tif(e,_,_) -> "if:" ^ term_head lbl flag e
-  | Tcase(e,_) -> "case:" ^ term_head lbl flag e
-  | Tnot p | Tbinop(Timplies,_,p) -> term_head lbl flag p
-  | Tbinop((Tand|Tor|Tiff), a, b) -> term_head lbl flag a ^^ term_head lbl flag b
-  | Tlet (_, b) | Teps b ->
-    let _,e = Why3.Term.t_open_bound b in term_head lbl flag e
-  | Tquant (_, b) ->
-    let _,_,p = Why3.Term.t_open_quant b in term_head lbl flag p
-
-type fullname = { name : string ; expl : string ; head : string }
-
-let task_fullname (tsk : Why3.Task.task) =
-  match tsk with
-  | Some { task_decl = { td_node = (Decl { d_node = Dprop(Pgoal, g, p)}) } } ->
-    let lbl = [| "" ; "" |] in
-    let head = term_head lbl true p in
-    set_attributes lbl g.pr_name.id_attrs ;
-    let expl = lbl.(1) in
-    let name = if lbl.(0) = "" then pr_name g.pr_name else lbl.(0) in
-    { name ; expl ; head }
-  | _ ->
-    { name = "<goal>" ; expl = "" ; head = "" }
-
-(* -------------------------------------------------------------------------- *)
 (* ---  Goals                                                             --- *)
 (* -------------------------------------------------------------------------- *)
 
@@ -137,6 +57,7 @@ type goal = Goal of {
     mutable children : ( Tactic.tactic * goal list ) option ;
     mutable idename : string ;
     mutable fullname : string ;
+    mutable context : Vc.context option ;
   }
 
 let split (Thy { file ; session ; theory }) : goal list =
@@ -146,7 +67,7 @@ let split (Thy { file ; session ; theory }) : goal list =
        Goal {
          file ; session ; theory ; node ; task ;
          parent = None ; children = None ;
-         idename = "" ; fullname = "" ;
+         idename = "" ; fullname = "" ; context = None ;
        }
     ) @@ S.theory_goals theory
 
@@ -159,11 +80,11 @@ let goal_file (Goal g) =
   match (T.task_goal g.task).pr_name.id_loc with
   | Some loc -> let file,_,_,_,_ = Why3.Loc.get loc in file
   | None -> String.concat Filename.dir_sep @@ Why3.Sysutil.decompose_path @@ S.file_path g.file
-let goal_name g = task_name @@ goal_task g
+let goal_name g = Vc.task_name @@ goal_task g
 let compute_names (Goal g) =
   if g.idename = "" then
     begin
-      let d = task_fullname g.task in
+      let d = Vc.task_fullname g.task in
       let buffer = Buffer.create 80 in
       Buffer.add_string buffer d.name ;
       if d.expl <> "" then Printf.bprintf buffer " [%s]" d.expl ;
@@ -222,7 +143,8 @@ let apply env tactic ?(allow_no_effect=false) goal =
            let task = S.get_task session node in
            Goal {
              file ; session ; theory ; node ; task ; parent ;
-             children = None ; fullname = "" ; idename = ""
+             children = None ; fullname = "" ; idename = "" ;
+             context = None ;
            }
         ) nodes in
     let Goal g = goal in
@@ -236,6 +158,18 @@ let apply =
     Timer.start timer;
     Fun.protect ~finally:(fun () -> Timer.stop timer)
       (fun () -> apply env tactic ?allow_no_effect goal)
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Context                                                           --- *)
+(* -------------------------------------------------------------------------- *)
+
+let goal_context (Goal g as goal) =
+  match g.context with Some w -> w | None ->
+    let file = goal_file goal in
+    let thy = goal_theory goal in
+    let task = goal_task goal in
+    let context = Vc.context ~file thy task in
+    g.context <- Some context ; context
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Navigation                                                        --- *)

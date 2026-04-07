@@ -34,7 +34,6 @@ type node = {
   hammer : hammer ;
   parent : parent ;
   mutable state : state ;
-  mutable chunks : Vc.context option ;
 }
 
 and parent =
@@ -81,18 +80,6 @@ let rec update result = function
         update result n.parent
       | _ -> ()
     with Exit -> ()
-
-(* -------------------------------------------------------------------------- *)
-(* --- Node Window                                                        --- *)
-(* -------------------------------------------------------------------------- *)
-
-let chunks n =
-  match n.chunks with Some w -> w | None ->
-    let file = Session.goal_file n.goal in
-    let thy = Session.goal_theory n.goal in
-    let task = Session.goal_task n.goal in
-    let chunks = Vc.chunks ~file thy task in
-    n.chunks <- Some chunks ; chunks
 
 (* -------------------------------------------------------------------------- *)
 (* --- Queue Management                                                   --- *)
@@ -199,7 +186,6 @@ let node hammer ~parent ?hint goal =
     parent ; depth ;
     hint ;
     state = Paused ;
-    chunks = None ;
   }
 
 let push hammer ~parent goal hint =
