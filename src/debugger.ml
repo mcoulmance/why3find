@@ -24,10 +24,7 @@ let dloc_of_position (p : Why3.Loc.position) : Dap.location =
 let dloc_of_range ~file ((p,q) : Range.range) : Dap.location =
   Dap.loc ~file ~line:p.line ~column:p.col ~end_line:q.line ~end_column:q.col ()
 
-let dloc_of_goal g = Option.map dloc_of_position @@ Session.goal_loc g
-
-let dloc_of_node n =
-  let goal = Hammer.goal n in
+let dloc_of_goal goal =
   let file = Session.goal_file goal in
   let context = Session.goal_context goal in
   let loc =
@@ -41,7 +38,7 @@ let dloc_of_node n =
     if 0 <= line && line <= end_line && end_line < max_int then
       Some (Dap.loc ~file ~line ~end_line ())
     else
-      dloc_of_goal goal
+      Option.map dloc_of_position @@ Session.goal_loc goal
 
 (* -------------------------------------------------------------------------- *)
 (* ---  BreakPoints                                                       --- *)
@@ -68,6 +65,41 @@ let () = Dap.on_breakpoint ~clear:clear_breakpoints
       let id = add_breakpoint ~file ~line in
       Dap.pending ~id ~message:"Registered breakpoint" ()
     end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Roots                                                             --- *)
+(* -------------------------------------------------------------------------- *)
+
+let roots : Session.goal Fibers.Queue.t = Fibers.Queue.create ()
+let stops : Dap.reason Session.hmap = Session.hmap 0
+let cursor : (Session.goal * Dap.reason) option ref = ref None
+
+let forward () =
+  let pending g = (Session.goal_proof g <> None) in
+  let stopped g r = cursor := Some (g,r) ; raise Exit in
+  try
+    Fibers.Queue.filter
+      (fun root ->
+         Session.iter
+           (fun g ->
+              Option.iter (stopped g) @@ Session.find_opt stops g ;
+              if pending g then stopped g `pause ;
+           ) root ;
+         true
+      ) roots
+  with Exit -> ()
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Stack Frames                                                      --- *)
+(* -------------------------------------------------------------------------- *)
+
+let frames () : Dap.frame Darray.t =
+  match !cursor with
+  | None -> Darray.empty
+  | Some (g,_) ->
+    let name = Session.goal_fullname g in
+    let range = dloc_of_goal g in
+    Darray.const @@ Dap.frame ~name ?range ()
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Proof Context                                                     --- *)
@@ -161,7 +193,9 @@ let started adapter =
     let progress = Dap.progress adapter ~title:"Why3" ~message:"Started" () in
     let on_pause _thread = Hammer.pause () in
     let on_continue _thread = Hammer.resume () in
-    let thread = Dap.thread adapter ~name:"Why3find" ~on_continue ~on_pause () in
+    let frames _thread = frames () in
+    let thread = Dap.thread adapter ~name:"Why3find"
+        ~frames ~on_continue ~on_pause () in
     session := Session { adapter ; progress ; thread } ;
   end
 
@@ -170,8 +204,10 @@ let paused () =
   | Terminated -> ()
   | Session { progress ; thread } ->
     begin
+      if !cursor = None then forward () ;
+      let reason = match !cursor with Some (_,r) -> r | None -> `pause in
+      Dap.stopped ~reason thread ;
       Dap.update progress ~message:"Paused" () ;
-      Dap.stopped ~reason:`error thread ;
     end
 
 let terminated () =
@@ -181,11 +217,16 @@ let terminated () =
     session := Terminated ;
     Dap.finished progress ~message:"Terminated" ()
 
+(* -------------------------------------------------------------------------- *)
+(* ---  Node Observers                                                    --- *)
+(* -------------------------------------------------------------------------- *)
+
 let on_failed node =
   begin
     let goal = Hammer.goal node in
     try
       Hammer.pause () ;
+      cursor := Some (goal,`error) ;
       let gname = Session.goal_idename goal in
       Log.error "%a%s @{<red>failed@}" pp_goal_location goal gname ;
       match !session with
@@ -195,7 +236,7 @@ let on_failed node =
           begin fun loc ->
             Dap.emit adapter "why3/failed" @@
             Json.assoc (("goal", `String gname) :: Dap.js_sourcefields loc)
-          end @@ dloc_of_node node
+          end @@ dloc_of_goal @@ Hammer.goal node
     with Not_found ->
       Log.error "%aGoal @{<red>failed@}" pp_goal_location goal
   end
@@ -216,7 +257,7 @@ let cc_proof hammer theory goal hint =
       Fibers.set result crc ;
     end in
   let _node = Hammer.prove hammer ~callback goal hint in
-  result
+  Fibers.Queue.push roots goal ; result
 
 let cc_theory hammer buffer strategy gnames theory =
   let module M = Why3.Wstdlib.Mstr in
@@ -226,7 +267,7 @@ let cc_theory hammer buffer strategy gnames theory =
   Proofs.init theory goals hints buffer ;
   let accept g =
     gnames = [] || List.mem thy gnames ||
-    List.mem (thy ^ "." ^ (Session.goal_name g)) gnames in
+    List.mem (thy ^ "." ^ Session.goal_name g) gnames in
   Fibers.all @@
   List.map
     (fun goal ->
@@ -315,8 +356,10 @@ let () = Dap.on_init
       Log.pp_stderr := echo `stderr ;
       breakpointk := 0 ;
       Hashtbl.clear breakpoints ;
+      Fibers.Queue.clear roots ;
+      Session.clear stops ;
       Hammer.pause () ;
-      Hammer.on_failed on_failed ;
+      Fibers.on Hammer.failed on_failed ;
       Dap.initialized adapter ;
     end
 

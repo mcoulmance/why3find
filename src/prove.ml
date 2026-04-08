@@ -211,9 +211,9 @@ let failed_task node =
 
 let on_failed = function
   | `Context context when Utils.tty && context >= 0 ->
-    Hammer.on_failed (failed_context ~context)
+    Fibers.on Hammer.failed (failed_context ~context)
   | `Tasks ->
-    Hammer.on_failed failed_task
+    Fibers.on Hammer.failed failed_task
   | _ -> ()
 
 let prove_goal ~hammer ~force buffer theory gname goal hint =

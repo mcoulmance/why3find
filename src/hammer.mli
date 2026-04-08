@@ -97,10 +97,9 @@ val pending : unit -> bool
 val completing : unit -> bool
 (** Emitted CRCs are complete: not stopping nor pausing *)
 
-val on_failed : (node -> unit) -> unit
-val off_failed : (node -> unit) -> unit
-val on_filter : (node -> bool) -> unit
-val off_filter : (node -> bool) -> unit
+val enter : node Fibers.signal
+val leave : node Fibers.signal
+val failed : node Fibers.signal
 
 (** Interrupt all running provers and discard all pending nodes. *)
 val stop : unit -> unit

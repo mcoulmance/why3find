@@ -85,17 +85,16 @@ let rec update result = function
 (* --- Queue Management                                                   --- *)
 (* -------------------------------------------------------------------------- *)
 
+let enter = Fibers.signal ()
+let leave = Fibers.signal ()
 let failed = Fibers.signal ()
-let on_failed = Fibers.on failed
-let off_failed = Fibers.off failed
-let filters = Fibers.Queue.create ()
-let on_filter fn = Fibers.Queue.push filters fn
-let off_filter fn = Fibers.Queue.filter (fun f -> f != fn) filters
+
 let p_proven = ref 0
 let p_broken = ref 0
 let q_paused = Fibers.Queue.create () (* Paused nodes *)
 let q_broken = Queue.create () (* Stuck hints, scheduled first *)
 let q_proven = Queue.create () (* Complete hints, scheduled last *)
+
 let q_pause n =
   n.state <- Paused ; Fibers.Queue.push q_paused n
 let q_close n crc =
@@ -103,15 +102,15 @@ let q_close n crc =
     n.state <- Closed crc ;
     Session.commit n.goal crc ;
     update crc n.parent ;
+    Fibers.emit leave n ;
   end
 
 let q_schedule n =
-  try
-    Fibers.Queue.iter (fun fn -> if not (fn n) then raise Exit) filters ;
+  begin
     n.state <- Scheduled ;
-    Queue.push n @@
-    if Crc.is_complete n.hint then q_proven else q_broken ;
-  with Exit -> q_pause n
+    Queue.push n @@ if Crc.is_complete n.hint then q_proven else q_broken ;
+    Fibers.emit enter n ;
+  end
 
 let iter f =
   begin
@@ -415,9 +414,7 @@ let hammer0 : strategy = fun n ->
       match verdict with
       | Killed -> Interrupted
       | Unknown -> NotFound
-      | Valid(p,t) ->
-        let crc = Crc.prover p t in
-        q_close n crc ; Resolved
+      | Valid(p,t) -> q_close n @@ Crc.prover p t ; Resolved
     in sequence hprove h.provers n
   else notfound ()
 
