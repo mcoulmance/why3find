@@ -37,7 +37,7 @@ let dloc_of_node n =
   match loc with
   | Some range -> Some (dloc_of_range ~file range)
   | None ->
-    let Vc.{ line ; end_line } = context in
+    let line,end_line = context.goal in
     if 0 <= line && line <= end_line && end_line < max_int then
       Some (Dap.loc ~file ~line ~end_line ())
     else

@@ -15,7 +15,8 @@ type chunk = { kind : kind ; range : Range.range ; term : Why3.Term.term }
 
 type context = {
   file : string ;
-  line : int ; end_line : int ;
+  goal : int * int ;
+  span : int * int ;
   chunks : chunk list ;
 }
 

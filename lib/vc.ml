@@ -288,8 +288,18 @@ let dump ~file task =
 (* ---  Windowing Chunks                                                  --- *)
 (* -------------------------------------------------------------------------- *)
 
-type context = { file : string ; line : int ; end_line : int ; chunks : chunk list }
-let empty = { file = "" ; line = 0 ; end_line = 0 ; chunks = [] }
+type context = {
+  file : string ;
+  goal : int * int ;
+  span : int * int ;
+  chunks : chunk list ;
+}
+let empty = {
+  file = "" ;
+  goal = 0 , 0 ;
+  span = 0 , 0 ;
+  chunks = [] ;
+}
 
 let window ~file thy chunks =
   let lines = decls ~file thy in
@@ -317,7 +327,7 @@ let window ~file thy chunks =
              true
            end
         ) chunks
-    in { file ; line = !hp ; end_line = !hq ; chunks }
+    in { file ; goal = p,q ; span = !hp,!hq ; chunks }
 
 let context ~file thy task = window ~file thy @@ split shape_of_chunks ~file task
 
@@ -518,7 +528,7 @@ let highlight ~file ~context:width thy task =
   let w = context ~file thy task in
   match w.chunks with [] -> () | head::tail ->
     Format.printf "@{<orange>[%s:%a %s]@}@\n"
-      file pp_range (w.line,w.end_line) (task_name task) ;
+      file pp_range w.goal (task_name task) ;
     let text = Utils.readfile ~file in
     let cursor = {
       text ; width ; offset = 0 ; pos = Range.start ;
