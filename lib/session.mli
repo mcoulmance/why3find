@@ -39,6 +39,7 @@ val goal_loc : goal -> Why3.Loc.position option
 val goal_task : goal -> Why3.Task.task
 val goal_theory : goal -> Why3.Theory.theory
 val goal_context : goal -> Vc.context
+val goal_proof : goal -> Crc.crc option
 
 val pp_goal : Format.formatter -> goal -> unit
 
@@ -54,6 +55,8 @@ val apply : Why3.Env.env -> Tactic.tactic -> ?allow_no_effect:bool -> goal
     the function treat the tactic returning the goal unchanged as an "error"
     and return {!None}. When it is [true] this condition is treated as a normal
     result and the goal is returned. *)
+
+val commit : goal -> Crc.crc -> unit
 
 val parent : goal -> goal option
 val prev : goal -> goal option

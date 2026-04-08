@@ -58,6 +58,7 @@ type goal = Goal of {
     mutable idename : string ;
     mutable fullname : string ;
     mutable context : Vc.context option ;
+    mutable proof : Crc.crc option ;
   }
 
 let split (Thy { file ; session ; theory }) : goal list =
@@ -67,7 +68,7 @@ let split (Thy { file ; session ; theory }) : goal list =
        Goal {
          file ; session ; theory ; node ; task ;
          parent = None ; children = None ;
-         idename = "" ; fullname = "" ; context = None ;
+         idename = "" ; fullname = "" ; context = None ; proof = None ;
        }
     ) @@ S.theory_goals theory
 
@@ -95,6 +96,7 @@ let compute_names (Goal g) =
 
 let goal_idename (Goal g as goal) = compute_names goal ; g.idename
 let goal_fullname (Goal g as goal) = compute_names goal ; g.fullname
+let goal_proof (Goal g) = g.proof
 
 let pp_goal fmt g = Format.pp_print_string fmt (goal_idename g)
 
@@ -144,7 +146,7 @@ let apply env tactic ?(allow_no_effect=false) goal =
            Goal {
              file ; session ; theory ; node ; task ; parent ;
              children = None ; fullname = "" ; idename = "" ;
-             context = None ;
+             context = None ; proof = None ;
            }
         ) nodes in
     let Goal g = goal in
@@ -158,6 +160,8 @@ let apply =
     Timer.start timer;
     Fun.protect ~finally:(fun () -> Timer.stop timer)
       (fun () -> apply env tactic ?allow_no_effect goal)
+
+let commit (Goal g) crc = g.proof <- Some crc
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Context                                                           --- *)

@@ -101,6 +101,7 @@ let q_pause n =
 let q_close n crc =
   begin
     n.state <- Closed crc ;
+    Session.commit n.goal crc ;
     update crc n.parent ;
   end
 
