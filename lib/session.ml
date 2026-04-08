@@ -211,3 +211,19 @@ let rec iter f (Goal g as goal) =
   | Some(_,gs) -> List.iter (iter f) gs
 
 (* -------------------------------------------------------------------------- *)
+(* ---  Hashtbl                                                           --- *)
+(* -------------------------------------------------------------------------- *)
+
+type 'a hmap = 'a S.Hpn.t
+
+let hmap = S.Hpn.create
+let clear = S.Hpn.clear
+let add m (Goal g) = S.Hpn.add m g.node
+let remove m (Goal g) = S.Hpn.remove m g.node
+let replace m (Goal g) = S.Hpn.replace m g.node
+let find m (Goal g) = S.Hpn.find m g.node
+let mem m (Goal g) = S.Hpn.mem m g.node
+let find_opt m (Goal g) = S.Hpn.find_opt m g.node
+let find_all m (Goal g) = S.Hpn.find_all m g.node
+
+(* -------------------------------------------------------------------------- *)
