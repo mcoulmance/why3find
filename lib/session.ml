@@ -175,6 +175,8 @@ let goal_context (Goal g as goal) =
 (* ---  Navigation                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
+let parent (Goal g) = g.parent
+
 let rec prev (Goal g as goal) =
   match g.parent with
   | None -> None
@@ -202,5 +204,10 @@ let step_in (Goal g as goal) =
 
 let step_out (Goal g) =
   Option.bind g.parent next
+
+let rec iter f (Goal g as goal) =
+  match g.children with
+  | None -> f goal
+  | Some(_,gs) -> List.iter (iter f) gs
 
 (* -------------------------------------------------------------------------- *)

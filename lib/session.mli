@@ -55,9 +55,11 @@ val apply : Why3.Env.env -> Tactic.tactic -> ?allow_no_effect:bool -> goal
     and return {!None}. When it is [true] this condition is treated as a normal
     result and the goal is returned. *)
 
+val parent : goal -> goal option
 val prev : goal -> goal option
 val next : goal -> goal option
 val step_in : goal -> goal option
 val step_out : goal -> goal option
+val iter : (goal -> unit) -> goal -> unit
 
 (* -------------------------------------------------------------------------- *)

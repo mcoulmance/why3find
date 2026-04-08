@@ -139,10 +139,10 @@ let () = Dap.register "why3/task"
 type session =
   | Terminated
   | Session of {
-    adapter : Dap.adapter ;
-    progress : Dap.progress ;
-    thread : Dap.thread ;
-  }
+      adapter : Dap.adapter ;
+      progress : Dap.progress ;
+      thread : Dap.thread ;
+    }
 
 let session = ref Terminated
 
