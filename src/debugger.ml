@@ -93,13 +93,19 @@ let forward () =
 (* ---  Stack Frames                                                      --- *)
 (* -------------------------------------------------------------------------- *)
 
+let goal_attr : Session.goal Dap.attribute = Dap.attribute ()
+
+let rec goal_frames g =
+  let name = Session.goal_idename g in
+  let range = dloc_of_goal g in
+  let values = [Dap.value goal_attr g] in
+  Dap.frame ~name ?range ~values () ::
+  match Session.parent g with None -> [] | Some g -> goal_frames g
+
 let frames () : Dap.frame Darray.t =
   match !cursor with
   | None -> Darray.empty
-  | Some (g,_) ->
-    let name = Session.goal_fullname g in
-    let range = dloc_of_goal g in
-    Darray.const @@ Dap.frame ~name ?range ()
+  | Some (g,_) -> Darray.list @@ goal_frames g
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Proof Context                                                     --- *)
@@ -114,10 +120,8 @@ let jchunk ~file (ch : Vc.chunk) =
 
 let () = Dap.register "why3/context"
     begin fun _adapter args ->
-      let _threadId = Json.jfield "threadId" args |> Json.jint in
-      let _frameId = Json.jfield "frameId" args |> Json.jint in
-      (* FIXME *)
-      match assert false with
+      let frameId = Json.jfield "frameId" args |> Json.jint in
+      match Dap.get_by_frameId goal_attr frameId with
       | None -> `Null
       | Some goal ->
         let context = Session.goal_context goal in
@@ -130,36 +134,50 @@ let () = Dap.register "why3/context"
 
 let () = Dap.register "why3/task"
     begin fun _adapter args ->
-      let _threadId = Json.jfield "threadId" args |> Json.jint in
-      let _frameId = Json.jfield "frameId" args |> Json.jint in
-      (* FIXME *)
-      match assert false with
+      let frameId = Json.jfield "frameId" args |> Json.jint in
+      match Dap.get_by_frameId goal_attr frameId with
       | None -> `Null
-      | Some node ->
-        let task = Session.goal_task @@ Hammer.goal node in
-        let state = Hammer.state node in
-        let line = String.make 30 '-' in
-        let rec pp_stack fmt = function
-          | Hammer.Root _ -> ()
-          | Hammer.Parent n ->
-            Format.fprintf fmt
-              "@\n    from %a" Hammer.pp_state (Hammer.state n) ;
-            pp_stack fmt (Hammer.parent n)
-        in
+      | Some goal ->
+        let task = Session.goal_task goal in
+        let line = String.make 31 '-' in
         let text =
           Format.asprintf
-            "%a%s Proof  %s@\n@\n%t(* Status : %a%a *)@\n@\n%s--------%s@."
+            "%a%s Proof %s@\n@\n%t@\n@\n%s-------%s@."
             Why3.Pretty.print_sequent task
             line line
             begin fun fmt ->
-              List.iter
-                (fun (p,r) ->
-                   Format.fprintf fmt "(* Prover %a : %a *)@\n"
-                     Prover.pp_desc p.Prover.desc Hammer.pp_result r
-                ) (Hammer.results node)
+              match Session.children goal with
+              | Some (tactic, children) ->
+                Format.fprintf fmt "(* %a %t *)@\n(* %a *)"
+                  Tactic.pretty tactic
+                  begin fun fmt ->
+                    let n = List.length children in
+                    if n = 0 then Format.fprintf fmt "(resolved)" else
+                    let p = List.fold_left
+                        (fun v g ->
+                          match Session.goal_proof g with
+                          | Some crc when Crc.is_complete crc -> succ v
+                          | _ -> v
+                        ) 0 children in
+                    if p < n
+                    then Format.fprintf fmt "(%d/%d)" p n
+                    else Format.fprintf fmt "(%d)" n
+                  end
+                  Crc.pp_hints
+                  (List.map (fun g ->
+                       match Session.goal_proof g with
+                       | None -> Crc.stuck
+                       | Some crc -> crc
+                     ) children)
+              | None ->
+                match Session.goal_proof goal with
+                | None ->
+                  Format.fprintf fmt "(* Pending *)"
+                | Some crc when Crc.is_stuck crc ->
+                  Format.fprintf fmt "(* Failed *)"
+                | Some crc ->
+                  Format.fprintf fmt "(* %a *)" Crc.pp_hint crc
             end
-            Hammer.pp_state state
-            pp_stack (Hammer.parent node)
             line line
         in `String text
     end
@@ -227,7 +245,7 @@ let on_failed node =
     try
       Hammer.pause () ;
       cursor := Some (goal,`error) ;
-      let gname = Session.goal_idename goal in
+      let gname = Session.goal_fullname goal in
       Log.error "%a%s @{<red>failed@}" pp_goal_location goal gname ;
       match !session with
       | Terminated -> ()

@@ -180,6 +180,7 @@ let goal_context (Goal g as goal) =
 (* -------------------------------------------------------------------------- *)
 
 let parent (Goal g) = g.parent
+let children (Goal g) = g.children
 
 let rec prev (Goal g as goal) =
   match g.parent with

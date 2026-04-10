@@ -59,6 +59,8 @@ val apply : Why3.Env.env -> Tactic.tactic -> ?allow_no_effect:bool -> goal
 val commit : goal -> Crc.crc -> unit
 
 val parent : goal -> goal option
+val children : goal -> (Tactic.tactic * goal list) option
+
 val prev : goal -> goal option
 val next : goal -> goal option
 val step_in : goal -> goal option
