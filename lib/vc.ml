@@ -224,6 +224,10 @@ let set_attributes lbl attrs =
 let (^^) u v =
   if u = "" then v else if v = "" then u else Printf.sprintf "%s.%s" u v
 
+let rec fconcat f = function
+  | [] -> ""
+  | x::xs -> f x ^^ fconcat f xs
+
 let rec term_head lbl flag (t : Term.term) =
   let flag = flag && not (Wid.Sattr.mem Term.stop_split t.t_attrs) in
   (if flag then set_attributes lbl t.t_attrs) ;
@@ -231,8 +235,8 @@ let rec term_head lbl flag (t : Term.term) =
   | Tvar _ | Tconst _ | Ttrue -> ""
   | Tfalse -> "absurd"
   | Tapp (f, ts) ->
-    if Id.is_infix f.ls_name.id_string then
-      List.fold_right (fun t w -> term_head lbl false t ^ w) ts ""
+    if Id.is_infix f.ls_name.id_string
+    then fconcat (term_head lbl false) ts
     else f.ls_name.id_string
   | Tif(e,_,_) -> "if:" ^ term_head lbl flag e
   | Tcase(e,_) -> "case:" ^ term_head lbl flag e
@@ -243,9 +247,9 @@ let rec term_head lbl flag (t : Term.term) =
   | Tquant (_, b) ->
     let _,_,p = Term.t_open_quant b in term_head lbl flag p
 
-type fullname = { name : string ; expl : string ; head : string }
+type descr = { name : string ; expl : string ; head : string }
 
-let task_fullname (task : Task.task) =
+let task_descr (task : Task.task) =
   match task with
   | Some { task_decl = { td_node = (Decl { d_node = Dprop(Pgoal, g, p)}) } } ->
     let lbl = [| "" ; "" |] in

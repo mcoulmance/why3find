@@ -55,7 +55,7 @@ type goal = Goal of {
     task : T.task ;
     parent : goal option ;
     mutable children : ( Tactic.tactic * goal list ) option ;
-    mutable idename : string ;
+    mutable hashname : string ;
     mutable fullname : string ;
     mutable context : Vc.context option ;
     mutable proof : Crc.crc option ;
@@ -68,7 +68,7 @@ let split (Thy { file ; session ; theory }) : goal list =
        Goal {
          file ; session ; theory ; node ; task ;
          parent = None ; children = None ;
-         idename = "" ; fullname = "" ; context = None ; proof = None ;
+         hashname = "" ; fullname = "" ; context = None ; proof = None ;
        }
     ) @@ S.theory_goals theory
 
@@ -83,22 +83,22 @@ let goal_file (Goal g) =
   | None -> String.concat Filename.dir_sep @@ Why3.Sysutil.decompose_path @@ S.file_path g.file
 let goal_name g = Vc.task_name @@ goal_task g
 let compute_names (Goal g) =
-  if g.idename = "" then
+  if g.hashname = "" then
     begin
-      let d = Vc.task_fullname g.task in
+      let d = Vc.task_descr g.task in
       let buffer = Buffer.create 80 in
       Buffer.add_string buffer d.name ;
       if d.expl <> "" then Printf.bprintf buffer " [%s]" d.expl ;
-      g.idename <- Buffer.contents buffer ;
-      if d.head <> "" then Printf.bprintf buffer " <%s>" d.head ;
       g.fullname <- Buffer.contents buffer ;
+      if d.head <> "" then Printf.bprintf buffer " <%s>" d.head ;
+      g.hashname <- Buffer.contents buffer ;
     end
 
-let goal_idename (Goal g as goal) = compute_names goal ; g.idename
+let goal_hashname (Goal g as goal) = compute_names goal ; g.hashname
 let goal_fullname (Goal g as goal) = compute_names goal ; g.fullname
 let goal_proof (Goal g) = g.proof
 
-let pp_goal fmt g = Format.pp_print_string fmt (goal_idename g)
+let pp_goal fmt g = Format.pp_print_string fmt (goal_hashname g)
 
 let silent : S.notifier = fun _ -> ()
 
@@ -145,7 +145,7 @@ let apply env tactic ?(allow_no_effect=false) goal =
            let task = S.get_task session node in
            Goal {
              file ; session ; theory ; node ; task ; parent ;
-             children = None ; fullname = "" ; idename = "" ;
+             children = None ; fullname = "" ; hashname = "" ;
              context = None ; proof = None ;
            }
         ) nodes in

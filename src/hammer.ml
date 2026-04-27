@@ -287,7 +287,7 @@ let prover ?cancel timeout prv = fun n ->
         Fibers.map to_profile @@
         Fibers.finally ~callback:(Cache.set h.env.cache task prv) @@
         Runner.prove_prepared wmain ~name ~cancel:kill ~callback
-          prv ptask runner_time ~idename:(Session.goal_idename n.goal)
+          prv ptask runner_time ~idename:(Session.goal_fullname n.goal)
       in match h.client with
       | None -> runner
       | Some cl ->

@@ -32,7 +32,7 @@ type goal
 val split : theory -> goal list
 
 val goal_name : goal -> string
-val goal_idename : goal -> string
+val goal_hashname : goal -> string
 val goal_fullname : goal -> string
 val goal_file : goal -> string
 val goal_loc : goal -> Why3.Loc.position option
