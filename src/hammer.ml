@@ -94,9 +94,8 @@ let p_broken = ref 0
 let q_paused = Fibers.Queue.create () (* Paused nodes *)
 let q_broken = Queue.create () (* Stuck hints, scheduled first *)
 let q_proven = Queue.create () (* Complete hints, scheduled last *)
+let q_pause n = n.state <- Paused ; Fibers.Queue.push q_paused n
 
-let q_pause n =
-  n.state <- Paused ; Fibers.Queue.push q_paused n
 let q_close n crc =
   begin
     n.state <- Closed crc ;

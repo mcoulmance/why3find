@@ -299,6 +299,8 @@ val updated : ?reason:string -> thread -> unit
 val terminate : thread -> unit
 
 type reason = [ `step | `breakpoint | `pause | `entry | `except | `error ]
+val pp_reason : Format.formatter -> reason -> unit
+
 val stopped :
   reason:reason ->
   ?description:string ->

@@ -67,27 +67,51 @@ let () = Dap.on_breakpoint ~clear:clear_breakpoints
     end
 
 (* -------------------------------------------------------------------------- *)
-(* ---  Roots                                                             --- *)
+(* ---  Cursor Management                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
-let roots : Session.goal Fibers.Queue.t = Fibers.Queue.create ()
-let stops : Dap.reason Session.hmap = Session.hmap 0
-let cursor : (Session.goal * Dap.reason) option ref = ref None
+let roots : Session.goal list ref = ref []
+let failed : Session.goal option ref = ref None
 
-let forward () =
-  let pending g = (Session.goal_proof g <> None) in
-  let stopped g r = cursor := Some (g,r) ; raise Exit in
-  try
-    Fibers.Queue.filter
-      (fun root ->
-         Session.iter
-           (fun g ->
-              Option.iter (stopped g) @@ Session.find_opt stops g ;
-              if pending g then stopped g `pause ;
-           ) root ;
-         true
-      ) roots
-  with Exit -> ()
+(* -------------------------------------------------------------------------- *)
+(* ---  Task Frame                                                        --- *)
+(* -------------------------------------------------------------------------- *)
+
+type frame = {
+  vars : Dap.variable Darray.buffer ;
+  hyps : Dap.variable Darray.buffer ;
+  goal : Dap.variable Darray.buffer ;
+}
+
+let populate (f : frame) goal =
+  begin
+    let task = Session.goal_task goal in
+    List.iter
+      (fun (d : Why3.Decl.decl) ->
+         match d.d_node with
+         | Dtype _ | Ddata _ | Dlogic _ | Dind _ -> ()
+         | Dparam ls ->
+           let name = Format.asprintf "%a" Why3.Pretty.print_ls ls in
+           let value = Format.asprintf "@[<hov 2>%t@]"
+               begin fun fmt ->
+                 List.iter
+                   (Format.fprintf fmt "(%a) ->@ " Why3.Pretty.print_ty)
+                   ls.ls_args ;
+                 match ls.ls_value with
+                 | None -> Format.fprintf fmt "Prop"
+                 | Some tr -> Why3.Pretty.print_ty fmt tr
+               end in
+           Darray.add f.vars @@ Dap.variable ~name ~value ()
+         | Dprop (kind,pr,term) ->
+           let name = Format.asprintf "%a" Why3.Pretty.print_pr pr in
+           let value = Format.asprintf "%a" Why3.Pretty.print_term term in
+           let scope =
+             match kind with Plemma | Paxiom -> f.hyps | Pgoal -> f.goal in
+           Darray.add scope @@ Dap.variable ~name ~value ()
+      ) @@ Why3.Task.(local_decls task @@ used_symbols @@ used_theories task) ;
+    let status = Format.asprintf "%a" Session.pp_status goal in
+    Darray.add f.goal @@ Dap.variable ~name:"Status" ~value:status () ;
+  end
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Stack Frames                                                      --- *)
@@ -96,16 +120,27 @@ let forward () =
 let goal_attr : Session.goal Dap.attribute = Dap.attribute ()
 
 let rec goal_frames g =
-  let name = Session.goal_idename g in
+  let name = Session.goal_fullname g in
   let range = dloc_of_goal g in
   let values = [Dap.value goal_attr g] in
-  Dap.frame ~name ?range ~values () ::
+  let fr = {
+    vars = Darray.create () ;
+    hyps = Darray.create () ;
+    goal = Darray.create () ;
+  } in
+  let compute = lazy (populate fr g) in
+  let scope buffer = Lazy.force compute ; Darray.contents buffer in
+  Dap.frame ~name ?range ~values ~scopes:[
+    Dap.scope ~name:"Variables" ~named:(Darray.delayed scope fr.vars) () ;
+    Dap.scope ~name:"Context" ~named:(Darray.delayed scope fr.hyps) () ;
+    Dap.scope ~name:"Goal" ~named:(Darray.delayed scope fr.goal) () ;
+  ] () ::
   match Session.parent g with None -> [] | Some g -> goal_frames g
 
 let frames () : Dap.frame Darray.t =
-  match !cursor with
+  match !failed with
   | None -> Darray.empty
-  | Some (g,_) -> Darray.list @@ goal_frames g
+  | Some g -> Darray.list @@ goal_frames g
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Proof Context                                                     --- *)
@@ -153,15 +188,15 @@ let () = Dap.register "why3/task"
                   begin fun fmt ->
                     let n = List.length children in
                     if n = 0 then Format.fprintf fmt "(resolved)" else
-                    let p = List.fold_left
-                        (fun v g ->
-                          match Session.goal_proof g with
-                          | Some crc when Crc.is_complete crc -> succ v
-                          | _ -> v
-                        ) 0 children in
-                    if p < n
-                    then Format.fprintf fmt "(%d/%d)" p n
-                    else Format.fprintf fmt "(%d)" n
+                      let p = List.fold_left
+                          (fun v g ->
+                             match Session.goal_proof g with
+                             | Some crc when Crc.is_complete crc -> succ v
+                             | _ -> v
+                          ) 0 children in
+                      if p < n
+                      then Format.fprintf fmt "(%d/%d)" p n
+                      else Format.fprintf fmt "(%d)" n
                   end
                   Crc.pp_hints
                   (List.map (fun g ->
@@ -201,39 +236,33 @@ let update = Timer.throttle
       match !session with
       | Terminated -> ()
       | Session { progress } ->
-        let h = Hammer.progress () in
-        let message = Format.asprintf "%a%t" Hammer.pp_progress h Runner.pp_goals in
-        Dap.update progress ~message ()
+        let pp_progress fmt =
+          Hammer.pp_progress fmt @@ Hammer.progress () ; Runner.pp_goals fmt
+        in Dap.update progress ~message:(Format.asprintf "%t" pp_progress) ()
     end
-
-let started adapter =
-  begin
-    let progress = Dap.progress adapter ~title:"Why3" ~message:"Started" () in
-    let on_pause _thread = Hammer.pause () in
-    let on_continue _thread = Hammer.resume () in
-    let frames _thread = frames () in
-    let thread = Dap.thread adapter ~name:"Why3find"
-        ~frames ~on_continue ~on_pause () in
-    session := Session { adapter ; progress ; thread } ;
-  end
 
 let paused () =
   match !session with
   | Terminated -> ()
   | Session { progress ; thread } ->
     begin
-      if !cursor = None then forward () ;
-      let reason = match !cursor with Some (_,r) -> r | None -> `pause in
+      let reason = match !failed with None -> `pause | Some _ -> `error in
       Dap.stopped ~reason thread ;
       Dap.update progress ~message:"Paused" () ;
     end
 
-let terminated () =
+let complete () =
   match !session with
   | Terminated -> ()
-  | Session { progress } ->
-    session := Terminated ;
-    Dap.finished progress ~message:"Terminated" ()
+  | Session { adapter ; progress ; thread } ->
+    Dap.finished progress ~message:"Terminated" () ;
+    match !failed with
+    | Some _ ->
+      Dap.stopped ~reason:`error thread
+    | None ->
+      roots := [] ;
+      session := Terminated ;
+      Dap.terminated adapter ()
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Node Observers                                                    --- *)
@@ -243,8 +272,8 @@ let on_failed node =
   begin
     let goal = Hammer.goal node in
     try
+      failed := Some goal ;
       Hammer.pause () ;
-      cursor := Some (goal,`error) ;
       let gname = Session.goal_fullname goal in
       Log.error "%a%s @{<red>failed@}" pp_goal_location goal gname ;
       match !session with
@@ -258,6 +287,9 @@ let on_failed node =
     with Not_found ->
       Log.error "%aGoal @{<red>failed@}" pp_goal_location goal
   end
+
+let on_enter _node = ()
+let on_leave _node = ()
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Compilation                                                       --- *)
@@ -275,7 +307,7 @@ let cc_proof hammer theory goal hint =
       Fibers.set result crc ;
     end in
   let _node = Hammer.prove hammer ~callback goal hint in
-  Fibers.Queue.push roots goal ; result
+  roots := goal :: !roots ; result
 
 let cc_theory hammer buffer strategy gnames theory =
   let module M = Why3.Wstdlib.Mstr in
@@ -339,30 +371,6 @@ let cc_file adapter env gnames file =
 let files = ref []
 let goals = ref []
 
-let compile adapter =
-  let files = !files in
-  if files = [] then
-    begin
-      Log.warning "No files to debug." ;
-      Dap.exited adapter 1
-    end
-  else
-    begin
-      match List.find_map Config.root_for files with
-      | None ->
-        Log.warning "No config file found." ;
-        Dap.exited adapter 1
-      | Some root ->
-        let config = Config.load_config ~root in
-        let env = Project.create ~root ~config () in
-        let callback _ =
-          Log.message "Debugger Terminated." ;
-          Dap.terminated adapter () in
-        Fibers.background ~callback @@ Fibers.all @@
-        List.map (cc_file adapter env !goals) files ;
-        Hammer.resume ()
-    end
-
 (* -------------------------------------------------------------------------- *)
 (* ---  DAP Life Cycle                                                    --- *)
 (* -------------------------------------------------------------------------- *)
@@ -374,9 +382,10 @@ let () = Dap.on_init
       Log.pp_stderr := echo `stderr ;
       breakpointk := 0 ;
       Hashtbl.clear breakpoints ;
-      Fibers.Queue.clear roots ;
-      Session.clear stops ;
+      roots := [] ;
       Hammer.pause () ;
+      Fibers.on Hammer.enter on_enter ;
+      Fibers.on Hammer.leave on_leave ;
       Fibers.on Hammer.failed on_failed ;
       Dap.initialized adapter ;
     end
@@ -384,14 +393,41 @@ let () = Dap.on_init
 let () = Dap.on_launch
     begin fun adapter ->
       Dap.output adapter "Why3 Debugger Started.@." ;
-      started adapter ;
-      compile adapter ;
+      let files = !files in
+      if files = [] then
+        begin
+          Log.warning "No files to debug." ;
+          Dap.exited adapter 1
+        end
+      else
+        begin
+          match List.find_map Config.root_for files with
+          | None ->
+            Log.warning "No config file found." ;
+            Dap.exited adapter 1
+          | Some root ->
+            let config = Config.load_config ~root in
+            let env = Project.create ~root ~config () in
+            Fibers.background @@ Fibers.all @@
+            List.map (cc_file adapter env !goals) files ;
+            let progress = Dap.progress adapter ~title:"Why3" () in
+            let on_pause _thread = Hammer.pause () in
+            let on_continue _thread = Hammer.resume () in
+            let frames _thread = frames () in
+            let thread = Dap.thread adapter ~name:"Why3find"
+            ~frames ~on_continue ~on_pause () in
+            roots := List.rev !roots ;
+            failed := None ;
+            session := Session { adapter ; progress ; thread } ;
+            Hammer.resume () ;
+        end
     end
 
 let () = Dap.on_terminate
     begin fun adapter ~restart ->
       ignore adapter ;
       ignore restart ;
+      failed := None ;
       Hammer.stop () ;
     end
 
@@ -400,7 +436,7 @@ let () = Dap.on_terminate
 (* -------------------------------------------------------------------------- *)
 
 let running adapter =
-  Dap.running adapter || Hammer.pending ()
+  !failed <> None || Dap.running adapter || Hammer.pending ()
 
 let process adapter =
   let h = Hammer.process () in
@@ -417,7 +453,7 @@ let run adapter =
         last := status ;
         match status with
         | Paused -> paused ()
-        | Stopped | Complete -> terminated ()
+        | Stopped | Complete -> complete ()
         | Proving | Pausing | Stopping -> update ()
       end ;
     if not busy then Unix.sleepf 0.01 ;

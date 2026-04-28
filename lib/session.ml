@@ -98,6 +98,17 @@ let goal_hashname (Goal g as goal) = compute_names goal ; g.hashname
 let goal_fullname (Goal g as goal) = compute_names goal ; g.fullname
 let goal_proof (Goal g) = g.proof
 
+let pp_status fmt (Goal g) =
+  match g.proof with
+  | Some crc -> Crc.pp_proof fmt crc
+  | None ->
+    match g.children with
+    | None -> Format.fprintf fmt "No proof"
+    | Some(tactic, goals) ->
+      let child (Goal g) = Option.value ~default:Crc.stuck g.proof in
+      Format.fprintf fmt "Tactic %a, %a" Tactic.pretty tactic
+        Crc.pp_proofs (List.map child goals)
+
 let pp_goal fmt g = Format.pp_print_string fmt (goal_hashname g)
 
 let silent : S.notifier = fun _ -> ()

@@ -99,7 +99,7 @@ val completing : unit -> bool
 
 val enter : node Fibers.signal
 val leave : node Fibers.signal
-val failed : node Fibers.signal
+val failed : node Fibers.signal (** Emitted after leave *)
 
 (** Interrupt all running provers and discard all pending nodes. *)
 val stop : unit -> unit

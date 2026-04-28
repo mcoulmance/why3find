@@ -42,6 +42,7 @@ val goal_context : goal -> Vc.context
 val goal_proof : goal -> Crc.crc option
 
 val pp_goal : Format.formatter -> goal -> unit
+val pp_status : Format.formatter -> goal -> unit
 
 val result : goal ->
   Why3.Whyconf.prover ->

@@ -776,6 +776,15 @@ let js_frame (fr : frame) =
 
 type reason = [ `step | `breakpoint | `pause | `entry | `except | `error ]
 
+let pp_reason fmt (r : reason) =
+  match r with
+  | `step -> Format.pp_print_string fmt "step"
+  | `breakpoint -> Format.pp_print_string fmt "breakpoint"
+  | `pause -> Format.pp_print_string fmt "pause"
+  | `entry -> Format.pp_print_string fmt "entry"
+  | `except -> Format.pp_print_string fmt "except"
+  | `error -> Format.pp_print_string fmt "error"
+
 type thread = Thread of {
     id : int ;
     name : string ;
