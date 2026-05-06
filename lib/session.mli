@@ -23,25 +23,26 @@ val save : session -> unit
 
 type theory
 
-val name : theory -> string
-val theory : theory -> Why3.Theory.theory
+val thy : theory -> Why3.Theory.theory
+val thy_name : theory -> string
 val theories : session -> theory list
 
 type goal
 
 val split : theory -> goal list
 
-val goal_name : goal -> string
-val goal_hashname : goal -> string
-val goal_fullname : goal -> string
-val goal_file : goal -> string
-val goal_loc : goal -> Why3.Loc.position option
-val goal_task : goal -> Why3.Task.task
-val goal_theory : goal -> Why3.Theory.theory
-val goal_context : goal -> Vc.context
-val goal_proof : goal -> Crc.crc option
+val name : goal -> string
+val hashname : goal -> string
+val fullname : goal -> string
+val file : goal -> string
+val loc : goal -> Why3.Loc.position option
+val task : goal -> Why3.Task.task
+val theory : goal -> Why3.Theory.theory
+val context : goal -> Vc.context
+val proof : goal -> Crc.crc option
 
 val pp_goal : Format.formatter -> goal -> unit
+val pp_path : Format.formatter -> goal -> unit
 val pp_status : Format.formatter -> goal -> unit
 
 val result : goal ->
@@ -60,13 +61,11 @@ val apply : Why3.Env.env -> Tactic.tactic -> ?allow_no_effect:bool -> goal
 val commit : goal -> Crc.crc -> unit
 
 val parent : goal -> goal option
+val is_parent : goal -> goal -> bool
 val children : goal -> (Tactic.tactic * goal list) option
 
 val prev : goal -> goal option
 val next : goal -> goal option
-val step_in : goal -> goal option
-val step_out : goal -> goal option
-val iter : (goal -> unit) -> goal -> unit
 
 type 'a hmap
 

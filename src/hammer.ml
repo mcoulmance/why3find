@@ -263,12 +263,12 @@ let merge u v =
 let prover ?cancel timeout prv = fun n ->
   let h = n.hammer in
   let wmain = Why3.Whyconf.get_main h.env.why3.config in
-  let name = Session.goal_name n.goal in
+  let name = Session.name n.goal in
   let* alpha = Calibration.velocity wmain h.env.cache h.profile prv in
   let to_local = Result.map (fun t -> t *. alpha) in
   let to_profile = Result.map (fun t -> t /. alpha) in
   let runner_time = timeout *. alpha in
-  let task = Session.goal_task n.goal in
+  let task = Session.task n.goal in
   let callback = Session.result n.goal in
   let killed = ref false in
   let+ verdict =
@@ -286,7 +286,7 @@ let prover ?cancel timeout prv = fun n ->
         Fibers.map to_profile @@
         Fibers.finally ~callback:(Cache.set h.env.cache task prv) @@
         Runner.prove_prepared wmain ~name ~cancel:kill ~callback
-          prv ptask runner_time ~idename:(Session.goal_fullname n.goal)
+          prv ptask runner_time ~idename:(Session.fullname n.goal)
       in match h.client with
       | None -> runner
       | Some cl ->
@@ -313,7 +313,7 @@ type result = Local of Result.t | Profile of Result.t
 let result n prover =
   let cache = n.hammer.env.cache in
   let profile = n.hammer.profile in
-  let result = Cache.get cache (Session.goal_task n.goal) prover in
+  let result = Cache.get cache (Session.task n.goal) prover in
   try
     let alpha = Calibration.observed profile prover in
     Profile (Result.map (fun t -> t /. alpha) result)
@@ -390,7 +390,7 @@ let prove hammer ?(callback=ignore) goal hint =
     with
     | None ->
       Log.warning "Ignored goal %s: preprocessing tactic %a failed"
-        (Session.goal_name goal) Tactic.pretty tactic ;
+        (Session.name goal) Tactic.pretty tactic ;
       push hammer ~parent goal hint
     | Some goals ->
       let hints = match hint with
@@ -482,7 +482,7 @@ let try_tactic ~hint n =
   let rec aux = function
     | [] ->
       Log.warning "Goal %S: tactic '%a' not in strategy"
-        (Session.goal_name n.goal) pp_hint hint ;
+        (Session.name n.goal) pp_hint hint ;
       NotFound
     | t::ts ->
       if Tactic.equal t (fst hint) && apply t ~hint n then
@@ -492,7 +492,7 @@ let try_tactic ~hint n =
         | None -> aux ts
         | Some _ ->
           Log.warning "Goal %S: tactic '%a' shadowed by '%a'"
-            (Session.goal_name n.goal) pp_hint hint Tactic.pretty t ;
+            (Session.name n.goal) pp_hint hint Tactic.pretty t ;
           NotFound
   in aux n.hammer.tactics
 

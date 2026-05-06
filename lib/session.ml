@@ -37,8 +37,8 @@ let save = function Session { session } ->
 
 type theory = Thy of { file : S.file ; session : S.session ; theory : S.theory }
 
-let name (Thy t) = (S.theory_name t.theory).id_string
-let theory (Thy t) = Th.restore_theory (S.theory_name t.theory)
+let thy (Thy t) = Th.restore_theory (S.theory_name t.theory)
+let thy_name (Thy t) = (S.theory_name t.theory).id_string
 
 let theories (Session { file ; session }) : theory list =
   List.map (fun theory -> Thy { file ; theory ; session }) (S.file_theories file)
@@ -74,14 +74,14 @@ let split (Thy { file ; session ; theory }) : goal list =
 
 let split = Timer.timed ~name:"Split theories" split
 
-let goal_task (Goal g) = g.task
-let goal_theory (Goal g) = Th.restore_theory (S.theory_name g.theory)
-let goal_loc g = (T.task_goal (goal_task g)).pr_name.id_loc
-let goal_file (Goal g) =
+let task (Goal g) = g.task
+let theory (Goal g) = Th.restore_theory (S.theory_name g.theory)
+let loc g = (T.task_goal (task g)).pr_name.id_loc
+let file (Goal g) =
   match (T.task_goal g.task).pr_name.id_loc with
   | Some loc -> let file,_,_,_,_ = Why3.Loc.get loc in file
   | None -> String.concat Filename.dir_sep @@ Why3.Sysutil.decompose_path @@ S.file_path g.file
-let goal_name g = Vc.task_name @@ goal_task g
+let name g = Vc.task_name @@ task g
 let compute_names (Goal g) =
   if g.hashname = "" then
     begin
@@ -94,9 +94,9 @@ let compute_names (Goal g) =
       g.hashname <- Buffer.contents buffer ;
     end
 
-let goal_hashname (Goal g as goal) = compute_names goal ; g.hashname
-let goal_fullname (Goal g as goal) = compute_names goal ; g.fullname
-let goal_proof (Goal g) = g.proof
+let hashname (Goal g as goal) = compute_names goal ; g.hashname
+let fullname (Goal g as goal) = compute_names goal ; g.fullname
+let proof (Goal g) = g.proof
 
 let pp_status fmt (Goal g) =
   match g.proof with
@@ -109,7 +109,7 @@ let pp_status fmt (Goal g) =
       Format.fprintf fmt "Tactic %a, %a" Tactic.pretty tactic
         Crc.pp_proofs (List.map child goals)
 
-let pp_goal fmt g = Format.pp_print_string fmt (goal_hashname g)
+let pp_goal fmt g = Format.pp_print_string fmt (fullname g)
 
 let silent : S.notifier = fun _ -> ()
 
@@ -178,11 +178,11 @@ let commit (Goal g) crc = g.proof <- Some crc
 (* ---  Context                                                           --- *)
 (* -------------------------------------------------------------------------- *)
 
-let goal_context (Goal g as goal) =
+let context (Goal g as goal) =
   match g.context with Some w -> w | None ->
-    let file = goal_file goal in
-    let thy = goal_theory goal in
-    let task = goal_task goal in
+    let file = file goal in
+    let thy = theory goal in
+    let task = task goal in
     let context = Vc.context ~file thy task in
     g.context <- Some context ; context
 
@@ -213,18 +213,21 @@ let rec next (Goal g as goal) =
       | _::gs -> after gs
     in Option.bind g.children (fun (_,gs) -> after gs)
 
-let step_in (Goal g as goal) =
-  match g.children with
-  | Some (_,g::_) -> Some g
-  | _ -> next goal
+let rec is_parent parent (Goal g) =
+  match g.parent with
+  | None -> false
+  | Some p -> p == parent || is_parent parent p
 
-let step_out (Goal g) =
-  Option.bind g.parent next
-
-let rec iter f (Goal g as goal) =
-  match g.children with
-  | None -> f goal
-  | Some(_,gs) -> List.iter (iter f) gs
+let rec pp_path fmt (Goal g as goal) =
+  match g.parent with
+  | Some (Goal { children = Some(_,gs) } as parent) ->
+    pp_path fmt parent ;
+    List.iteri
+      (fun i g0 ->
+         if goal == g0 then Format.fprintf fmt ".%d" i
+      ) gs
+  | _ ->
+    pp_goal fmt goal
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Hashtbl                                                           --- *)
