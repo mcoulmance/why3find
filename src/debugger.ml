@@ -87,14 +87,10 @@ let root_prev () =
   else None
 
 let step_next g =
-  match Session.next g with
-  | Some _ as c -> c
-  | None -> root_next ()
+  match Session.next g with Some _ as c -> c | None -> root_next ()
 
 let step_prev g =
-  match Session.prev g with
-  | Some _ as c -> c
-  | None -> root_prev ()
+  match Session.prev g with Some _ as c -> c | None -> root_prev ()
 
 (* Move to first incomplete or failed node, starting from g, included *)
 let rec forward g =
@@ -310,13 +306,20 @@ let complete () =
       Dap.terminated adapter ()
 
 (* -------------------------------------------------------------------------- *)
-(* ---  Node Observers                                                    --- *)
+(* ---  Stepping                                                          --- *)
 (* -------------------------------------------------------------------------- *)
 
 let hammer = ref Hammer.Proving
-let resume () = hammer := Hammer.Proving ; Hammer.resume ()
+let resume ?goal () =
+  hammer := Hammer.Proving ;
+  let filter =
+    Option.map
+      (fun g n -> Session.is_parent g (Hammer.goal n))
+      goal
+  in Hammer.resume ?filter ()
 let setup_cursor () = if !cursor = None then cursor := root ()
 let advance () = cursor := Option.map forward !cursor
+let move = function None -> () | Some _ as r -> cursor := r
 let breakpoint () =
   match Option.bind !cursor Session.proof with
   | None -> ()
@@ -326,6 +329,47 @@ let () = Dap.on_pause
     begin fun _thread ->
       setup_cursor () ;
       Hammer.pause () ;
+    end
+
+let () = Dap.on_next
+    begin fun _thread ->
+      match !cursor with
+      | None -> paused ()
+      | Some g ->
+        match Session.proof g with
+        | Some _ -> move @@ step_next g ; paused ()
+        | None -> resume ~goal:g ()
+    end
+
+let () = Dap.on_step_in
+    begin fun _thread ->
+      match !cursor with
+      | None -> paused ()
+      | Some g ->
+        match Session.children g with
+        | g::_ -> cursor := Some g ; paused ()
+        | [] ->
+          match Session.proof g with
+          | Some _ -> paused ()
+          | None -> resume ~goal:g ()
+    end
+
+let () = Dap.on_step_out
+    begin fun _thread ->
+      match !cursor with
+      | None -> paused ()
+      | Some g ->
+        let p = Option.value ~default:g (Session.parent g) in
+        match Session.proof p with
+        | Some _ -> cursor := Some p ; paused ()
+        | None -> resume ~goal:p ()
+    end
+
+let () = Dap.on_step_back
+    begin fun _thread ->
+      match !cursor with
+      | None -> paused ()
+      | Some g -> move @@ step_prev g ; paused ()
     end
 
 let () = Dap.on_continue
@@ -351,6 +395,10 @@ let () = Dap.on_reverse_continue
           cursor := Some (move_backward g) ;
           paused () ;
     end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Node Observers                                                    --- *)
+(* -------------------------------------------------------------------------- *)
 
 let on_failed node =
   begin

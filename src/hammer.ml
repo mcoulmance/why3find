@@ -141,10 +141,15 @@ let terminate n =
   | Closed _ -> ()
   | _ -> q_close n @@ proof n
 
-let resume () =
+let all _ = true
+
+let resume ?(filter=all) () =
   begin
     runmode := RUNNING ;
-    Fibers.Queue.flush schedule q_paused ;
+    Fibers.Queue.filter
+      (fun n ->
+         if filter n then (schedule n ; false) else true
+      ) q_paused ;
   end
 
 (* -------------------------------------------------------------------------- *)

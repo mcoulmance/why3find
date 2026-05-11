@@ -107,8 +107,8 @@ val stop : unit -> unit
 (** Interrupt all running provers and pauses all nodes. *)
 val pause : unit -> unit
 
-(** Re-schedule all paused nodes and continue. *)
-val resume : unit -> unit
+(** Re-schedule all (filtered) paused nodes and continue. *)
+val resume : ?filter:(node -> bool) -> unit -> unit
 
 (** Process one node. Returns [true] is some progress has been made. *)
 val process : unit -> bool
