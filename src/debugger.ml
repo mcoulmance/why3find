@@ -96,22 +96,17 @@ let step_prev g =
   | Some _ as c -> c
   | None -> root_prev ()
 
-let children g =
-  match Session.children g with None | Some(_,[]) -> [] | Some(_,gs) -> gs
-
 (* Move to first incomplete or failed node, starting from g, included *)
 let rec forward g =
   match Session.proof g with
   | Some crc when Crc.is_complete crc -> Option.bind (step_next g) forward
-  | _ ->
-    match children g with g::_ -> forward g | [] -> Some g
+  | _ -> match Session.children g with c::_ -> forward c | [] -> Some g
 
 (* Move to last incomplete or failed node, starting from g, included *)
 let rec backward g =
   match Session.proof g with
   | Some crc when Crc.is_complete crc -> Option.bind (step_prev g) backward
-  | _ ->
-    match List.rev @@ children g with g::_ -> Some g | [] -> Some g
+  | _ -> match List.rev (Session.children g) with c::_ -> backward c | [] -> Some g
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Task Frame                                                        --- *)
@@ -221,8 +216,9 @@ let () = Dap.register "why3/task"
             Why3.Pretty.print_sequent task
             line line
             begin fun fmt ->
-              match Session.children goal with
-              | Some (tactic, children) ->
+              match Session.tactic goal with
+              | Some tactic ->
+                let children = Session.children goal in
                 Format.fprintf fmt "(* %a %t *)@\n(* %a *)"
                   Tactic.pretty tactic
                   begin fun fmt ->
@@ -350,10 +346,10 @@ let on_reverse_continue _thread =
 
 let on_failed node =
   begin
+    let goal = Hammer.goal node in
     setup_cursor () ;
     move_forward () ;
     breakpoint () ;
-    let goal = Hammer.goal node in
     try
       let gname = Session.fullname goal in
       Log.error "%a%s @{<red>failed@}" pp_goal_location goal gname ;
@@ -372,13 +368,15 @@ let on_failed node =
 let on_enter node =
   let g = Hammer.goal node in
   match !cursor with
-  | Some p when Session.is_parent p g -> cursor := Some g
+  | Some p when Session.is_parent p g ->
+    cursor := Some g
   | _ -> ()
 
 let on_leave node =
   let g = Hammer.goal node in
   match !cursor with
-  | Some g0 when g0 == g -> move_forward () ; breakpoint ()
+  | Some g0 when g0 == g ->
+    move_forward () ; breakpoint () ;
   | _ -> ()
 
 (* -------------------------------------------------------------------------- *)

@@ -7,7 +7,7 @@
 (**************************************************************************)
 
 let nop _ _ = ()
-let trace = ref (Sys.getenv_opt "WHY3FIND_DEBUG" <> None)
+let trace = ref (Sys.getenv_opt "DAP_TRACE" <> None)
 
 (* -------------------------------------------------------------------------- *)
 (* --- Debug Adapter Base Protocol                                        --- *)
@@ -119,8 +119,7 @@ let register ?(force=false) name fn =
 
 let process_request adapter ~seq command arguments =
   begin
-    if !trace then
-      Format.eprintf "@[<hov 2>REQUEST %S %a@]@." command Json.pretty arguments ;
+    if !trace then Format.eprintf "@[<hov 2>REQUEST %S %a@]@." command Json.pretty arguments ;
     match Hashtbl.find protocol command adapter arguments with
     | body ->
       send_response adapter ~seq command body

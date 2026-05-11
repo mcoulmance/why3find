@@ -61,11 +61,14 @@ val apply : Why3.Env.env -> Tactic.tactic -> ?allow_no_effect:bool -> goal
 val commit : goal -> Crc.crc -> unit
 
 val parent : goal -> goal option
-val is_parent : goal -> goal -> bool
-val children : goal -> (Tactic.tactic * goal list) option
+val tactic : goal -> Tactic.tactic option
+val children : goal -> goal list
 
 val prev : goal -> goal option
 val next : goal -> goal option
+
+val is_parent : goal -> goal -> bool
+
 
 type 'a hmap
 

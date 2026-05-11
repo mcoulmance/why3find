@@ -54,7 +54,7 @@ type goal = Goal of {
     node : S.proofNodeID ;
     task : T.task ;
     parent : goal option ;
-    mutable children : ( Tactic.tactic * goal list ) option ;
+    mutable tactic : ( Tactic.tactic * goal list ) option ;
     mutable hashname : string ;
     mutable fullname : string ;
     mutable context : Vc.context option ;
@@ -67,7 +67,7 @@ let split (Thy { file ; session ; theory }) : goal list =
        let task = S.get_task session node in
        Goal {
          file ; session ; theory ; node ; task ;
-         parent = None ; children = None ;
+         parent = None ; tactic = None ;
          hashname = "" ; fullname = "" ; context = None ; proof = None ;
        }
     ) @@ S.theory_goals theory
@@ -102,7 +102,7 @@ let pp_status fmt (Goal g) =
   match g.proof with
   | Some crc -> Crc.pp_proof fmt crc
   | None ->
-    match g.children with
+    match g.tactic with
     | None -> Format.fprintf fmt "No proof"
     | Some(tactic, goals) ->
       let child (Goal g) = Option.value ~default:Crc.stuck g.proof in
@@ -156,12 +156,12 @@ let apply env tactic ?(allow_no_effect=false) goal =
            let task = S.get_task session node in
            Goal {
              file ; session ; theory ; node ; task ; parent ;
-             children = None ; fullname = "" ; hashname = "" ;
+             tactic = None ; fullname = "" ; hashname = "" ;
              context = None ; proof = None ;
            }
         ) nodes in
     let Goal g = goal in
-    g.children <- Some (tactic, children) ;
+    g.tactic <- Some (tactic, children) ;
     Some children
   with S.NoProgress | Why3.Trans.TransFailure _ -> None
 
@@ -190,8 +190,20 @@ let context (Goal g as goal) =
 (* ---  Navigation                                                        --- *)
 (* -------------------------------------------------------------------------- *)
 
+let rec pp_path fmt (Goal g as goal) =
+  match g.parent with
+  | Some (Goal { tactic = Some(_,gs) } as parent) ->
+    pp_path fmt parent ;
+    List.iteri
+      (fun i g0 ->
+         if goal == g0 then Format.fprintf fmt ".%d" i
+      ) gs
+  | _ ->
+    pp_goal fmt goal
+
 let parent (Goal g) = g.parent
-let children (Goal g) = g.children
+let tactic (Goal g) = Option.map fst g.tactic
+let children (Goal g) = Option.fold ~none:[] ~some:snd g.tactic
 
 let rec prev (Goal g as goal) =
   match g.parent with
@@ -201,7 +213,7 @@ let rec prev (Goal g as goal) =
       | [] -> prev p
       | g::g'::_ when g' == goal -> Some g
       | _::gs -> before gs
-    in Option.bind g.children (fun (_,gs) -> before gs)
+    in before @@ children p
 
 let rec next (Goal g as goal) =
   match g.parent with
@@ -211,23 +223,12 @@ let rec next (Goal g as goal) =
       | [] -> next p
       | g::g'::_ when g == goal -> Some g'
       | _::gs -> after gs
-    in Option.bind g.children (fun (_,gs) -> after gs)
+    in after @@ children p
 
 let rec is_parent parent (Goal g) =
   match g.parent with
   | None -> false
   | Some p -> p == parent || is_parent parent p
-
-let rec pp_path fmt (Goal g as goal) =
-  match g.parent with
-  | Some (Goal { children = Some(_,gs) } as parent) ->
-    pp_path fmt parent ;
-    List.iteri
-      (fun i g0 ->
-         if goal == g0 then Format.fprintf fmt ".%d" i
-      ) gs
-  | _ ->
-    pp_goal fmt goal
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Hashtbl                                                           --- *)
