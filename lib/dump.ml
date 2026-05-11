@@ -20,20 +20,12 @@ type 'a printer = Format.formatter -> 'a -> unit
 let pp_id fmt (id : Ident.ident) = Format.fprintf fmt "%s" id.id_string
 
 let pp_any fmt s = Format.fprintf fmt "(%s…)" s
-[@@ warning "-32"]
-
-let pp_nlist item fmt xs =
-  let n = List.length xs in
-  if n > 0 then Format.fprintf fmt "@,%s[%d]" item n
-[@@ warning "-32"]
 
 let pp_many item fmt empty =
   if not empty then Format.fprintf fmt "@,%s[…]" item
-[@@ warning "-32"]
 
 let pp_some item fmt opt =
   if opt then Format.fprintf fmt "%s" item
-[@@ warning "-32"]
 
 (* -------------------------------------------------------------------------- *)
 (* --- Term                                                               --- *)

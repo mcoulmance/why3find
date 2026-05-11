@@ -40,7 +40,7 @@ let pp_mode fmt = function
   | Head(_,n) -> Format.fprintf fmt "HEAD%d" n
   | List n -> Format.fprintf fmt "LIST%d" n
   | Item n -> Format.fprintf fmt "ITEM%d" n
-[@@ warning "-32"]
+[@@ warning "-32"] (* debug-printer *)
 
 (* -------------------------------------------------------------------------- *)
 (* --- Environment                                                        --- *)
@@ -53,7 +53,7 @@ let pp_block fmt = function
   | Raw -> Format.pp_print_string fmt "RAW"
   | Doc -> Format.pp_print_string fmt "DOC"
   | Src -> Format.pp_print_string fmt "SRC"
-[@@ warning "-32"]
+[@@ warning "-32"] (* debug-printer *)
 
 type env = {
   dir : string ; (* destination directory *)

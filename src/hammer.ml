@@ -219,7 +219,7 @@ let pp_resolution fmt = function
   | Resolved -> Format.pp_print_string fmt "Resolved"
   | NotFound -> Format.pp_print_string fmt "NotFound"
   | Interrupted -> Format.pp_print_string fmt "Interrupted"
-[@@warning "-32"]
+[@@warning "-32"] (* debug printer *)
 
 let notfound _ =
   Fibers.return @@
@@ -252,7 +252,7 @@ let pp_verdict fmt = function
     Format.fprintf fmt "Valid %a %a" Prover.pp_prover p Utils.pp_time t
   | Unknown -> Format.pp_print_string fmt "Unknown"
   | Killed -> Format.pp_print_string fmt "Killed"
-[@@warning "-32"]
+[@@warning "-32"] (* debug printer *)
 
 let merge u v =
   match u, v with

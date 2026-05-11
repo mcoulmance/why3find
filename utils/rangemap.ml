@@ -13,15 +13,15 @@ type 'a t =
   | Range of { range : range ; value : 'a ; inner : 'a t }
   | Node of { range : range ; left : 'a t ; right : 'a t }
 
-let rec dump pp fmt = function
+let rec pretty pp fmt = function
   | Empty -> Format.fprintf fmt "-"
   | Range { range ; value ; inner } ->
     Format.fprintf fmt "@[<hv 2>{ %a@ value: %a@ inner: %a }@]"
-      Range.pp_range range pp value (dump pp) inner
+      Range.pp_range range pp value (pretty pp) inner
   | Node { range ; left ; right } ->
     Format.fprintf fmt "@[<hv 2>{ %a@ left: %a@ right: %a }@]"
-      Range.pp_range range (dump pp) left (dump pp) right
-[@@ warning "-32"]
+      Range.pp_range range (pretty pp) left (pretty pp) right
+[@@ warning "-32"] (* debug-printer *)
 
 let empty = Empty
 

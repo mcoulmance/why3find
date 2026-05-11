@@ -79,11 +79,6 @@ let choose t x y =
   | Some(_,tx), Some(_,ty) ->
     if Float.abs (t -. tx) < Float.abs (t -. ty) then x else y
 
-let pp_range fmt = function
-  | Guess(p,q) -> Format.fprintf fmt "%d…%d?" p q
-  | Range(p,q) -> Format.fprintf fmt "%d…%d" p q
-[@@ warning "-32"]
-
 type qenv = {
   wmain : Why3.Whyconf.main ;
   cache : Cache.t ;
