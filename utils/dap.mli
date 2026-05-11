@@ -46,7 +46,7 @@ val flush: adapter -> unit
 (** Schedule a callback to be executed during subsequent calls to `process` or `yield`. *)
 val schedule: adapter -> (adapter -> unit) -> unit
 
-(** Register adapter capbility. Default value `true`. *)
+(** Register adapter capability. Default value `true`. *)
 val register_capability : string -> ?value:Json.t -> unit -> unit
 
 (** {2 Output & Logging} *)
@@ -61,7 +61,7 @@ val output : adapter -> ?category:category ->
 val initialized : adapter -> unit
 val on_init : (adapter -> unit) -> unit
 (** By default, [on_init] emits an [initialized] event.
-    If overriden, don't forget to emit an [initialized] event at some point. *)
+    If overridden, don't forget to emit an [initialized] event at some point. *)
 
 val on_configured : (adapter -> unit) -> unit
 (** See also breakpoint callback, below *)
@@ -212,7 +212,7 @@ val variable :
   ?vtype:string ->
   ?kind:string ->
   ?attributes:string list ->
-  ?visiblity:string ->
+  ?visibility:string ->
   ?index:variable Darray.t ->
   ?named:variable Darray.t ->
   ?decl:location ->
@@ -259,30 +259,19 @@ val frame :
 (** {2 Threads} *)
 
 type thread
-val thread :
-  adapter ->
-  name:string ->
-  ?frames:(thread -> frame Darray.t) ->
-  ?on_pause:(thread -> unit) ->
-  ?on_next:(thread -> unit) ->
-  ?on_step_in:(thread -> unit) ->
-  ?on_step_out:(thread -> unit) ->
-  ?on_continue:(thread -> unit) ->
-  unit -> thread
-
-val connect :
-  thread ->
-  ?frames:(thread -> frame Darray.t) ->
-  ?on_pause:(thread -> unit) ->
-  ?on_next:(thread -> unit) ->
-  ?on_step_in:(thread -> unit) ->
-  ?on_step_out:(thread -> unit) ->
-  ?on_continue:(thread -> unit) ->
-  unit -> unit
+val thread : adapter -> name:string -> (thread -> frame Darray.t) -> thread
 
 val id : thread -> int
 val on : thread -> adapter
 val name : thread -> string
+
+val on_next : (thread -> unit) -> unit
+val on_step_in : (thread -> unit) -> unit
+val on_step_out : (thread -> unit) -> unit
+val on_step_back : (thread -> unit) -> unit
+val on_pause : (thread -> unit) -> unit
+val on_continue : (thread -> unit) -> unit
+val on_reverse_continue : (thread -> unit) -> unit
 
 (** Sorted by Id. *)
 val threads : unit -> thread list

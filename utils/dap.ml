@@ -584,7 +584,7 @@ type variable = Var of {
     vtype : string ;
     kind : string ;
     attributes : string list ;
-    visiblity : string ;
+    visibility : string ;
     contents : variables ;
     decl : location option ;
     vdecl : location option ;
@@ -615,12 +615,12 @@ let variables index named =
   | _ -> Vars { index = vempty index ; named = vempty named }
 
 let variable ~name
-    ?(value = "") ?(vtype = "") ?(kind = "") ?(attributes=[]) ?(visiblity="")
+    ?(value = "") ?(vtype = "") ?(kind = "") ?(attributes=[]) ?(visibility="")
     ?index ?named ?decl ?vdecl ?(values=[]) () =
   let contents = variables index named in
   Var {
     name ; value ;
-    vtype ; kind ; attributes ; visiblity ;
+    vtype ; kind ; attributes ; visibility ;
     contents ; decl ; vdecl ;
     values ;
   }
@@ -635,7 +635,7 @@ let js_variable (Var v) : Json.t =
     "presentationHint" , Json.assoc ~nullempty:true [
       "kind" , js_string_opt v.kind ;
       "attributes" , Json.list_map ~nullempty:true js_string_opt v.attributes ;
-      "visibility" , js_string_opt v.visiblity ;
+      "visibility" , js_string_opt v.visibility ;
     ] ;
     "variablesReference" , `Int vref ;
     "indexedVariables" , js_int_opt indexed ;
@@ -789,11 +789,6 @@ type thread = Thread of {
     name : string ;
     adapter : adapter ;
     mutable frames : (thread -> frame Darray.t) ;
-    mutable on_pause : (thread -> unit) ;
-    mutable on_next : (thread -> unit) ;
-    mutable on_step_in : (thread -> unit) ;
-    mutable on_step_out : (thread -> unit) ;
-    mutable on_continue : (thread -> unit) ;
   }
 
 let threadk = ref 0
@@ -833,45 +828,10 @@ let set_single_thread_support () =
     register_capability "supportsSingleThreadExecutionRequests" () ;
   end
 
-let nop = ignore
-
-let connect (Thread th)
-    ?frames ?on_pause ?on_next ?on_step_in ?on_step_out ?on_continue () =
-  begin
-    let set_default fn =
-      begin
-        if th.on_next == nop then th.on_next <- fn ;
-        if th.on_step_in == nop then th.on_step_in <- fn ;
-        if th.on_step_out == nop then th.on_step_out <- fn ;
-        if th.on_continue == nop then th.on_continue <- fn ;
-      end in
-    Option.iter (fun fn -> th.frames <- fn) frames ;
-    Option.iter (fun fn -> th.on_pause <- fn) on_pause ;
-    Option.iter (fun fn -> th.on_next <- fn) on_next ;
-    Option.iter (fun fn -> th.on_step_in <- fn) on_step_in ;
-    Option.iter (fun fn -> th.on_step_out <- fn) on_step_out ;
-    Option.iter (fun fn -> th.on_continue <- fn) on_continue ;
-    Option.iter set_default on_next ;
-    Option.iter set_default on_continue ;
-  end
-
-let no_frames _th = Darray.empty
-
-let thread adapter
-    ~name ?(frames=no_frames) ?on_pause ?on_next ?on_step_in ?on_step_out ?on_continue () =
+let thread adapter ~name frames =
   let id = incr threadk ; !threadk in
-  let th = Thread {
-      id ; adapter ; name ;
-      frames ;
-      on_pause = nop ;
-      on_continue = nop ;
-      on_next = nop ;
-      on_step_in = nop ;
-      on_step_out = nop ;
-    } in
-  Hashtbl.add threadm id th ;
-  updated ~reason:"started" th ;
-  connect th ?on_pause ?on_next ?on_step_in ?on_step_out ?on_continue () ; th
+  let th = Thread { id ; adapter ; name ; frames } in
+  Hashtbl.add threadm id th ; updated ~reason:"started" th ; th
 
 let terminate thread =
   let Thread { id } = thread in
@@ -904,20 +864,26 @@ let stopped ~(reason:reason) ?description ?text ?all ?preserveFocus ?(breakpoint
     ]
   end
 
-let on_step mode adapter args =
+let step fn adapter args =
   let threadId = Json.jfield "threadId" args |> Json.jint in
-  let single = Json.jfield "sinleThread" args |> Json.jbool in
+  let single = Json.jfield "singleThread" args |> Json.jbool in
   Option.iter
-    (fun th -> Queue.push (fun _ -> mode th th) adapter.callback)
+    (fun th -> Queue.push (fun _ -> fn th) adapter.callback)
     (Hashtbl.find_opt threadm threadId) ;
   if not !singleThreadSupport || not single then `Null else
     Json.assoc [ "allThreadsContinued", `Bool (not single) ]
 
-let () = register "next" @@ on_step (function Thread th -> th.on_next)
-let () = register "stepIn" @@ on_step (function Thread th -> th.on_step_in)
-let () = register "stepOut" @@ on_step (function Thread th -> th.on_step_out)
-let () = register "continue" @@ on_step (function Thread th -> th.on_continue)
-let () = register "pause" @@ on_step (function Thread th -> th.on_pause)
+let on_next fn = register "next" @@ step fn
+let on_step_in fn = register "stepIn" @@ step fn
+let on_step_out fn = register "stepOut" @@ step fn
+let on_step_back fn =
+  register_capability "supportsStepBack" () ;
+  register "stepBack" @@ step fn
+let on_continue fn = register "continue" @@ step fn
+let on_reverse_continue fn =
+  register_capability "supportsStepBack" () ;
+  register "reverseContinue" @@ step fn
+let on_pause fn = register "pause" @@ step fn
 
 let () = register "threads"
     begin fun _adapter _args ->

@@ -172,7 +172,7 @@ let rec goal_frames g =
   ] () ::
   match Session.parent g with None -> [] | Some g -> goal_frames g
 
-let frames () : Dap.frame Darray.t =
+let frames _thread : Dap.frame Darray.t =
   match !cursor with
   | None -> Darray.empty
   | Some g -> Darray.list @@ goal_frames g
@@ -320,29 +320,35 @@ let breakpoint () =
   | None -> ()
   | Some crc -> if Crc.is_stuck crc then Hammer.pause ()
 
+let () = Dap.on_pause
+    begin fun _thread ->
+      setup_cursor () ;
+      Hammer.pause () ;
+    end
 
-let on_pause _thread = setup_cursor () ; Hammer.pause ()
+let () = Dap.on_continue
+    begin fun _thread ->
+      match !cursor with
+      | None -> resume ()
+      | Some g ->
+        match Session.proof g with
+        | None -> resume ()
+        | Some _ ->
+          cursor := Option.bind (step_next g) forward ;
+          paused () ;
+    end
 
-let on_continue _thread =
-  match !cursor with
-  | None -> resume ()
-  | Some g ->
-    match Session.proof g with
-    | None -> resume ()
-    | Some _ ->
-      cursor := Option.bind (step_next g) forward ;
-      paused ()
-
-let on_reverse_continue _thread =
-  match !cursor with
-  | None -> paused ()
-  | Some g ->
-    match Session.proof g with
-    | None -> paused ()
-    | Some _ ->
-      cursor := Option.bind (step_prev g) backward ;
-      paused ()
-[@@ warning "-32"]
+let () = Dap.on_reverse_continue
+    begin fun _thread ->
+      match !cursor with
+      | None -> paused ()
+      | Some g ->
+        match Session.proof g with
+        | None -> paused ()
+        | Some _ ->
+          cursor := Option.bind (step_prev g) backward ;
+          paused () ;
+    end
 
 let on_failed node =
   begin
@@ -502,10 +508,7 @@ let () = Dap.on_launch
             Fibers.background @@ Fibers.all @@
             List.map (cc_file adapter env !goals) files ;
             let progress = Dap.progress adapter ~title:"Why3" () in
-            let frames _thread = frames () in
-            let thread =
-              Dap.thread adapter ~name:"Why3find"
-                ~frames ~on_continue ~on_pause () in
+            let thread = Dap.thread adapter ~name:"Why3find" frames in
             session := Session { adapter ; progress ; thread } ;
             cursor := None ;
             hammer := Hammer.status () ;
