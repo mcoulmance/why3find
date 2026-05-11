@@ -99,14 +99,16 @@ let step_prev g =
 (* Move to first incomplete or failed node, starting from g, included *)
 let rec forward g =
   match Session.proof g with
-  | Some crc when Crc.is_complete crc -> Option.bind (step_next g) forward
-  | _ -> match Session.children g with c::_ -> forward c | [] -> Some g
+  | Some crc when Crc.is_complete crc -> move_forward g
+  | _ -> match Session.children g with c::_ -> forward c | [] -> g
+and move_forward g = match step_next g with None -> g | Some g -> forward g
 
 (* Move to last incomplete or failed node, starting from g, included *)
 let rec backward g =
   match Session.proof g with
-  | Some crc when Crc.is_complete crc -> Option.bind (step_prev g) backward
-  | _ -> match List.rev (Session.children g) with c::_ -> backward c | [] -> Some g
+  | Some crc when Crc.is_complete crc -> move_backward g
+  | _ -> match List.rev (Session.children g) with c::_ -> backward c | [] -> g
+and move_backward g = match step_prev g with None -> g | Some g -> backward g
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Task Frame                                                        --- *)
@@ -314,7 +316,7 @@ let complete () =
 let hammer = ref Hammer.Proving
 let resume () = hammer := Hammer.Proving ; Hammer.resume ()
 let setup_cursor () = if !cursor = None then cursor := root ()
-let move_forward () = cursor := Option.bind !cursor forward
+let advance () = cursor := Option.map forward !cursor
 let breakpoint () =
   match Option.bind !cursor Session.proof with
   | None -> ()
@@ -334,7 +336,7 @@ let () = Dap.on_continue
         match Session.proof g with
         | None -> resume ()
         | Some _ ->
-          cursor := Option.bind (step_next g) forward ;
+          cursor := Some (move_forward g) ;
           paused () ;
     end
 
@@ -346,7 +348,7 @@ let () = Dap.on_reverse_continue
         match Session.proof g with
         | None -> paused ()
         | Some _ ->
-          cursor := Option.bind (step_prev g) backward ;
+          cursor := Some (move_backward g) ;
           paused () ;
     end
 
@@ -354,7 +356,7 @@ let on_failed node =
   begin
     let goal = Hammer.goal node in
     setup_cursor () ;
-    move_forward () ;
+    advance () ;
     breakpoint () ;
     try
       let gname = Session.fullname goal in
@@ -382,7 +384,7 @@ let on_leave node =
   let g = Hammer.goal node in
   match !cursor with
   | Some g0 when g0 == g ->
-    move_forward () ; breakpoint () ;
+    advance () ; breakpoint () ;
   | _ -> ()
 
 (* -------------------------------------------------------------------------- *)
