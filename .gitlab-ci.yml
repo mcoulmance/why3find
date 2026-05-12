@@ -44,6 +44,7 @@ build:
   <<: *opam
   stage: build
   script:
+    - sudo apk add typos
     - opam update
     - opam install . --deps-only --jobs 2 --with-test --with-doc
     - make lint
