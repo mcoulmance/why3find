@@ -24,7 +24,7 @@ workflow:
     - when: on_success
 
 .opam: &opam
-  image: registry.frama-c.com/pub/why3find
+  image: registry.frama-c.com/pub/why3find:v2@sha256:df5db8e48bbf2e2de4f762ea201cbee9116c458b14d1d9a0828c9ed163079c2a
   tags:
     - docker
 
@@ -44,7 +44,6 @@ build:
   <<: *opam
   stage: build
   script:
-    - sudo apk add typos
     - opam update
     - opam install . --deps-only --jobs 2 --with-test --with-doc
     - make lint
