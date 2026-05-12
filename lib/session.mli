@@ -69,17 +69,4 @@ val next : goal -> goal option
 
 val is_parent : goal -> goal -> bool
 
-
-type 'a hmap
-
-val hmap : int -> 'a hmap
-val add : 'a hmap -> goal -> 'a -> unit
-val replace : 'a hmap -> goal -> 'a -> unit
-val remove : 'a hmap -> goal -> unit
-val mem : 'a hmap -> goal -> bool
-val find : 'a hmap -> goal -> 'a
-val find_opt : 'a hmap -> goal -> 'a option
-val find_all : 'a hmap -> goal -> 'a list
-val clear : 'a hmap -> unit
-
 (* -------------------------------------------------------------------------- *)
