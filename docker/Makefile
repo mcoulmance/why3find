@@ -4,7 +4,7 @@
 
 .PHONY: build
 
-IMAGE=registry.frama-c.com/pub/why3find
+IMAGE=registry.frama-c.com/pub/why3find:v2
 
 run:
 	docker run --rm -it $(IMAGE)

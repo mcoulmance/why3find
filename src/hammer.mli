@@ -121,7 +121,7 @@ val step_out : node list -> unit
 (** Re-schedule all paused nodes and continue. *)
 val resume : unit -> unit
 
-(** Re-schedule all paused nodes and continue, commiting all nodes. *)
+(** Re-schedule all paused nodes and continue, committing all nodes. *)
 val resume_to_end : unit -> unit
 
 (** Process one node. Returns [true] is some progress has been made. *)

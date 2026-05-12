@@ -44,7 +44,7 @@ type input
 (** Opens the given file. *)
 val input : ?doc:bool -> ?filename:string -> string -> input
 
-(** Closes the opened chanel. *)
+(** Closes the opened channel. *)
 val close : input -> unit
 
 (** End of file has been reached. *)

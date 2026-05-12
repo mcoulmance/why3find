@@ -43,11 +43,11 @@ let task_expl t =
 
 type session = Session of { file : S.file ; session : S.session }
 
-let create ~dir ~file ~format ths =
+let create ~dir ~file ~format theories =
   let session = S.empty_session dir in
   let file = S.add_file_section session
       (Why3.Sysutil.relativize_filename dir file)
-      ~file_is_detached:false ths format
+      ~file_is_detached:false theories format
   in Session { file ; session }
 
 let save = function Session { session } ->
@@ -191,7 +191,7 @@ let result (Goal { session ; node }) prv limits result =
       end
   end ;
   begin
-    (* update proof attempt on success or when there is no successfull attempt yet *)
+    (* update proof attempt on success *)
     if is_valid result || pa = [] then
       let _id = S.graft_proof_attempt session node prv ~limits in
       S.update_proof_attempt silent session node prv result ;

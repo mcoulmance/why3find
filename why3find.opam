@@ -3,7 +3,7 @@ opam-version: "2.0"
 version: "1.3.0+dev"
 synopsis: "A Why3 Package Manager"
 description:
-  "The why3find utility is designed for managing packages for why3 developpers and associated OCaml extracted code."
+  "The why3find utility is designed for managing packages for why3 developers and associated OCaml extracted code."
 maintainer: ["benjamin.jorge@cea.fr" "loic.correnson@cea.fr"]
 authors: [
   "Loïc Correnson <loic.correnson@cea.fr>"

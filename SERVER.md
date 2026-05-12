@@ -83,7 +83,7 @@ in a typical order of events:
 Updates the target calibration with the given prover profile, if undefined yet.
 Any participant to the cluster shall first announce to each others their
 respective prover profile, if any. This is usually done this way: Client
-announce its calibration profile to the Server, which replies back its own
+announce its calibration profile to the Server, which replies its own
 profile. Worker does not need to calibrate themselves, they simply ask the
 Server to send its profile by emitting a `PROFILE` message with no size nor
 time.
@@ -95,11 +95,11 @@ convert times on its own.
 ### GET
 
     Usage: Client -> Server
-    Format: [ GET | prv | hash | timout ]
+    Format: [ GET | prv | hash | timeout ]
 
 Proof request from Client. The expected response is eventually a `RESULT`,
 although the server might first ask for a `DOWNLOAD` if the proof task data has
-not been uploaded to the Server yet. The `timout` limit must be converted by the
+not been uploaded to the Server yet. The `timeout` limit must be converted by the
 Client with respect to the Server's profile.
 
 ### DOWNLOAD

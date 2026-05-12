@@ -18,8 +18,8 @@ val is_local : root:string -> file:string -> bool
 val chdir : string -> unit
 val absolute : string -> string
 val path : ?root:string -> string -> string
-(** Leave absolute path unchaned.
-    For relative paths, concat to `~root` is provided, otherwize, leave
+(** Leave absolute path unchagned.
+    For relative paths, concat to `~root` is provided, otherwise, leave
     unchanged. *)
 
 val load : file:string -> Buffer.t -> unit

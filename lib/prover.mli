@@ -50,7 +50,7 @@ type prover = private {
 (** The type of provers.
 
     [digest] is an hexadecimal digest of the prover and its config. For now,
-    drivers are not completly taken into account, for instance modifying a
+    drivers are not completely taken into account, for instance modifying a
     driver which is [import]ed into the main driver won't change the digest. *)
 
 val why3_desc : prover -> string

@@ -585,7 +585,7 @@ type variable = Var of {
     vtype : string ;
     kind : string ;
     attributes : string list ;
-    visiblity : string ;
+    visibility : string ;
     contents : variables ;
     decl : location option ;
     vdecl : location option ;
@@ -616,12 +616,12 @@ let variables index named =
   | _ -> Vars { index = vempty index ; named = vempty named }
 
 let variable ~name
-    ?(value = "") ?(vtype = "") ?(kind = "") ?(attributes=[]) ?(visiblity="")
+    ?(value = "") ?(vtype = "") ?(kind = "") ?(attributes=[]) ?(visibility="")
     ?index ?named ?decl ?vdecl ?(values=[]) () =
   let contents = variables index named in
   Var {
     name ; value ;
-    vtype ; kind ; attributes ; visiblity ;
+    vtype ; kind ; attributes ; visibility ;
     contents ; decl ; vdecl ;
     values ;
   }
@@ -636,7 +636,7 @@ let js_variable (Var v) : Json.t =
     "presentationHint" , Json.assoc ~nullempty:true [
       "kind" , js_string_opt v.kind ;
       "attributes" , Json.list_map ~nullempty:true js_string_opt v.attributes ;
-      "visibility" , js_string_opt v.visiblity ;
+      "visibility" , js_string_opt v.visibility ;
     ] ;
     "variablesReference" , `Int vref ;
     "indexedVariables" , js_int_opt indexed ;
@@ -898,7 +898,7 @@ let stopped ~(reason:reason) ?description ?text ?all ?preserveFocus ?(breakpoint
 
 let on_step mode adapter args =
   let threadId = Json.jfield "threadId" args |> Json.jint in
-  let single = Json.jfield "sinleThread" args |> Json.jbool in
+  let single = Json.jfield "singleThread" args |> Json.jbool in
   Option.iter
     (fun th -> Queue.push (fun _ -> mode th th) adapter.callback)
     (Hashtbl.find_opt threadm threadId) ;

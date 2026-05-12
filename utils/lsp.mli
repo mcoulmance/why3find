@@ -55,7 +55,7 @@ val unregister_capability: server -> capability -> unit
    [initialize], [initialized], [shutdown], [exit] and [$/setTrace].
 
    The callbacks may raise exceptions, in which case an error is reported
-   to the client. Meaningfull exceptions are:
+   to the client. Meaningful exceptions are:
    - [Not_found] request is not supported
    - [Invalid_argument _] request arguments are incorrect
    - [Failure _] and any other exception are treated as internal error

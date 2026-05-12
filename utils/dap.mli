@@ -6,7 +6,7 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(** {1 Debug Adapater Protocol }*)
+(** {1 Debug Adapter Protocol }*)
 
 type adapter
 val trace : bool ref
@@ -46,7 +46,7 @@ val flush: adapter -> unit
 (** Schedule a callback to be executed during subsequent calls to `process` or `yield`. *)
 val schedule: adapter -> (adapter -> unit) -> unit
 
-(** Register adapter capbility. Default value `true`. *)
+(** Register adapter capability. Default value `true`. *)
 val register_capability : string -> ?value:Json.t -> unit -> unit
 
 (** {2 Output & Logging} *)
@@ -61,7 +61,7 @@ val output : adapter -> ?category:category ->
 val initialized : adapter -> unit
 val on_init : (adapter -> unit) -> unit
 (** By default, [on_init] emits an [initialized] event.
-    If overriden, don't forget to emit an [initialized] event at some point. *)
+    If overridden, don't forget to emit an [initialized] event at some point. *)
 
 val on_configured : (adapter -> unit) -> unit
 (** See also breakpoint callback, below *)
@@ -184,7 +184,7 @@ val on_breakpoint :
     objects and to recover them by object identifier.
 
     You first create an attribute map with {!attribute} function. Then, you can
-    create values for this attribue map with {!value} and attach them to
+    create values for this attribute map with {!value} and attach them to
     variables, frames and/or threads. Values can be obtained back from
     identifiers with {!find_by_varId}, {!find_by_frameId} and
     {!find_by_threadId}.
@@ -212,7 +212,7 @@ val variable :
   ?vtype:string ->
   ?kind:string ->
   ?attributes:string list ->
-  ?visiblity:string ->
+  ?visibility:string ->
   ?index:variable Darray.t ->
   ?named:variable Darray.t ->
   ?decl:location ->

@@ -27,6 +27,7 @@ SOURCES_ML=$(shell find src lib utils -name "*.ml*")
 SOURCES_TS=$(shell find vscode -not -path "*/node_modules/*" -name "*.ts*")
 
 lint:
+	@typos
 	@ocp-indent -i $(SOURCES_MI)
 
 headers:
