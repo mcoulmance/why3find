@@ -338,7 +338,7 @@ let terminated () =
     state := Paused ;
     Dap.finished progress ~message:"Terminated" ()
 
-let breaked thread =
+let broken thread =
   match hit_breakpoints thread with
   | [] -> None
   | bks -> Some (thread,bks)
@@ -357,7 +357,7 @@ let paused () =
       Dap.stopped ~reason ~breakpoints thread
     | _ ->
       let threads = Dap.threads () in
-      match List.find_map breaked threads with
+      match List.find_map broken threads with
       | Some (thread,breakpoints) ->
         Dap.stopped ~reason:`breakpoint ~breakpoints thread
       | None ->

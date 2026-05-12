@@ -1,3 +1,8 @@
+## Linting
+
+All files shall be properly indent with `ocp-indent` version `1.9.0`.
+Typos are checked using `typos` with few exceptions listed in `./typos.toml`.
+
 ## Profiling with [landmarks](https://github.com/LexiFi/landmarks)
 
 Why3find can be profiled with [landmarks](https://github.com/LexiFi/landmarks):

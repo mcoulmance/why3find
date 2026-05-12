@@ -63,6 +63,6 @@ val print_timings : Format.formatter -> unit
 (** {2 Throttles} *)
 
 val throttle : ?delay:float -> ('a -> unit) -> (?force:bool -> 'a -> unit)
-(** [throttle ~delay:d f] make succesive calls to [f] to only happen every
+(** [throttle ~delay:d f] make successive calls to [f] to only happen every
     [~delay] seconds. The delayed function can be passed [~force:true] to
     apply [f] immediately. Defaults to [~delay:0.1] which is 100ms. *)

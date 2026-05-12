@@ -20,7 +20,7 @@
   (synopsis "A Why3 Package Manager")
   (description
     "The why3find utility is designed for managing \
-     packages for why3 developpers and associated \
+     packages for why3 developers and associated \
      OCaml extracted code.")
   (depends
      (dune-site (>= 3.12))

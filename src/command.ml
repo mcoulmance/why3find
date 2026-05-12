@@ -360,9 +360,9 @@ let rec pp_prover_config configs provers =
   | [] , ps -> List.map Prover.infoname ps
   | cs , [] -> List.map (Printf.sprintf "(?%s)") cs
   | c::cs , p::ps ->
-    let cn = Prover.pattern_name c in
-    let pn = Prover.name p in
-    if cn <> pn then Printf.sprintf "(?%s)" c :: pp_prover_config cs provers
+    if Prover.pattern_name c <> Prover.name p
+    then
+      Printf.sprintf "(?%s)" c :: pp_prover_config cs provers
     else
       let q = Prover.fullname p in
       if c = q then q :: pp_prover_config cs ps else

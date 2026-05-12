@@ -13,7 +13,7 @@ module Interface
   axiom pA : cA > 0
   axiom qA : cA < 66
 
-  (** All these can be instanciated by constants or functions *)
+  (** All these can be instantiated by constants or functions *)
 
   val constant cB : int
   let constant cC : int = any int

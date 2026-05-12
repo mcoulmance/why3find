@@ -82,7 +82,7 @@ end
     This data structure is very similar to {!Queue} from
     the standard library, but offers efficient filtering.
 
-    It is designed for internal use, although it might be usefull
+    It is designed for internal use, although it might be useful
     for other purposes.
 *)
 module Queue :
