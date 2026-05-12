@@ -112,11 +112,6 @@ let send_upload client goal data =
   let prover = Prover.desc_to_string goal.prover in
   send client ["UPLOAD";prover;goal.digest;data]
 
-let send_kill client goal =
-  let prover = Prover.desc_to_string goal.prover in
-  send client ["KILL";prover;goal.digest]
-[@@ warning "-32"]
-
 (* -------------------------------------------------------------------------- *)
 (* --- PROVE                                                              --- *)
 (* -------------------------------------------------------------------------- *)

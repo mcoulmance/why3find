@@ -78,10 +78,6 @@ type prover = {
   digest : string ;
 }
 
-let compare_prover (p : prover) (q : prover) =
-  compare_desc p.desc q.desc
-[@@warning "-32"]
-
 let why3_desc prv = Whyconf.prover_parseable_format prv.config.prover
 let name prv = prv.desc.name
 let version prv = prv.desc.version

@@ -114,7 +114,10 @@ val update : progress ->
 
 val finished : progress -> ?message:string -> unit -> unit
 
-(** {2 Locations} *)
+(** {2 Locations}
+
+    At then level of DAP interface, all lines and columns starts at 0.
+    The DAP automatically adapts to DAP client settings. *)
 
 val of_line : Json.t -> int
 val to_line : int -> Json.t
@@ -259,30 +262,19 @@ val frame :
 (** {2 Threads} *)
 
 type thread
-val thread :
-  adapter ->
-  name:string ->
-  ?frames:(thread -> frame Darray.t) ->
-  ?on_pause:(thread -> unit) ->
-  ?on_next:(thread -> unit) ->
-  ?on_step_in:(thread -> unit) ->
-  ?on_step_out:(thread -> unit) ->
-  ?on_continue:(thread -> unit) ->
-  unit -> thread
-
-val connect :
-  thread ->
-  ?frames:(thread -> frame Darray.t) ->
-  ?on_pause:(thread -> unit) ->
-  ?on_next:(thread -> unit) ->
-  ?on_step_in:(thread -> unit) ->
-  ?on_step_out:(thread -> unit) ->
-  ?on_continue:(thread -> unit) ->
-  unit -> unit
+val thread : adapter -> name:string -> (thread -> frame Darray.t) -> thread
 
 val id : thread -> int
 val on : thread -> adapter
 val name : thread -> string
+
+val on_next : (thread -> unit) -> unit
+val on_step_in : (thread -> unit) -> unit
+val on_step_out : (thread -> unit) -> unit
+val on_step_back : (thread -> unit) -> unit
+val on_pause : (thread -> unit) -> unit
+val on_continue : (thread -> unit) -> unit
+val on_reverse_continue : (thread -> unit) -> unit
 
 (** Sorted by Id. *)
 val threads : unit -> thread list
@@ -299,6 +291,8 @@ val updated : ?reason:string -> thread -> unit
 val terminate : thread -> unit
 
 type reason = [ `step | `breakpoint | `pause | `entry | `except | `error ]
+val pp_reason : Format.formatter -> reason -> unit
+
 val stopped :
   reason:reason ->
   ?description:string ->

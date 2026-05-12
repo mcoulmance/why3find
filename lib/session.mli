@@ -10,54 +10,63 @@
 (* --- Session Management                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
-open Why3
-
 type session
 
 val create :
   dir:string ->
   file:string ->
   format:string ->
-  Theory.theory list ->
+  Why3.Theory.theory list ->
   session
 
 val save : session -> unit
 
 type theory
 
-val name : theory -> string
-val theory : theory -> Theory.theory
+val thy : theory -> Why3.Theory.theory
+val thy_name : theory -> string
 val theories : session -> theory list
 
 type goal
 
 val split : theory -> goal list
-val pr_name : Ident.ident -> string
-val goal_name : goal -> string
-val goal_idename : goal -> string
-val goal_fullname : goal -> string
-val goal_file : goal -> string
-val goal_loc : goal -> Loc.position option
-val goal_task : goal -> Task.task
-val goal_theory : goal -> Theory.theory
+
+val name : goal -> string
+val hashname : goal -> string
+val fullname : goal -> string
+val file : goal -> string
+val target : goal -> Why3.Loc.position option
+val task : goal -> Why3.Task.task
+val theory : goal -> Why3.Theory.theory
+val context : goal -> Vc.context
+val proof : goal -> Crc.crc option
 
 val pp_goal : Format.formatter -> goal -> unit
-
-val thy_name : Theory.theory -> string
-val task_name : Task.task -> string
-val task_expl : Task.task -> string
+val pp_path : Format.formatter -> goal -> unit
+val pp_status : Format.formatter -> goal -> unit
 
 val result : goal ->
-  Whyconf.prover ->
-  Call_provers.resource_limits ->
-  Call_provers.prover_result ->
+  Why3.Whyconf.prover ->
+  Why3.Call_provers.resource_limits ->
+  Why3.Call_provers.prover_result ->
   unit
 
-val apply : Env.env -> Tactic.tactic -> ?allow_no_effect:bool -> goal
+val apply : Why3.Env.env -> Tactic.tactic -> ?allow_no_effect:bool -> goal
   -> goal list option
 (** Apply a tactic to a goal. When allow_no_effect is [false] (the default),
     the function treat the tactic returning the goal unchanged as an "error"
     and return {!None}. When it is [true] this condition is treated as a normal
     result and the goal is returned. *)
+
+val commit : goal -> Crc.crc -> unit
+
+val parent : goal -> goal option
+val tactic : goal -> Tactic.tactic option
+val children : goal -> goal list
+
+val prev : goal -> goal option
+val next : goal -> goal option
+
+val is_parent : goal -> goal -> bool
 
 (* -------------------------------------------------------------------------- *)

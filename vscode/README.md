@@ -15,10 +15,10 @@ Provides support for the Why3 language and Why3find proof environment.
 
 ## Debugger Features
 
- - Pause and Resume proof tasks
- - Step/in and Step/out through proof tree
+ - Pause, Continue, Breakpoint
+ - Forward and Backward steps
+ - Step-In and Step-Out through the proof tree
  - Failed proofs diagnostic
- - Proof tree exploration through threads and stack variables
  - Proof context highlighting
  - Proof task preview
 

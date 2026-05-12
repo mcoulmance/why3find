@@ -10,6 +10,9 @@
    (#143, !199).
 
 ### IDE Integration
+
+ - Enhanced debugger with forward/backward steps and breakpoints (!201)
+
 ### Bug Fixes
 
  - Fixed relaxed prover constraints in CRC files (!198)

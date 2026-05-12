@@ -194,15 +194,33 @@ let print_stats allprovers alltactics fmt =
 (* -------------------------------------------------------------------------- *)
 
 let accept ~gnames thy goal =
-  List.mem thy gnames || List.mem (thy ^ "." ^ (Session.goal_name goal)) gnames
+  List.mem thy gnames || List.mem (thy ^ "." ^ (Session.name goal)) gnames
 
-let prove_goal ~file ~hammer ~results ~force buffer theory gname goal hint =
+let failed_context ~context node =
+  let goal = Hammer.goal node in
+  let file = Session.file goal in
+  let theory = Session.theory goal in
+  let task = Session.task goal in
+  Vc.highlight ~file ~context theory task
+
+let failed_task node =
+  let goal = Hammer.goal node in
+  let file = Session.file goal in
+  let task = Session.task goal in
+  Vc.dump ~file task
+
+let on_failed = function
+  | `Context context when Utils.tty && context >= 0 ->
+    Fibers.on Hammer.failed (failed_context ~context)
+  | `Tasks ->
+    Fibers.on Hammer.failed failed_task
+  | _ -> ()
+
+let prove_goal ~hammer ~force buffer theory gname goal hint =
   let hint = if force then Crc.stuck else hint in
   let result = Fibers.var () in
   let callback = Fibers.set result in
-  let failures = ref [] in
-  let failed g = failures := g :: !failures in
-  let _root = Hammer.thread hammer goal ~failed ~callback hint in
+  let _root = Hammer.prove hammer ~callback goal hint in
   let+ crc = Crc.update ~hint @+ result in
   Option.iter (Proofs.add theory goal crc) buffer;
   if Utils.tty then merge_stats hint crc ;
@@ -211,24 +229,14 @@ let prove_goal ~file ~hammer ~results ~force buffer theory gname goal hint =
       Utils.flush () ;
       Option.iter
         (Format.printf "%a: proof failed@." Wutil.pp_position)
-        (Session.goal_loc goal) ;
+        (Session.target goal) ;
       Format.printf "@[<v2>Goal @{<red>%s.%s@}: %a@]@."
-        (Session.name theory) gname Crc.pretty crc ;
-      List.iter
-        (fun g ->
-           match results with
-           | `Context context when Utils.tty && context >= 0 ->
-             Vc.highlight ~file ~context
-               (Session.theory theory)
-               (Session.goal_task g)
-           | `Tasks -> Vc.dump ~file (Session.goal_task g)
-           | _ -> ()
-        ) @@ List.rev !failures ;
+        (Session.thy_name theory) gname Crc.pretty crc ;
     end ;
   goal, crc
 
-let prove_theory ~file ~hammer ~results ~force ~gnames buffer strategy theory =
-  let thy = Session.name theory in
+let prove_theory ~hammer ~force ~gnames buffer strategy theory =
+  let thy = Session.thy_name theory in
   let goals = Session.split theory in
   let hints = M.find_def M.empty thy strategy in
   Option.iter (Proofs.init theory goals hints) buffer ;
@@ -237,9 +245,9 @@ let prove_theory ~file ~hammer ~results ~force ~gnames buffer strategy theory =
   let+ proofs =
     Fibers.all @@ List.map
       (fun goal ->
-         let gname = Session.goal_name goal in
+         let gname = Session.name goal in
          let hint = M.find_def Crc.stuck gname hints in
-         prove_goal ~file ~hammer ~results ~force buffer theory gname goal hint
+         prove_goal ~hammer ~force buffer theory gname goal hint
       ) goals
   in theory, proofs
 
@@ -367,7 +375,7 @@ let report ~(results:results) henv ~lib proofs =
               if not @@ Crc.is_complete crc then failed := true ;
            ) goals
       ) proofs ;
-    let theories = List.map (fun (th,_) -> Session.theory th) proofs in
+    let theories = List.map (fun (th,_) -> Session.thy th) proofs in
     begin
       let path = String.concat "." lib in
       match results with
@@ -379,12 +387,12 @@ let report ~(results:results) henv ~lib proofs =
       | `Theories | `Goals | `Proofs | `Tasks | `Context _ ->
         List.iter
           (fun (th,goals) ->
-             let thy = Session.theory th in
-             let tn = Session.name th in
+             let name = Session.thy_name th in
+             let thy = Session.thy th in
              let (s,p) = List.fold_left
                  (fun (s,p) (_,c) -> s + Crc.get_stuck c, p + Crc.get_proved c)
                  (0,0) goals in
-             Format.printf "Theory %s.%s: %t@." path tn
+             Format.printf "Theory %s.%s: %t@." path name
                (Crc.pp_checked ~stuck:s ~proved:p) ;
              begin
                match results with
@@ -393,13 +401,13 @@ let report ~(results:results) henv ~lib proofs =
                  List.iter
                    (fun (g,c) ->
                       Format.printf "  Goal %s: %a@."
-                        (Session.goal_name g) Crc.pretty c
+                        (Session.name g) Crc.pretty c
                    ) goals
                | `Proofs ->
                  List.iter
                    (fun (g,c) ->
                       Format.printf "  @[<hv 2>Goal %s %a@ %a@]@."
-                        (Session.goal_name g)
+                        (Session.name g)
                         Utils.pp_mark (Crc.is_complete c) Crc.dump c
                    ) goals
              end ;
@@ -450,7 +458,7 @@ let process ~env
         env in
     let* proofs =
       Fibers.all @@ List.map
-        (prove_theory ~file ~hammer ~results ~force ~gnames buffer strategy)
+        (prove_theory ~hammer ~force ~gnames buffer strategy)
         (Session.theories session)
     in
     if save then Session.save session ;
@@ -490,6 +498,7 @@ let prove_files ~(env:Project.env)
       | _ -> results in
     let provers = Prover.select env.why3 ~patterns:env.config.provers in
     let tactics = Tactic.select env.why3.env env.config.tactics in
+    on_failed results ;
     List.iter
       (process ~env ~level ~mode ~session ~results
          ~provers ~tactics ~axioms ~unsuccess ~gnames)

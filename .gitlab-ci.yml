@@ -17,12 +17,6 @@ workflow:
 # --- Templates
 # ---------------------------------------------------------------------------
 
-.allow_failure_why3_master: &allow_failure_why3_master
-  rules:
-    - if: $CI_COMMIT_BRANCH == "why3-master" || $CI_MERGE_REQUEST_SOURCE_BRANCH_NAME == "why3-master"
-      allow_failure: true
-    - when: on_success
-
 .opam: &opam
   image: registry.frama-c.com/pub/why3find:v2@sha256:df5db8e48bbf2e2de4f762ea201cbee9116c458b14d1d9a0828c9ed163079c2a
   tags:
@@ -54,6 +48,7 @@ build:
 why3-master:
   <<: *opam
   stage: distrib
+  allow_failure: true
   script:
     - git merge origin/why3-master
     - opam pin -n https://gitlab.inria.fr/why3/why3.git#master
