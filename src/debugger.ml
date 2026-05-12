@@ -11,7 +11,7 @@
 (* -------------------------------------------------------------------------- *)
 
 let pp_goal_location fmt goal =
-  match Session.loc goal with
+  match Session.target goal with
   | None -> ()
   | Some loc ->
     let file,line,_,_,_ = Why3.Loc.get loc in
@@ -38,41 +38,94 @@ let dloc_of_goal goal =
     if 0 <= line && line <= end_line && end_line < max_int then
       Some (Dap.loc ~file ~line ~end_line ())
     else
-      Option.map dloc_of_position @@ Session.loc goal
+      Option.map dloc_of_position @@ Session.target goal
 
 (* -------------------------------------------------------------------------- *)
-(* ---  BreakPoints                                                       --- *)
+(* ---  Cursor & Breakpoints Data                                          --- *)
 (* -------------------------------------------------------------------------- *)
 
 type breakpoint = Brk of {
     id : int ;
     file : string ;
     line : int ;
-    mutable active : bool ;
+    mutable verified : bool ;
   }
 
-let breakpointk = ref 0
-let breakpoints : (string,breakpoint) Hashtbl.t = Hashtbl.create 0
-let clear_breakpoints () = breakpointk := 0 ; Hashtbl.clear breakpoints
-
-let add_breakpoint ~file ~line =
-  let id = incr breakpointk ; !breakpointk in
-  let brk = Brk { id ; file ; line ; active = true } in
-  Hashtbl.add breakpoints file brk ; id
-
-let () = Dap.on_breakpoint ~clear:clear_breakpoints
-    begin function Dap.SourceBreakpoint { file ; line } ->
-      let id = add_breakpoint ~file ~line in
-      Dap.pending ~id ~message:"Registered breakpoint" ()
-    end
-
-(* -------------------------------------------------------------------------- *)
-(* ---  Cursor Management                                                 --- *)
-(* -------------------------------------------------------------------------- *)
+let breakpointk : int ref = ref 0
+let breakpoints : breakpoint list ref = ref []
 
 let rootk : int ref = ref 0
 let roots : Session.goal array ref = ref [| |]
 let cursor : Session.goal option ref = ref None
+
+let clear () =
+  begin
+    breakpointk := 0 ;
+    breakpoints := [] ;
+    rootk := 0 ;
+    roots := [| |] ;
+    cursor := None ;
+  end
+
+(* -------------------------------------------------------------------------- *)
+(* ---  BreakPoints                                                       --- *)
+(* -------------------------------------------------------------------------- *)
+
+let clear_breakpoints () =
+  begin
+    breakpointk := 0 ;
+    breakpoints := [] ;
+  end
+
+let add_breakpoint ~file ~line ~verified =
+  let id = incr breakpointk ; !breakpointk in
+  let brk = Brk { id ; file ; line ; verified } in
+  breakpoints := brk :: !breakpoints ; id
+
+let () = Dap.on_breakpoint ~clear:clear_breakpoints
+    begin function Dap.SourceBreakpoint { file ; line } ->
+      if Array.length !roots = 0 then
+        let id = add_breakpoint ~file ~line ~verified:false in
+        Dap.pending ~id ~message:"Registered breakpoint" ()
+      else
+      if Array.exists
+          (fun root ->
+             let c = Session.context root in
+             c.file = file &&
+             let (p,q) = c.goal in p <= line && line <= q
+          ) !roots
+      then
+        let id = add_breakpoint ~file ~line ~verified:true in
+        Dap.verified ~id ~file ~line ()
+      else
+        Dap.failed ~message:"No related proof goals" ()
+    end
+
+let target g =
+  match Session.target g with
+  | None -> None
+  | Some loc ->
+    let file,p,_,q,_ = Why3.Loc.get loc in
+    Some(file,p-1,q-1)
+
+let hit (file,p,q) (Brk brk) =
+  brk.file = file && p <= brk.line && brk.line <= q
+
+let breakpoint_hit g =
+  0 < !breakpointk &&
+  match target g with
+  | None -> false
+  | Some rg -> List.exists (hit rg) !breakpoints
+
+let breakpoint_hits g =
+  if 0 = !breakpointk then [] else
+    match target g with
+    | None -> []
+    | Some rg -> List.filter (hit rg) !breakpoints
+
+(* -------------------------------------------------------------------------- *)
+(* ---  Cursor Management                                                 --- *)
+(* -------------------------------------------------------------------------- *)
 
 let root () =
   if !rootk < Array.length !roots then Some !roots.(!rootk) else None
@@ -94,16 +147,18 @@ let step_prev g =
 
 (* Move to first incomplete or failed node, starting from g, included *)
 let rec forward g =
-  match Session.proof g with
-  | Some crc when Crc.is_complete crc -> move_forward g
-  | _ -> match Session.children g with c::_ -> forward c | [] -> g
+  if breakpoint_hit g then g else
+    match Session.proof g with
+    | Some crc when Crc.is_complete crc -> move_forward g
+    | _ -> match Session.children g with c::_ -> forward c | [] -> g
 and move_forward g = match step_next g with None -> g | Some g -> forward g
 
 (* Move to last incomplete or failed node, starting from g, included *)
 let rec backward g =
-  match Session.proof g with
-  | Some crc when Crc.is_complete crc -> move_backward g
-  | _ -> match List.rev (Session.children g) with c::_ -> backward c | [] -> g
+  if breakpoint_hit g then g else
+    match Session.proof g with
+    | Some crc when Crc.is_complete crc -> move_backward g
+    | _ -> match List.rev (Session.children g) with c::_ -> backward c | [] -> g
 and move_backward g = match step_prev g with None -> g | Some g -> backward g
 
 (* -------------------------------------------------------------------------- *)
@@ -275,19 +330,28 @@ let update = Timer.throttle
         in Dap.update progress ~message:(Format.asprintf "%t" pp_progress) ()
     end
 
-let reason g =
-  match Session.proof g with
-  | None -> `pause
-  | Some crc -> if Crc.is_stuck crc then `error else `pause
+let stopped thread =
+  match !cursor with
+  | None -> Dap.stopped ~reason:`pause thread
+  | Some goal ->
+    let hits = breakpoint_hits goal in
+    if hits <> [] then
+      let breakpoints = List.map (fun (Brk b) -> b.id) hits in
+      Dap.stopped ~reason:`breakpoint ~breakpoints thread
+    else
+      let reason =
+        match Session.proof goal with
+        | None -> `pause
+        | Some crc -> if Crc.is_stuck crc then `error else `pause in
+      Dap.stopped ~reason thread
 
 let paused () =
   match !session with
   | Terminated -> ()
   | Session { progress ; thread } ->
     begin
-      let reason = Option.fold ~none:`pause ~some:reason !cursor in
-      Dap.stopped ~reason thread ;
       Dap.update progress ~message:"Paused" () ;
+      stopped thread ;
     end
 
 let complete () =
@@ -295,15 +359,10 @@ let complete () =
   | Terminated -> ()
   | Session { adapter ; progress ; thread } ->
     Dap.finished progress ~message:"Terminated" () ;
-    match !cursor with
-    | Some g ->
-      Dap.stopped ~reason:(reason g) thread
-    | None ->
-      rootk := 0 ;
-      roots := [| |] ;
-      cursor := None ;
-      session := Terminated ;
-      Dap.terminated adapter ()
+    if !cursor <> None then stopped thread else
+      begin
+        clear () ; Dap.terminated adapter ()
+      end
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Stepping                                                          --- *)
@@ -524,11 +583,7 @@ let () = Dap.on_init
       let echo category pp = Dap.output adapter ~category "%t" pp in
       Log.pp_stdout := echo `stdout ;
       Log.pp_stderr := echo `stderr ;
-      breakpointk := 0 ;
-      Hashtbl.clear breakpoints ;
-      rootk := 0 ;
-      roots := [| |] ;
-      cursor := None ;
+      clear () ;
       Hammer.pause () ;
       hammer := Hammer.status () ;
       Fibers.on Hammer.enter on_enter ;
@@ -553,6 +608,7 @@ let () = Dap.on_launch
             Log.warning "No config file found." ;
             Dap.exited adapter 1
           | Some root ->
+            clear () ;
             let config = Config.load_config ~root in
             let env = Project.create ~root ~config () in
             Fibers.background @@ Fibers.all @@
@@ -560,7 +616,6 @@ let () = Dap.on_launch
             let progress = Dap.progress adapter ~title:"Why3" () in
             let thread = Dap.thread adapter ~name:"Why3find" frames in
             session := Session { adapter ; progress ; thread } ;
-            cursor := None ;
             hammer := Hammer.status () ;
             Hammer.resume () ;
         end
@@ -570,9 +625,7 @@ let () = Dap.on_terminate
     begin fun adapter ~restart ->
       ignore adapter ;
       ignore restart ;
-      rootk := 0 ;
-      roots := [| |] ;
-      cursor := None ;
+      clear () ;
       Hammer.stop () ;
     end
 

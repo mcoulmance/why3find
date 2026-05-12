@@ -20,11 +20,11 @@ module S = Why3.Session_itp
 
 type session = Session of { file : S.file ; session : S.session }
 
-let create ~dir ~file ~format ths =
+let create ~dir ~file ~format ts =
   let session = S.empty_session dir in
   let file = S.add_file_section session
       (Why3.Sysutil.relativize_filename dir file)
-      ~file_is_detached:false ths format
+      ~file_is_detached:false ts format
   in Session { file ; session }
 
 let save = function Session { session } ->
@@ -76,12 +76,15 @@ let split = Timer.timed ~name:"Split theories" split
 
 let task (Goal g) = g.task
 let theory (Goal g) = Th.restore_theory (S.theory_name g.theory)
-let loc g = (T.task_goal (task g)).pr_name.id_loc
+let name g = Vc.task_name @@ task g
+
 let file (Goal g) =
   match (T.task_goal g.task).pr_name.id_loc with
   | Some loc -> let file,_,_,_,_ = Why3.Loc.get loc in file
   | None -> String.concat Filename.dir_sep @@ Why3.Sysutil.decompose_path @@ S.file_path g.file
-let name g = Vc.task_name @@ task g
+
+let target (Goal g) = Vc.target g.task
+
 let compute_names (Goal g) =
   if g.hashname = "" then
     begin
@@ -131,7 +134,7 @@ let result (Goal { session ; node }) prv limits result =
       end
   end ;
   begin
-    (* update proof attempt on success or when there is no successfull attempt yet *)
+    (* update proof attempt on success *)
     if is_valid result || pa = [] then
       let _id = S.graft_proof_attempt session node prv ~limits in
       S.update_proof_attempt silent session node prv result ;

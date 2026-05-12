@@ -35,7 +35,7 @@ val name : goal -> string
 val hashname : goal -> string
 val fullname : goal -> string
 val file : goal -> string
-val loc : goal -> Why3.Loc.position option
+val target : goal -> Why3.Loc.position option
 val task : goal -> Why3.Task.task
 val theory : goal -> Why3.Theory.theory
 val context : goal -> Vc.context

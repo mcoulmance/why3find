@@ -13,6 +13,10 @@
 type kind = Goal | When | WhenNot
 type chunk = { kind : kind ; range : Range.range ; term : Why3.Term.term }
 
+(** Line numbers starts at 0 but are pretty-printed as starting at 1. *)
+
+val target : Why3.Task.task -> Why3.Loc.position option
+
 type context = {
   file : string ;
   goal : int * int ;
@@ -21,6 +25,7 @@ type context = {
 }
 
 val dump : file:string -> Why3.Task.task -> unit
+val pp_range : Format.formatter -> int * int -> unit
 val context : file:string -> Why3.Theory.theory -> Why3.Task.task -> context
 val highlight : file:string -> context:int -> Why3.Theory.theory -> Why3.Task.task -> unit
 

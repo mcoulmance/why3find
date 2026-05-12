@@ -73,7 +73,7 @@ let rec goal (t : Term.term) =
     let _,t = Term.t_open_bound fb in goal t
   | _ -> collect Goal t
 
-let shape_of_chunks (d: Decl.decl) : shape =
+let shape (d: Decl.decl) : shape =
   match d.d_node with
   | Dprop(Pgoal,pr,p) -> default_shape Goal pr.pr_name.id_loc p @@ goal p
   | Dprop(Paxiom,pr,p) -> default_shape When pr.pr_name.id_loc p @@ hyp p
@@ -83,15 +83,28 @@ let shape_of_chunks (d: Decl.decl) : shape =
 (* --- Splitting Tasks                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
-let split_tdecl fn (td : Thy.tdecl) : shape =
-  match td.td_node with Decl d -> fn d | _ -> Empty
+let split_tdecl (td : Thy.tdecl) : shape =
+  match td.td_node with Decl d -> shape d | _ -> Empty
 
-let rec split_task fn acc (t : Task.task) : shape =
+let rec split_task acc (t : Task.task) : shape =
   match t with
   | None -> acc
   | Some { task_decl ; task_prev } ->
-    let d = split_tdecl fn task_decl in
-    (split_task[@tailcall]) fn (d <+> acc) task_prev
+    let d = split_tdecl task_decl in
+    (split_task[@tailcall]) (d <+> acc) task_prev
+
+let rec target (t : Task.task) =
+  match t with
+  | None -> None
+  | Some { task_decl ; task_prev } ->
+    match task_decl.td_node with
+    | Decl { d_node = Dprop(Pgoal,pr,p) } ->
+      begin
+        match p.t_loc with
+        | Some _ as pos -> pos
+        | None -> pr.pr_name.id_loc
+      end
+    | _ -> target task_prev
 
 type chunk = { kind : kind ; range : Range.range ; term : Term.term }
 
@@ -119,9 +132,9 @@ let rec dispatch env = function
 let by_range a b = Stdlib.compare a.range b.range
 let disjoint a b = Range.disjoint a.range b.range
 
-let split ~file fn (t : Task.task) =
+let split ~file (t : Task.task) =
   let env = { file ; goal = [] ; hyps = [] } in
-  dispatch env (split_task fn Empty t) ;
+  dispatch env (split_task Empty t) ;
   let goal = env.goal in
   let hyps = List.filter (fun h -> List.for_all (disjoint h) goal) env.hyps in
   List.sort by_range (goal @ hyps)
@@ -276,7 +289,7 @@ let pp_expl fmt e =
 
 let dump ~file task =
   let pp_where =
-    let p,q = split ~file shape_of_chunks task |> goal_range in
+    let p,q = split ~file task |> goal_range in
     if p <= q then
       let name = task_name task in
       let expl = task_expl task in
@@ -333,7 +346,7 @@ let window ~file thy chunks =
         ) chunks
     in { file ; goal = p,q ; span = !hp,!hq ; chunks }
 
-let context ~file thy task = window ~file thy @@ split shape_of_chunks ~file task
+let context ~file thy task = window ~file thy @@ split ~file task
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Printing Automaton                                                --- *)

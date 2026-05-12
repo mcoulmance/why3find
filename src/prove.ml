@@ -229,7 +229,7 @@ let prove_goal ~hammer ~force buffer theory gname goal hint =
       Utils.flush () ;
       Option.iter
         (Format.printf "%a: proof failed@." Wutil.pp_position)
-        (Session.loc goal) ;
+        (Session.target goal) ;
       Format.printf "@[<v2>Goal @{<red>%s.%s@}: %a@]@."
         (Session.thy_name theory) gname Crc.pretty crc ;
     end ;

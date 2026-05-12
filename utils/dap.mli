@@ -6,7 +6,7 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(** {1 Debug Adapater Protocol }*)
+(** {1 Debug Adapter Protocol }*)
 
 type adapter
 val trace : bool ref
@@ -114,7 +114,10 @@ val update : progress ->
 
 val finished : progress -> ?message:string -> unit -> unit
 
-(** {2 Locations} *)
+(** {2 Locations}
+
+    At then level of DAP interface, all lines and columns starts at 0.
+    The DAP automatically adapts to DAP client settings. *)
 
 val of_line : Json.t -> int
 val to_line : int -> Json.t
@@ -184,7 +187,7 @@ val on_breakpoint :
     objects and to recover them by object identifier.
 
     You first create an attribute map with {!attribute} function. Then, you can
-    create values for this attribue map with {!value} and attach them to
+    create values for this attribute map with {!value} and attach them to
     variables, frames and/or threads. Values can be obtained back from
     identifiers with {!find_by_varId}, {!find_by_frameId} and
     {!find_by_threadId}.
