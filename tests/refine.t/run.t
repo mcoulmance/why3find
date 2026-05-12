@@ -157,7 +157,7 @@
     <span class="keyword">axiom</span> <a id="qA">qA</a><span title="Hypothesis" class="icon small warning icofont-warning-alt"></span> : <a title="refine.Interface.cA" href="#cA">cA</a> <a title="int.Int.(<)" href="https://www.why3.org/stdlib/int.html#infix%20%3C_21">&lt;</a> 66
   </pre>
   <div class="doc">
-  <p>All these can be instanciated by constants or functions</p>
+  <p>All these can be instantiated by constants or functions</p>
   </div>
   <pre class="src">
     <span class="keyword">val</span> <span class="keyword">constant</span> <a id="cB">cB</a><span title="Parameter" class="icon small remark icofont-question-circle"></span> : int

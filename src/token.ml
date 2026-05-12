@@ -143,7 +143,7 @@ let pp fmt = function
   | Newline -> Format.pp_print_string fmt "Newline"
   | Char c -> Format.fprintf fmt "Char %S" (String.make 1 c)
   | Text s -> Format.fprintf fmt "Text %S" s
-  | Comment s -> Format.fprintf fmt "Commont %S" s
+  | Comment s -> Format.fprintf fmt "Comment %S" s
   | Infix s -> Format.fprintf fmt "Infix %s" s
   | Ident s -> Format.fprintf fmt "Ident %s" s
   | OpenDoc -> Format.pp_print_string fmt "OpenDoc \"(**\""

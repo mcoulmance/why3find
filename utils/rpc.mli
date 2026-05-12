@@ -22,7 +22,7 @@ val yield : channel -> unit
 (** Send all remaining bytes *)
 val flush : channel -> unit
 
-(** Decode one incomming message, if any *)
+(** Decode one incoming message, if any *)
 val pull : channel -> string option
 
 (** Encode one message to outcome *)

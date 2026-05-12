@@ -344,7 +344,7 @@ let report_signature henv ~lib (th : Th.theory) =
       (report_parameter ~lib ~signature:true)
       (Axioms.parameters @@ Axioms.signature henv th)
 
-let report_hypotheses henv ~lib (ths : Th.theory list) =
+let report_hypotheses henv ~lib theories =
   match henv with
   | None -> ()
   | Some henv ->
@@ -353,7 +353,7 @@ let report_hypotheses henv ~lib (ths : Th.theory list) =
       (fun prm ->
          if !once then (Format.printf "Dependencies:@\n" ; once := false) ;
          report_parameter ~lib ~signature:false prm)
-      ths
+      theories
 
 (* -------------------------------------------------------------------------- *)
 (* --- Proof Logger                                                       --- *)
@@ -375,7 +375,7 @@ let report ~(results:results) henv ~lib proofs =
               if not @@ Crc.is_complete crc then failed := true ;
            ) goals
       ) proofs ;
-    let thys = List.map (fun (th,_) -> Session.thy th) proofs in
+    let theories = List.map (fun (th,_) -> Session.thy th) proofs in
     begin
       let path = String.concat "." lib in
       match results with
@@ -383,7 +383,7 @@ let report ~(results:results) henv ~lib proofs =
       | `Modules | `Default ->
         Format.printf "Library %s: %t@."
           path (Crc.pp_checked ~stuck:!stuck ~proved:!proved) ;
-        List.iter (report_signature henv ~lib) thys
+        List.iter (report_signature henv ~lib) theories
       | `Theories | `Goals | `Proofs | `Tasks | `Context _ ->
         List.iter
           (fun (th,goals) ->
@@ -414,7 +414,7 @@ let report ~(results:results) henv ~lib proofs =
              report_signature henv ~lib thy
           ) proofs
     end ;
-    report_hypotheses henv ~lib thys ;
+    report_hypotheses henv ~lib theories ;
     !failed
   end
 

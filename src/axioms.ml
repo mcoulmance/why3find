@@ -313,7 +313,7 @@ let parameters s = Mid.values s.locals
 (* --- Consolidated Hypotheses                                            --- *)
 (* -------------------------------------------------------------------------- *)
 
-let dependencies henv ?(self=false) (ths : Theory.theory list) =
+let dependencies henv ?(self=false) theories =
   let deps = ref Mid.empty in
   let rec add (thy : Theory.theory) =
     let id = thy.th_name in
@@ -329,13 +329,13 @@ let dependencies henv ?(self=false) (ths : Theory.theory list) =
     List.iter add_derived s.cloned_theories ;
   in
   let add_init = if self then add else add_derived in
-  List.iter add_init ths ; Mid.values !deps
+  List.iter add_init theories ; Mid.values !deps
 
-let iter henv ?(self=false) f ths =
+let iter henv ?(self=false) f theories =
   List.iter
     (fun thy ->
        let s = signature henv thy in
        Mid.iter (fun _ p -> f p) s.locals
-    ) (dependencies henv ~self ths)
+    ) (dependencies henv ~self theories)
 
 (* -------------------------------------------------------------------------- *)

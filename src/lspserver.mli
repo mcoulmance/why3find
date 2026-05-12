@@ -139,7 +139,7 @@ val symbol :
 
 val on_document_symbol : (Lsp.server -> uri:string -> symbol list) -> unit
 
-(** {2 Worspace File Watching} *)
+(** {2 Workspace File Watching} *)
 
 type event = [ `Created | `Changed | `Deleted ]
 

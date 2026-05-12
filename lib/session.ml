@@ -20,11 +20,11 @@ module S = Why3.Session_itp
 
 type session = Session of { file : S.file ; session : S.session }
 
-let create ~dir ~file ~format ts =
+let create ~dir ~file ~format theories =
   let session = S.empty_session dir in
   let file = S.add_file_section session
       (Why3.Sysutil.relativize_filename dir file)
-      ~file_is_detached:false ts format
+      ~file_is_detached:false theories format
   in Session { file ; session }
 
 let save = function Session { session } ->
