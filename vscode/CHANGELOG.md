@@ -3,7 +3,12 @@
 All notable changes to the "why3-platform" VSCode extension will be documented
 in this file.
 
-## [1.2.0+dev]
+
+## Unreleased
+
+- Enhanced debugger with breakpoints and forward and backward steps
+
+## [1.2.0]
 
 - Debug Adapter Protocol
 
