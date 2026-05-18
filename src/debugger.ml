@@ -44,6 +44,8 @@ let dloc_of_goal goal =
 (* ---  Cursor & Breakpoints Data                                          --- *)
 (* -------------------------------------------------------------------------- *)
 
+type cursor = NoCursor | Start | End | At of Session.goal
+
 type breakpoint = Brk of {
     id : int ;
     file : string ;
@@ -56,7 +58,7 @@ let breakpoints : breakpoint list ref = ref []
 
 let rootk : int ref = ref 0
 let roots : Session.goal array ref = ref [| |]
-let cursor : Session.goal option ref = ref None
+let cursor : cursor ref = ref NoCursor
 
 let clear () =
   begin
@@ -64,7 +66,7 @@ let clear () =
     breakpoints := [] ;
     rootk := 0 ;
     roots := [| |] ;
-    cursor := None ;
+    cursor := NoCursor ;
   end
 
 (* -------------------------------------------------------------------------- *)
@@ -127,9 +129,6 @@ let breakpoint_hits g =
 (* ---  Cursor Management                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
-let root () =
-  if !rootk < Array.length !roots then Some !roots.(!rootk) else None
-
 let root_next () =
   if succ !rootk < Array.length !roots then
     (incr rootk ; Some !roots.(!rootk))
@@ -147,19 +146,17 @@ let step_prev g =
 
 (* Move to first incomplete or failed node, starting from g, included *)
 let rec forward g =
-  if breakpoint_hit g then g else
+  if breakpoint_hit g then Some g else
     match Session.proof g with
-    | Some crc when Crc.is_complete crc -> move_forward g
-    | _ -> match Session.children g with c::_ -> forward c | [] -> g
-and move_forward g = match step_next g with None -> g | Some g -> forward g
+    | Some crc when Crc.is_complete crc -> Option.bind (step_next g) forward
+    | _ -> match Session.children g with c::_ -> forward c | [] -> Some g
 
 (* Move to last incomplete or failed node, starting from g, included *)
 let rec backward g =
-  if breakpoint_hit g then g else
+  if breakpoint_hit g then Some g else
     match Session.proof g with
-    | Some crc when Crc.is_complete crc -> move_backward g
-    | _ -> match List.rev (Session.children g) with c::_ -> backward c | [] -> g
-and move_backward g = match step_prev g with None -> g | Some g -> backward g
+    | Some crc when Crc.is_complete crc -> Option.bind (step_prev g) backward
+    | _ -> match List.rev (Session.children g) with c::_ -> backward c | [] -> Some g
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Task Frame                                                        --- *)
@@ -227,8 +224,8 @@ let rec goal_frames g =
 
 let frames _thread : Dap.frame Darray.t =
   match !cursor with
-  | None -> Darray.empty
-  | Some g -> Darray.list @@ goal_frames g
+  | NoCursor | Start | End -> Darray.empty
+  | At g -> Darray.list @@ goal_frames g
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Proof Context                                                     --- *)
@@ -332,8 +329,8 @@ let update = Timer.throttle
 
 let stopped thread =
   match !cursor with
-  | None -> Dap.stopped ~reason:`pause thread
-  | Some goal ->
+  | NoCursor | Start | End -> Dap.stopped ~reason:`pause thread
+  | At goal ->
     let hits = breakpoint_hits goal in
     if hits <> [] then
       let breakpoints = List.map (fun (Brk b) -> b.id) hits in
@@ -359,10 +356,11 @@ let complete () =
   | Terminated -> ()
   | Session { adapter ; progress ; thread } ->
     Dap.finished progress ~message:"Terminated" () ;
-    if !cursor <> None then stopped thread else
+    if !cursor = NoCursor then
       begin
         clear () ; Dap.terminated adapter ()
       end
+    else stopped thread
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Stepping                                                          --- *)
@@ -376,13 +374,25 @@ let resume ?goal () =
       (fun g n -> Session.is_parent g (Hammer.goal n))
       goal
   in Hammer.resume ?filter ()
-let setup_cursor () = if !cursor = None then cursor := root ()
-let advance () = cursor := Option.map forward !cursor
-let move = function None -> () | Some _ as r -> cursor := r
+let setup_cursor () =
+  if !cursor = NoCursor then
+    cursor := if Array.length !roots > 0 then Start else End
+
+let move_end g = cursor := match g with None -> End | Some g -> At g
+let move_start g = cursor := match g with None -> Start | Some g -> At g
+let advance () =
+  match !cursor with
+  | NoCursor | End -> ()
+  | At g -> move_end @@ forward g
+  | Start -> rootk := 0 ; move_end @@ forward !roots.(0)
+
 let breakpoint () =
-  match Option.bind !cursor Session.proof with
-  | None -> ()
-  | Some crc -> if Crc.is_stuck crc then Hammer.pause ()
+  match !cursor with
+  | Start | End | NoCursor -> ()
+  | At g ->
+    match Session.proof g with
+    | None -> ()
+    | Some crc -> if Crc.is_stuck crc then Hammer.pause ()
 
 let () = Dap.on_pause
     begin fun _thread ->
@@ -393,66 +403,82 @@ let () = Dap.on_pause
 let () = Dap.on_next
     begin fun _thread ->
       match !cursor with
-      | None -> paused ()
-      | Some g ->
+      | NoCursor | End -> paused ()
+      | Start -> rootk := 0 ; cursor := At !roots.(0) ; paused ()
+      | At g ->
         match Session.proof g with
-        | Some _ -> move @@ step_next g ; paused ()
+        | Some _ -> move_end @@ step_next g ; paused ()
         | None -> resume ~goal:g ()
     end
 
 let () = Dap.on_step_in
     begin fun _thread ->
       match !cursor with
-      | None -> paused ()
-      | Some g ->
+      | NoCursor | End -> paused ()
+      | Start -> rootk := 0 ; cursor := At !roots.(0) ; paused ()
+      | At g ->
         match Session.children g with
-        | g::_ -> cursor := Some g ; paused ()
+        | g::_ -> cursor := At g ; paused ()
         | [] ->
           match Session.proof g with
-          | Some _ -> paused ()
+          | Some _ -> move_end @@ step_next g ; paused ()
           | None -> resume ~goal:g ()
     end
 
 let () = Dap.on_step_out
     begin fun _thread ->
       match !cursor with
-      | None -> paused ()
-      | Some g ->
+      | NoCursor | Start | End -> paused ()
+      | At g ->
         let p = Option.value ~default:g (Session.parent g) in
         match Session.proof p with
-        | Some _ -> cursor := Some p ; paused ()
+        | Some _ -> cursor := At p ; paused ()
         | None -> resume ~goal:p ()
     end
 
 let () = Dap.on_step_back
     begin fun _thread ->
       match !cursor with
-      | None -> paused ()
-      | Some g -> move @@ step_prev g ; paused ()
+      | NoCursor | Start -> paused ()
+      | End ->
+        let n = Array.length !roots in
+        if n > 0 then
+          begin
+            rootk := n-1 ;
+            cursor := At !roots.(n-1) ;
+          end ;
+        paused ()
+      | At g -> move_start @@ step_prev g ; paused ()
     end
 
 let () = Dap.on_continue
     begin fun _thread ->
       match !cursor with
-      | None -> resume ()
-      | Some g ->
+      | NoCursor | End -> resume ()
+      | Start ->
+        rootk := 0 ; move_end @@ forward !roots.(0) ; paused ()
+      | At g ->
         match Session.proof g with
         | None -> resume ()
-        | Some _ ->
-          cursor := Some (move_forward g) ;
-          paused () ;
+        | Some _ -> move_end @@ forward g ; paused ()
     end
 
 let () = Dap.on_reverse_continue
     begin fun _thread ->
       match !cursor with
-      | None -> paused ()
-      | Some g ->
+      | NoCursor | Start -> paused ()
+      | End ->
+        let n = Array.length !roots in
+        if n > 0 then
+          begin
+            rootk := n-1 ;
+            move_start @@ backward !roots.(n-1) ;
+          end ;
+        paused ()
+      | At g ->
         match Session.proof g with
         | None -> paused ()
-        | Some _ ->
-          cursor := Some (move_backward g) ;
-          paused () ;
+        | Some _ -> move_start (backward g) ; paused ()
     end
 
 (* -------------------------------------------------------------------------- *)
@@ -483,15 +509,13 @@ let on_failed node =
 let on_enter node =
   let g = Hammer.goal node in
   match !cursor with
-  | Some p when Session.is_parent p g ->
-    cursor := Some g
+  | At p when Session.is_parent p g -> cursor := At g
   | _ -> ()
 
 let on_leave node =
   let g = Hammer.goal node in
   match !cursor with
-  | Some g0 when g0 == g ->
-    advance () ; breakpoint () ;
+  | At g0 when g0 == g -> advance () ; breakpoint () ;
   | _ -> ()
 
 (* -------------------------------------------------------------------------- *)
@@ -634,7 +658,7 @@ let () = Dap.on_terminate
 (* -------------------------------------------------------------------------- *)
 
 let running adapter =
-  !cursor <> None || Dap.running adapter || Hammer.pending ()
+  !cursor <> NoCursor || Dap.running adapter || Hammer.pending ()
 
 let process adapter =
   let h = Hammer.process () in

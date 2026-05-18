@@ -58,6 +58,7 @@ type goal = Goal of {
     mutable hashname : string ;
     mutable fullname : string ;
     mutable context : Vc.context option ;
+    mutable touched : bool ;
     mutable proof : Crc.crc option ;
   }
 
@@ -68,7 +69,8 @@ let split (Thy { file ; session ; theory }) : goal list =
        Goal {
          file ; session ; theory ; node ; task ;
          parent = None ; tactic = None ;
-         hashname = "" ; fullname = "" ; context = None ; proof = None ;
+         hashname = "" ; fullname = "" ;
+         context = None ; touched = false ; proof = None ;
        }
     ) @@ S.theory_goals theory
 
@@ -99,7 +101,20 @@ let compute_names (Goal g) =
 
 let hashname (Goal g as goal) = compute_names goal ; g.hashname
 let fullname (Goal g as goal) = compute_names goal ; g.fullname
-let proof (Goal g) = g.proof
+let rec proof (Goal g) =
+  if g.touched && g.proof = None then
+    begin
+      g.touched <- false ;
+      match g.tactic with
+      | None -> ()
+      | Some(tactic,goals) ->
+        try
+          let child g =
+            match proof g with None -> raise Exit | Some crc -> crc in
+          g.proof <- Some (Crc.tactic tactic @@ List.map child goals) ;
+        with Exit -> ()
+    end ;
+  g.proof
 
 let pp_status fmt (Goal g) =
   match g.proof with
@@ -120,7 +135,11 @@ let is_valid (pr : Why3.Call_provers.prover_result) = pr.pr_answer = Valid
 let is_valid_attempt (pa : S.proof_attempt_node) =
   match pa.proof_state with Some pr -> is_valid pr | None -> false
 
-let result (Goal { session ; node }) prv limits result =
+let rec touch = function
+  | None -> ()
+  | Some (Goal p) -> p.touched <- true ; p.proof <- None ; touch p.parent
+
+let result (Goal { session ; node ; parent }) prv limits result =
   let pa,na =
     List.partition is_valid_attempt @@ S.get_proof_attempts session node in
   begin
@@ -138,6 +157,7 @@ let result (Goal { session ; node }) prv limits result =
     if is_valid result || pa = [] then
       let _id = S.graft_proof_attempt session node prv ~limits in
       S.update_proof_attempt silent session node prv result ;
+      touch parent ;
   end ;
   S.update_goal_node silent session node
 
@@ -160,7 +180,7 @@ let apply env tactic ?(allow_no_effect=false) goal =
            Goal {
              file ; session ; theory ; node ; task ; parent ;
              tactic = None ; fullname = "" ; hashname = "" ;
-             context = None ; proof = None ;
+             context = None ; proof = None ; touched = false ;
            }
         ) nodes in
     let Goal g = goal in
@@ -175,7 +195,7 @@ let apply =
     Fun.protect ~finally:(fun () -> Timer.stop timer)
       (fun () -> apply env tactic ?allow_no_effect goal)
 
-let commit (Goal g) crc = g.proof <- Some crc
+let commit (Goal g) crc = g.proof <- Some crc ; g.touched <- false ; touch g.parent
 
 (* -------------------------------------------------------------------------- *)
 (* ---  Context                                                           --- *)
