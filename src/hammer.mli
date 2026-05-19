@@ -64,6 +64,8 @@ val pp_node : Format.formatter -> node -> unit
 val pp_state : Format.formatter -> state -> unit
 val pp_result : Format.formatter -> result -> unit
 
+(** Base time period for Hammer. *)
+val period : hammer -> float
 
 (** Creates a root node for some goal to be proved. *)
 val prove : hammer ->

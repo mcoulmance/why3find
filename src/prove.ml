@@ -221,7 +221,8 @@ let prove_goal ~hammer ~force buffer theory gname goal hint =
   let result = Fibers.var () in
   let callback = Fibers.set result in
   let _root = Hammer.prove hammer ~callback goal hint in
-  let+ crc = Crc.update ~hint @+ result in
+  let period = Hammer.period hammer in
+  let+ crc = Crc.update ~period ~hint @+ result in
   Option.iter (Proofs.add theory goal crc) buffer;
   if Utils.tty then merge_stats hint crc ;
   if not (Crc.is_complete crc) then

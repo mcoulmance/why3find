@@ -59,7 +59,7 @@ val pp_right : int -> Format.formatter -> string -> unit
 
 val to_string : (Format.formatter -> 'a -> unit) -> 'a -> string
 
-val scale : ?t0:float -> float -> float
+val scale : ?period:float -> ?epsilon:float -> float -> float
 val round : float -> float
 
 val show_progress_opt : string * Arg.spec * string

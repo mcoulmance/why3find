@@ -464,14 +464,15 @@ let hammer =
 (* --- Node Processing                                                    --- *)
 (* -------------------------------------------------------------------------- *)
 
+let period (h : hammer) = h.env.config.time
+
 let try_prover p v t : strategy = fun n ->
   match Prover.find n.hammer.provers ~name:p ?version:v () with
   | None -> notfound ()
   | Some p ->
-    let base = n.hammer.env.config.time in
-    (* Takes into account the current strategy and possible fluctuations *)
-    let time = min (max base (t +. 0.5)) (2.0 *. base) in
-    let+ verdict = prover time p n in
+    let period = period n.hammer in
+    let t = Utils.scale ~period t in
+    let+ verdict = prover t p n in
     match verdict with
     | Unknown -> NotFound
     | Killed -> Interrupted
