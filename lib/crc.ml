@@ -221,16 +221,14 @@ let rec of_json (js : Json.t) : crc =
 (* --- Merging                                                            --- *)
 (* -------------------------------------------------------------------------- *)
 
-let window t0 t1 =
-  let w0 = max t0 0.01 in
-  let w1 = max t1 0.01 in
-  w0 *. 0.5 < w1 && w1 < w0 *. 2.0
+let equivalent ~period t0 t1 =
+  Utils.scale ~period t0 = Utils.scale ~period t1
 
-let update ?(complete=true) ~hint result =
+let update ?(complete=true) ?(period=1.0) ?(hint=Stuck) result =
   let rec merge h r =
     match h, r with
     | Prover(p0,v0,t0), Prover(p1,v1,t1)
-      when p0 = p1 && v0 = v1 && window t0 t1 -> h
+      when p0 = p1 && v0 = v1 && equivalent ~period t0 t1 -> h
     | Tactic { id = f ; children = hs } ,
       Tactic { id = g ; children = rs }
       when f = g && List.length hs = List.length rs ->

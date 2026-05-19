@@ -16,6 +16,7 @@
 ### Bug Fixes
 
  - Fixed relaxed prover constraints in CRC files (!198)
+ - Improved time stability in proof witnessess (!204)
 
 ### API
 

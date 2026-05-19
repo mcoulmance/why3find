@@ -311,7 +311,7 @@ provers to fail with this fast timeout before entering parallel proving or
 applying strategies. Hence, fast-proof time shall be kept relatively small.
 
 Proof search is pruned after a maximal number of nested levels. The default
-depth is 6 and it can be modified with `-d DEPTH` or configured using `why3find
+depth is 6, and it can be modified with `-d DEPTH` or configured using `why3find
 config -d DEPTH`. It is also possible to interrupt the proof search strategy at
 a given step by using option `-H LEVEL`. For instance, using `-H 2` will run
 steps 1 and 2 of the proof strategy when looking for new goals, but not steps 3
@@ -381,7 +381,7 @@ times into reference times _wrt_ to the master machine or _vice et versa_. The
     $ why3find config --master       # Calibrate provers on the master machine
     $ why3find config --velocity     # Evaluate velocity of provers on a local machine
 
-It is highly recommended to update all proofs on the *master* machine with
+It is highly recommended updating all proofs on the *master* machine with
 `why3find prove -f` after modifying the proof calibration. Usually, you
 calibrate provers once at the very beginning of the project.
 

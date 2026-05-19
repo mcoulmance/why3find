@@ -63,7 +63,7 @@ val pp_proof : Format.formatter -> crc -> unit
 val pp_proofs : Format.formatter -> crc list -> unit
 
 val dump : Format.formatter -> crc -> unit
-val update : ?complete:bool -> hint:crc -> crc -> crc
+val update : ?complete:bool -> ?period:float -> ?hint:crc -> crc -> crc
 
 val of_json : Json.t -> crc
 val to_json : crc -> Json.t
