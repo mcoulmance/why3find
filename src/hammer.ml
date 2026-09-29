@@ -259,11 +259,11 @@ let pp_verdict fmt = function
   | Killed -> Format.pp_print_string fmt "Killed"
 [@@warning "-32"] (* debug printer *)
 
-let merge u v = (* TODO STEPS *)
+let merge u v =
   match u, v with
   | Unknown , w | w , Unknown -> w
   | Killed , w | w , Killed -> w
-  | Valid(_,t, _) , Valid(_,t', _) -> if t <= t' then u else v
+  | Valid(_, _, s) , Valid(_, _, s') -> if s <= s' then u else v
 
 let prover ?cancel timeout prv = fun n ->
   let h = n.hammer in

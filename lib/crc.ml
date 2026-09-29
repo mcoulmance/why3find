@@ -190,11 +190,11 @@ let pp_hints fmt = function
 let rec to_json (a : crc) : Json.t =
   match a with
   | Stuck -> `Null
-  | Prover(p,None,t,s) ->
-      `Assoc [ "prover", `String p ; "time", `Float t; "steps", `Int s]
-  | Prover(p,Some v,t, s) ->
+  | Prover(p,None,_,s) ->
+      `Assoc [ "prover", `String p ; "steps", `Int s]
+  | Prover(p,Some v,_, s) ->
     let pv = Printf.sprintf "%s@%s" p v in
-    `Assoc [ "prover", `String pv ; "time", `Float t; "steps", `Int s]
+    `Assoc [ "prover", `String pv ; "steps", `Int s]
   | Tactic { id ; children } ->
     `Assoc [
       "tactic", `String id;
@@ -206,10 +206,9 @@ let rec of_json (js : Json.t) : crc =
     match js with
     | `Assoc fds when List.mem_assoc "prover" fds ->
       let p = List.assoc "prover" fds |> Json.jstring in
-      let t = List.assoc "time" fds |> Json.jfloat in
       let s = List.assoc "steps" fds |> Json.jint in
       let p,v = Prover.pattern_of_string p in
-      Prover(p,v,t,s)
+      Prover(p,v,0.0,s)
     | `Assoc fds when List.mem_assoc "tactic" fds ->
       let tr = List.assoc "tactic" fds |> Json.jstring in
       let xs = List.assoc "children" fds |> Json.jlist in
@@ -226,18 +225,15 @@ let rec of_json (js : Json.t) : crc =
 (* --- Merging                                                            --- *)
 (* -------------------------------------------------------------------------- *)
 
-let equivalent ~period t0 t1 =
-  Utils.scale ~period t0 = Utils.scale ~period t1
+let equivalent ~scale s1 s2 =
+  let s2 = (float s2) +. ((float s2) *. scale) in
+  (float s1) <= s2
 
-let equivalent_s ~factor s0 s1 = 
-  let _ = (factor, s0, s1) in
-  failwith "todo lib/crc.ml 229"
-
-let update ?(complete=true) ?(period=1.0) ?(factor=1) ?(hint=Stuck) result =
+let update ?(complete=true) ?(scale=0.1) ?(hint=Stuck) result =
   let rec merge h r =
     match h, r with
-    | Prover(p0,v0,t0,s0), Prover(p1,v1,t1,s1)
-      when p0 = p1 && v0 = v1 && equivalent_s ~factor s0 s1 && equivalent ~period t0 t1 -> h
+    | Prover(p0,v0,_,s0), Prover(p1,v1,_,s1)
+      when p0 = p1 && v0 = v1 && equivalent ~scale s0 s1 -> h
     | Tactic { id = f ; children = hs } ,
       Tactic { id = g ; children = rs }
       when f = g && List.length hs = List.length rs ->
