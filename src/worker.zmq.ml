@@ -89,7 +89,7 @@ let send_result worker goal (alpha,result) =
   let status,time = match result with
     | Result.NoResult -> "NoResult",0.0
     | Result.Failed -> "Failed",0.0
-    | Result.Valid t -> "Valid",t
+    | Result.Valid (t, _) -> "Valid",t
     | Result.Unknown t -> "Unknown",t
     | Result.Timeout t -> "Timeout",t
   in

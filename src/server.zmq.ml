@@ -262,7 +262,7 @@ let do_get server id goal timeout =
     match task.cached with
     | NoResult | Failed -> None
     | Unknown t -> Some ("Unknown",t)
-    | Valid t -> if t <= timeout then Some ("Valid",t) else None
+    | Valid (t, _) -> if t <= timeout then Some ("Valid",t) else None
     | Timeout t -> if timeout <= t then Some ("Timeout",t) else None
   in
   begin
@@ -307,7 +307,7 @@ let do_result server id goal status time =
   w.busy <- max 0 (pred w.busy) ;
   let result =
     match status with
-    | "Valid" -> Result.Valid time
+    | "Valid" -> Result.Valid (time, -1)
     | "Unknown" -> Result.Unknown time
     | "Timeout" -> Result.Timeout time
     | _ -> Result.NoResult

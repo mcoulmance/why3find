@@ -177,7 +177,7 @@ let do_result client goal status time =
   let result =
     match status with
     | "NoResult" -> Result.NoResult
-    | "Valid" -> Result.Valid time
+    | "Valid" -> Result.Valid (time, -1)
     | "Unknown" -> Result.Unknown time
     | "Timeout" -> Result.Timeout time
     | _ -> Result.Failed
