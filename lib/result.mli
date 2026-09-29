@@ -7,7 +7,7 @@
 (**************************************************************************)
 
 type t =
-  | NoResult | Failed | Unknown of float | Timeout of float | Valid of float
+  | NoResult | Failed | Unknown of float | Timeout of float | Valid of float * int
 
 val map : (float -> float) -> t -> t
 val merge : t -> t -> t

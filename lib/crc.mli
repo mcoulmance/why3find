@@ -12,7 +12,7 @@
 
 type crc = private
   | Stuck
-  | Prover of string * string option * float
+  | Prover of string * string option * float * int
   | Tactic of {
       id : string ;
       children : crc list ;
@@ -23,7 +23,7 @@ type crc = private
     }
 
 val stuck : crc
-val prover : Prover.prover -> float -> crc
+val prover : Prover.prover -> float -> int -> crc
 val tactic : Tactic.tactic -> crc list -> crc
 
 type verdict = [ `Valid of int | `Failed of int | `Partial of int * int ]
@@ -36,6 +36,7 @@ val get_stuck :  crc -> int
 val get_proved : crc -> int
 val get_time :   crc -> float
 val get_depth :  crc -> int
+val get_steps :  crc -> int
 val size :       crc -> int
 
 val get_stuck_all :  crc list -> int
@@ -63,7 +64,7 @@ val pp_proof : Format.formatter -> crc -> unit
 val pp_proofs : Format.formatter -> crc list -> unit
 
 val dump : Format.formatter -> crc -> unit
-val update : ?complete:bool -> ?period:float -> ?hint:crc -> crc -> crc
+val update : ?complete:bool -> ?period:float -> ?factor:int -> ?hint:crc -> crc -> crc
 
 val of_json : Json.t -> crc
 val to_json : crc -> Json.t

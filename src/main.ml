@@ -16,7 +16,7 @@ let () = Worker.register ()
 
 let version () : unit =
   begin
-    Format.printf "why3find v%s@." Version.version ;
+    Format.printf "why3find TOTOTITITATA v%s@." Version.version ;
     exit 0
   end
 

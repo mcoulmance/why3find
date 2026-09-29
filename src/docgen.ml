@@ -252,10 +252,10 @@ let rec child n fmt crc =
   match crc with
   | Crc.Stuck ->
     Format.fprintf fmt "stuck<span class=\"%s\"></span>" icon_failed
-  | Crc.Prover(p,None,t) ->
+  | Crc.Prover(p,None,t,_) ->
     Format.fprintf fmt "<span class=\"prover\" title=\"%s\">%s</span> %a"
       p p Utils.pp_time t
-  | Crc.Prover(p,Some v,t) ->
+  | Crc.Prover(p,Some v,t,_) ->
     Format.fprintf fmt "<span class=\"prover\" title=\"%s@%s\">%s</span> %a"
       p v p Utils.pp_time t
   | Crc.Tactic { id ; children ; stuck ; proved } ->

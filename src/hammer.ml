@@ -250,20 +250,20 @@ let rec sequence (f : 'a -> strategy) (xs : 'a list) : strategy =
 (* --- Try Prover on Node                                                 --- *)
 (* -------------------------------------------------------------------------- *)
 
-type verdict = Valid of Prover.prover * float | Unknown | Killed
+type verdict = Valid of Prover.prover * float * int | Unknown | Killed
 
 let pp_verdict fmt = function
-  | Valid(p,t) ->
-    Format.fprintf fmt "Valid %a %a" Prover.pp_prover p Utils.pp_time t
+  | Valid(p,t, s) ->
+    Format.fprintf fmt "Valid %a %a %d" Prover.pp_prover p Utils.pp_time t s
   | Unknown -> Format.pp_print_string fmt "Unknown"
   | Killed -> Format.pp_print_string fmt "Killed"
 [@@warning "-32"] (* debug printer *)
 
-let merge u v =
+let merge u v = (* TODO STEPS *)
   match u, v with
   | Unknown , w | w , Unknown -> w
   | Killed , w | w , Killed -> w
-  | Valid(_,t) , Valid(_,t') -> if t <= t' then u else v
+  | Valid(_,t, _) , Valid(_,t', _) -> if t <= t' then u else v
 
 let prover ?cancel timeout prv = fun n ->
   let h = n.hammer in
@@ -310,7 +310,7 @@ let prover ?cancel timeout prv = fun n ->
             | None -> ()
           in Fibers.monitor ~signal ~handler runner
   in match verdict with
-  | Valid t when t <= timeout -> Valid(prv,Utils.round t)
+  | Valid (t, s) when t <= timeout -> Valid(prv,Utils.round t, s)
   | _ -> if !killed then Killed else Unknown
 
 type result = Local of Result.t | Profile of Result.t
@@ -418,7 +418,7 @@ let hammer0 : strategy = fun n ->
       match verdict with
       | Killed -> Interrupted
       | Unknown -> NotFound
-      | Valid(p,t) -> q_close n @@ Crc.prover p t ; Resolved
+      | Valid(p,t,s) -> q_close n @@ Crc.prover p t s ; Resolved
     in sequence hprove h.provers n
   else notfound ()
 
@@ -436,8 +436,8 @@ let hammer13 minlevel timefactor n =
     match List.fold_left merge Unknown verdicts with
     | Unknown -> NotFound
     | Killed -> Interrupted
-    | Valid(p,t) ->
-      let crc = Crc.prover p t in
+    | Valid(p,t, s) ->
+      let crc = Crc.prover p t s in
       q_close n crc ; Resolved
 
 let hammer1 : strategy = hammer13 1 1.0
@@ -476,8 +476,8 @@ let try_prover p v t : strategy = fun n ->
     match verdict with
     | Unknown -> NotFound
     | Killed -> Interrupted
-    | Valid(p,t) ->
-      let crc = Crc.prover p t in
+    | Valid(p,t, s) ->
+      let crc = Crc.prover p t s in
       q_close n crc ; Resolved
 
 let replay_prover p v t = try_prover p v t >>> notfound
@@ -513,7 +513,7 @@ let execute n =
   try
     match n.hint with
     | Stuck -> explore n
-    | Prover(p,v,t) ->
+    | Prover(p,v,t, _) ->
       if n.hammer.replay then
         replay_prover p v t n
       else

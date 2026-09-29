@@ -108,7 +108,7 @@ let rec seqlookup ~progress q prv rg best =
     in
     let* result = Runner.prove q.wmain q.cache ?name prv (generate n) q.time_out in
     match result with
-    | Valid t ->
+    | Valid (t, _) ->
       let best = choose q.time best (Some (n,t)) in
       if t < q.time_lo then seqlookup ~progress q prv (upper n rg) best else
       if q.time_up < t then seqlookup ~progress q prv (lower n rg) best else
@@ -155,7 +155,7 @@ let ptry c ~cancel ?(upper=[]) ?(lower=[]) n =
     let q = c.qenv in
     let+ r = Runner.prove q.wmain q.cache ?name ~cancel prv (generate n) q.time_out in
     match r with
-    | Valid t ->
+    | Valid (t, _) ->
       c.best <- choose q.time c.best (Some (n,t)) ;
       if t < q.time_lo then (fire lower ; c.inf <- max c.inf n ; false) else
       if q.time_up < t then (fire upper ; c.sup <- min c.sup n ; false) else
@@ -290,7 +290,7 @@ let alpha wmain cache prv ~size ~time : float Fibers.t =
       ~name:(name prv)
       prv (generate size) timeout in
   match result with
-  | Valid t -> t /. time
+  | Valid (t, _) -> t /. time
   | _ ->
     Log.error "can not calibrate prover %a (N=%d, %a)"
       Prover.pp_prover prv size Result.pp_result result ;

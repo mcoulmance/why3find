@@ -134,7 +134,7 @@ let notify wmain prover (result: Result.t) (cb: callback) =
   let limits = limits wmain in
   match result with
   | NoResult -> ()
-  | Valid t -> fire cb prover (limits t) (pr ~s:0 ~t Valid)
+  | Valid (t, _) -> fire cb prover (limits t) (pr ~s:0 ~t Valid)
   | Timeout t -> fire cb prover (limits t) (pr ~s:1 ~t Timeout)
   | Unknown t -> fire cb prover (limits t) (pr ~s:1 ~t (Unknown "why3find"))
   | Failed -> fire cb prover (limits 1.0) (pr ~s:2 (Failure "why3find"))
@@ -257,7 +257,7 @@ let call_prover (config : Why3.Whyconf.main)
   Timer.start launch_proof_timer;
   let call =
     WRunner.prove_task ~config ~limits prover.driver prepared
-      ~command:(Whyconf.get_complete_command prover.config ~with_steps:false)
+      ~command:(Whyconf.get_complete_command prover.config ~with_steps:true)
   in
   Timer.stop launch_proof_timer;
   let kill () =
@@ -318,8 +318,8 @@ let call_prover (config : Why3.Whyconf.main)
     | ProverFinished pr ->
       let result, precise =
         match pr.pr_answer with
-        | Valid ->
-          Result.Valid pr.pr_time, true
+        | Valid -> 
+          Result.Valid (pr.pr_time, pr.pr_steps), true
         | Timeout ->
           Result.Timeout timeout, false
         | Invalid | Unknown _ | OutOfMemory | StepLimitExceeded ->

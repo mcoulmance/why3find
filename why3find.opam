@@ -47,3 +47,7 @@ build: [
   ["dune" "install" "-p" name "--create-install-files" name]
 ]
 dev-repo: "git+https://git.frama-c.com/pub/why3find.git"
+pin-depends: [
+  [ "why3.git-05bf4ddf" "git+https://gitlab.inria.fr/why3/why3.git#05bf4ddf55cb3042f34c3bc0ed3aff56a226978a" ]
+  [ "why3-ide.git-05bf4ddf" "git+https://gitlab.inria.fr/why3/why3.git#05bf4ddf55cb3042f34c3bc0ed3aff56a226978a" ]
+]

@@ -518,8 +518,8 @@ let () = register ~name:"config" ~args:"[OPTIONS] PROVERS"
           let rec check_crc = function
             | Crc.Stuck -> ()
             | Tactic { children; _ } -> List.iter check_crc children
-            | Prover(name,version,_) ->
-              if Prover.find provers ~name ?version () = None then retval := 1 ;
+            | Prover(name,version,_, _) ->
+              if Prover.find provers ~name ?version () = None then retval := 1 ; 
           in
           let check f =
             let iter = Why3.Wstdlib.Mstr.iter in
