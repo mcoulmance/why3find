@@ -225,15 +225,16 @@ let rec of_json (js : Json.t) : crc =
 (* --- Merging                                                            --- *)
 (* -------------------------------------------------------------------------- *)
 
-let equivalent ~scale s1 s2 =
-  let s2 = (float s2) +. ((float s2) *. scale) in
-  (float s1) <= s2
+(*let equivalent ~scale s1 s2 =
+   let s2 = (float s2) +. ((float s2) *. scale) in
+  (float s1) <= s2 *)
 
 let update ?(complete=true) ?(scale=0.1) ?(hint=Stuck) result =
+  let _ = scale in
   let rec merge h r =
     match h, r with
-    | Prover(p0,v0,_,s0), Prover(p1,v1,_,s1)
-      when p0 = p1 && v0 = v1 && equivalent ~scale s0 s1 -> h
+    | Prover(p0,v0,_,_s0), Prover(p1,v1,_,_s1)
+      when p0 = p1 && v0 = v1 (* && equivalent ~scale s0 s1 *) -> h
     | Tactic { id = f ; children = hs } ,
       Tactic { id = g ; children = rs }
       when f = g && List.length hs = List.length rs ->
